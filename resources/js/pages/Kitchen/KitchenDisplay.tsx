@@ -34,6 +34,10 @@ interface Props {
     initialOrders: Order[];
 }
 
+function sortOrdersFifo(list: Order[]): Order[] {
+    return [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
 const STATUS_CONFIG = {
     pending: { label: 'New Orders', color: '#F59E0B', glow: 'rgba(245,158,11,0.3)', bg: '#1C1917', border: '#F59E0B' },
     preparing: { label: 'Preparing', color: '#3B82F6', glow: 'rgba(59,130,246,0.3)', bg: '#1C1917', border: '#3B82F6' },
@@ -58,7 +62,15 @@ function useElapsedTime(createdAt: string): string {
     return elapsed;
 }
 
-function OrderCard({ order, onUpdateStatus }: { order: Order; onUpdateStatus: (id: number, status: string) => void }) {
+function OrderCard({
+    order,
+    updating,
+    onUpdateStatus,
+}: {
+    order: Order;
+    updating: boolean;
+    onUpdateStatus: (id: number, status: string) => void;
+}) {
     const elapsed = useElapsedTime(order.created_at);
     const config = STATUS_CONFIG[order.status as keyof typeof STATUS_CONFIG];
 
@@ -119,19 +131,28 @@ function OrderCard({ order, onUpdateStatus }: { order: Order; onUpdateStatus: (i
             {/* Action Button */}
             {order.status !== 'completed' && order.status !== 'cancelled' && (
                 <button
-                    onClick={() => onUpdateStatus(order.id, nextStatus)}
-                    className="mt-3 w-full rounded-xl py-2.5 text-sm font-bold transition-all hover:opacity-90"
-                    style={{ background: config.color, color: '#111827' }}
+                    onClick={() => !updating && onUpdateStatus(order.id, nextStatus)}
+                    disabled={updating}
+                    className="mt-3 w-full rounded-xl py-2.5 text-sm font-bold transition-all"
+                    style={{
+                        background: updating ? 'rgba(255,255,255,0.1)' : config.color,
+                        color: updating ? '#6B7280' : '#111827',
+                        cursor: updating ? 'not-allowed' : 'pointer',
+                    }}
                 >
-                    {nextLabel}
+                    {updating ? '...' : nextLabel}
                 </button>
             )}
         </motion.div>
     );
 }
 
+const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+const socketId = () => window.Echo?.socketId() ?? '';
+
 export default function KitchenDisplay({ initialOrders }: Props) {
-    const [orders, setOrders] = useState<Order[]>(initialOrders);
+    const [orders, setOrders] = useState<Order[]>(() => sortOrdersFifo(initialOrders));
+    const [updatingIds, setUpdatingIds] = useState<Set<number>>(new Set());
     const [soundEnabled, setSoundEnabled] = useState(true);
     const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -176,14 +197,20 @@ export default function KitchenDisplay({ initialOrders }: Props) {
         window.Echo.channel('kitchen')
             .listen('.order.placed', (e: { order: Order }) => {
                 playChime('new');
-                setOrders((prev) => [e.order, ...prev]);
+                setOrders((prev) => {
+                    if (prev.some((o) => o.id === e.order.id)) {
+                        return prev;
+                    }
+
+                    return sortOrdersFifo([...prev, e.order]);
+                });
             })
             .listen('.status.updated', (e: { order: Order }) => {
                 if (e.order.status === 'ready') playChime('ready');
                 if (e.order.status === 'completed' || e.order.status === 'cancelled') {
                     setOrders((prev) => prev.filter((o) => o.id !== e.order.id));
                 } else {
-                    setOrders((prev) => prev.map((o) => (o.id === e.order.id ? e.order : o)));
+                    setOrders((prev) => sortOrdersFifo(prev.map((o) => (o.id === e.order.id ? e.order : o))));
                 }
             });
 
@@ -193,30 +220,46 @@ export default function KitchenDisplay({ initialOrders }: Props) {
     }, [playChime]);
 
     async function handleUpdateStatus(orderId: number, status: string) {
+        setUpdatingIds((prev) => new Set(prev).add(orderId));
+
         try {
-            const response = await fetch(kitchenOrdersUpdateStatus(orderId), {
+            const res = await fetch(kitchenOrdersUpdateStatus(orderId), {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken(),
+                    'X-Socket-ID': socketId(),
                 },
                 body: JSON.stringify({ status }),
             });
-            if (!response.ok) throw new Error('Failed');
-            const data = await response.json();
+
+            if (!res.ok) {
+                console.error('Kitchen: status update failed', res.status);
+                return;
+            }
+
+            const data: { order?: Order } = await res.json().catch(() => ({}));
+
             if (status === 'completed' || status === 'cancelled') {
                 setOrders((prev) => prev.filter((o) => o.id !== orderId));
-            } else {
-                setOrders((prev) => prev.map((o) => (o.id === orderId ? data.order : o)));
+            } else if (data.order) {
+                setOrders((prev) => sortOrdersFifo(prev.map((o) => (o.id === orderId ? data.order! : o))));
             }
-        } catch {
-            console.error('Failed to update order status');
+        } catch (err) {
+            console.error('Kitchen: status update error', err);
+        } finally {
+            setUpdatingIds((prev) => {
+                const next = new Set(prev);
+                next.delete(orderId);
+                return next;
+            });
         }
     }
 
-    const pendingOrders = orders.filter((o) => o.status === 'pending');
-    const preparingOrders = orders.filter((o) => o.status === 'preparing');
-    const readyOrders = orders.filter((o) => o.status === 'ready');
+    const pendingOrders = sortOrdersFifo(orders.filter((o) => o.status === 'pending'));
+    const preparingOrders = sortOrdersFifo(orders.filter((o) => o.status === 'preparing'));
+    const readyOrders = sortOrdersFifo(orders.filter((o) => o.status === 'ready'));
 
     return (
         <div className="h-screen overflow-hidden" style={{ background: '#111111', fontFamily: "'DM Sans', sans-serif" }}>
@@ -282,7 +325,12 @@ export default function KitchenDisplay({ initialOrders }: Props) {
                             <div className="flex-1 overflow-y-auto p-3 space-y-3">
                                 <AnimatePresence mode="popLayout">
                                     {columnOrders.map((order) => (
-                                        <OrderCard key={order.id} order={order} onUpdateStatus={handleUpdateStatus} />
+                                        <OrderCard
+                                            key={order.id}
+                                            order={order}
+                                            updating={updatingIds.has(order.id)}
+                                            onUpdateStatus={handleUpdateStatus}
+                                        />
                                     ))}
                                 </AnimatePresence>
                                 {columnOrders.length === 0 && (

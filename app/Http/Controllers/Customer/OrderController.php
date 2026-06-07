@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -68,7 +69,7 @@ class OrderController extends Controller
                 $variationId = $itemData['variation_id'] ?? null;
 
                 if ($menuItem->hasVariations() && ! $variationId) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
+                    throw ValidationException::withMessages([
                         'items' => ['Please select a size for '.$menuItem->name.'.'],
                     ]);
                 }
@@ -79,7 +80,7 @@ class OrderController extends Controller
                         ->exists();
 
                     if (! $belongsToItem) {
-                        throw \Illuminate\Validation\ValidationException::withMessages([
+                        throw ValidationException::withMessages([
                             'items' => ['Invalid size selected for '.$menuItem->name.'.'],
                         ]);
                     }
@@ -126,7 +127,9 @@ class OrderController extends Controller
             return $order;
         });
 
-        broadcast(new OrderPlaced($order))->toOthers();
+        broadcast(new OrderPlaced(
+            $order->fresh()->load(['table', 'items.menuItem', 'items.addons.addon'])
+        ))->toOthers();
 
         return response()->json([
             'order' => (new OrderResource($order->load(['table', 'items.menuItem', 'items.addons.addon'])))->resolve(),

@@ -8,13 +8,15 @@ declare global {
     }
 }
 
-window.Pusher = Pusher;
+if (typeof window !== 'undefined') {
+    window.Pusher = Pusher;
 
-window.Echo = new Echo({
-    broadcaster: 'pusher',
-    key: import.meta.env.VITE_PUSHER_APP_KEY,
-    cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER,
-    forceTLS: true,
-});
+    window.Echo = new Echo({
+        broadcaster: 'pusher',
+        key: import.meta.env.VITE_PUSHER_APP_KEY,
+        cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER,
+        forceTLS: true,
+    });
+}
 
-export default window.Echo;
+export default typeof window !== 'undefined' ? window.Echo : null;
