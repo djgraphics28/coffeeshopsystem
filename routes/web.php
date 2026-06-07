@@ -12,6 +12,7 @@ use App\Http\Controllers\Customer\OrderController as CustomerOrderController;
 use App\Http\Controllers\Customer\StorefrontController;
 use App\Http\Controllers\Kitchen\KitchenController;
 use App\Http\Controllers\POS\PosController;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login')->name('home');
@@ -58,6 +59,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('settings', [SettingsController::class, 'index'])->name('settings');
         Route::put('settings', [SettingsController::class, 'update'])->name('settings.update');
     });
+});
+
+Route::get('/run-queue', function () {
+    Artisan::call('queue:work --once');
+    return 'Queue triggered';
 });
 
 require __DIR__.'/settings.php';
