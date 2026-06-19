@@ -139,23 +139,11 @@ export default function CustomersIndex({ customers, stats }: Props) {
                                         </div>
                                     </td>
                                     {/* Contact */}
-                                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                    <td className="px-4 py-3">
                                         <div className="flex items-center gap-1.5">
                                             <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>{customer.email ?? '—'}</p>
-                                            {customer.email && (
-                                                customer.email_verified_at ? (
-                                                    <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-green-500" title="Email verified" />
-                                                ) : (
-                                                    <button
-                                                        onClick={() => { if (confirm(`Manually verify ${customer.name}'s email?`)) router.post(adminCustomersVerifyEmail(customer.id)); }}
-                                                        title="Email not verified — click to verify"
-                                                        className="flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-medium transition-colors hover:bg-amber-100"
-                                                        style={{ color: '#D97706' }}
-                                                    >
-                                                        <ShieldAlert className="h-3 w-3" />
-                                                        Verify
-                                                    </button>
-                                                )
+                                            {customer.email && customer.email_verified_at && (
+                                                <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-green-500" title="Email verified" />
                                             )}
                                         </div>
                                         <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>{customer.phone ?? ''}</p>
@@ -197,21 +185,34 @@ export default function CustomersIndex({ customers, stats }: Props) {
                                     </td>
                                     {/* Actions */}
                                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={(e) => openEdit(e, customer)} className="rounded-lg p-1.5 hover:bg-gray-100">
-                                                <Edit2 className="h-3.5 w-3.5" style={{ color: 'var(--ap-muted)' }} />
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    if (confirm(`Delete ${customer.name}?`)) {
-                                                        fetch(adminCustomersDestroy(customer.id), { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrf() } })
-                                                            .then(() => window.location.reload());
-                                                    }
-                                                }}
-                                                className="rounded-lg p-1.5 hover:bg-red-50"
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5 text-red-400" />
-                                            </button>
+                                        <div className="flex items-center gap-1">
+                                            {customer.email && !customer.email_verified_at && (
+                                                <button
+                                                    onClick={() => { if (confirm(`Manually verify ${customer.name}'s email?`)) router.post(adminCustomersVerifyEmail(customer.id)); }}
+                                                    title="Verify email"
+                                                    className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors hover:bg-amber-50"
+                                                    style={{ color: '#D97706', border: '1px solid #FDE68A' }}
+                                                >
+                                                    <BadgeCheck className="h-3.5 w-3.5" />
+                                                    Verify Email
+                                                </button>
+                                            )}
+                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={(e) => openEdit(e, customer)} className="rounded-lg p-1.5 hover:bg-gray-100">
+                                                    <Edit2 className="h-3.5 w-3.5" style={{ color: 'var(--ap-muted)' }} />
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        if (confirm(`Delete ${customer.name}?`)) {
+                                                            fetch(adminCustomersDestroy(customer.id), { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrf() } })
+                                                                .then(() => window.location.reload());
+                                                        }
+                                                    }}
+                                                    className="rounded-lg p-1.5 hover:bg-red-50"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                                                </button>
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>
