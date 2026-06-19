@@ -66,6 +66,7 @@ export const adminCustomersStore = () => `/admin/customers`;
 export const adminCustomersUpdate = (id: number) => `/admin/customers/${id}`;
 export const adminCustomersDestroy = (id: number) => `/admin/customers/${id}`;
 export const adminCustomersAdjustLoyalty = (id: number) => `/admin/customers/${id}/adjust-loyalty`;
+export const adminCustomersVerifyEmail = (id: number) => `/admin/customers/${id}/verify-email`;
 
 export const posCustomersSearch = () => `/pos/customers/search`;
 export const posCustomersStore = () => `/pos/customers`;

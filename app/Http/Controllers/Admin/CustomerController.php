@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\Setting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -130,6 +131,19 @@ class CustomerController extends Controller
         ]);
 
         return redirect()->back()->with('success', 'Loyalty data updated.');
+    }
+
+    public function verifyEmail(Customer $customer): RedirectResponse
+    {
+        Gate::authorize('manage customers');
+
+        if ($customer->hasVerifiedEmail()) {
+            return redirect()->back()->with('info', 'Email is already verified.');
+        }
+
+        $customer->markEmailAsVerified();
+
+        return redirect()->back()->with('success', "{$customer->name}'s email has been verified.");
     }
 
     public function destroy(Customer $customer): RedirectResponse

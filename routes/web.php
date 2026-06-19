@@ -87,6 +87,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('tables/{table}/regenerate-qr', [TableController::class, 'regenerateQr'])->name('tables.regenerate-qr');
         Route::resource('customers', CustomerController::class)->except(['edit', 'create']);
         Route::put('customers/{customer}/adjust-loyalty', [CustomerController::class, 'adjustLoyalty'])->name('customers.adjust-loyalty');
+        Route::post('customers/{customer}/verify-email', [CustomerController::class, 'verifyEmail'])->name('customers.verify-email');
         Route::resource('promos', AdminPromoController::class)->except(['show', 'edit', 'create']);
         Route::resource('users', UserController::class)->except(['show', 'edit', 'create']);
         Route::resource('roles', RoleController::class)->except(['show', 'edit', 'create']);

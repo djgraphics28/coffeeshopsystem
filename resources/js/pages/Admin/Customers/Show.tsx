@@ -1,14 +1,15 @@
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import {
     adminCustomersAdjustLoyalty,
     adminCustomersIndex,
     adminCustomersUpdate,
+    adminCustomersVerifyEmail,
     adminOrdersShow,
 } from '@/lib/routes';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-    ArrowLeft, Calendar, ChevronDown, ChevronUp, Coffee,
-    Edit2, Gift, ReceiptText, ShoppingBag, Sliders, Star, X,
+    ArrowLeft, BadgeCheck, Calendar, ChevronDown, ChevronUp, Coffee,
+    Edit2, Gift, ReceiptText, ShieldAlert, ShoppingBag, Sliders, Star, X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -19,6 +20,7 @@ interface Customer {
     name: string;
     phone: string | null;
     email: string | null;
+    email_verified_at: string | null;
     notes: string | null;
     points: number;
     cup_count: number;
@@ -242,7 +244,32 @@ export default function CustomerShow({ customer, orders, summary, settings }: Pr
                     <div className="rounded-2xl bg-white p-5 shadow-sm" style={{ border: '1px solid var(--ap-border)' }}>
                         <p className="mb-3 text-sm font-semibold" style={{ color: 'var(--ap-input-text)' }}>Profile</p>
                         <div className="grid grid-cols-1 gap-3 lg:grid-cols-3 text-sm">
-                            {customer.email && <div><p className="text-xs font-medium" style={{ color: 'var(--ap-muted)' }}>Email</p><p style={{ color: 'var(--ap-input-text)' }}>{customer.email}</p></div>}
+                            {customer.email && (
+                                <div>
+                                    <p className="text-xs font-medium" style={{ color: 'var(--ap-muted)' }}>Email</p>
+                                    <p style={{ color: 'var(--ap-input-text)' }}>{customer.email}</p>
+                                    <div className="mt-1">
+                                        {customer.email_verified_at ? (
+                                            <span className="flex items-center gap-1 text-xs font-medium text-green-600">
+                                                <BadgeCheck className="h-3.5 w-3.5" /> Verified
+                                            </span>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#D97706' }}>
+                                                    <ShieldAlert className="h-3.5 w-3.5" /> Not verified
+                                                </span>
+                                                <button
+                                                    onClick={() => { if (confirm(`Manually verify ${customer.name}'s email?`)) router.post(adminCustomersVerifyEmail(customer.id)); }}
+                                                    className="rounded-lg px-2 py-0.5 text-xs font-semibold transition-colors hover:opacity-80"
+                                                    style={{ background: '#2C1A0E', color: '#D4A843' }}
+                                                >
+                                                    Verify now
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                             {customer.phone && <div><p className="text-xs font-medium" style={{ color: 'var(--ap-muted)' }}>Phone</p><p style={{ color: 'var(--ap-input-text)' }}>{customer.phone}</p></div>}
                             {customer.notes && <div><p className="text-xs font-medium" style={{ color: 'var(--ap-muted)' }}>Notes</p><p style={{ color: 'var(--ap-input-text)' }}>{customer.notes}</p></div>}
                         </div>

@@ -1,7 +1,7 @@
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
-import { adminCustomersDestroy, adminCustomersShow, adminCustomersStore, adminCustomersUpdate } from '@/lib/routes';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { adminCustomersDestroy, adminCustomersShow, adminCustomersStore, adminCustomersUpdate, adminCustomersVerifyEmail } from '@/lib/routes';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Coffee, Edit2, Gift, Plus, Star, Trash2, Users, X } from 'lucide-react';
+import { BadgeCheck, Coffee, Edit2, Gift, Plus, ShieldAlert, Star, Trash2, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import AdminLayout from '@/layouts/admin-layout';
@@ -11,6 +11,7 @@ interface Customer {
     name: string;
     phone: string | null;
     email: string | null;
+    email_verified_at: string | null;
     notes: string | null;
     points: number;
     cup_count: number;
@@ -138,8 +139,25 @@ export default function CustomersIndex({ customers, stats }: Props) {
                                         </div>
                                     </td>
                                     {/* Contact */}
-                                    <td className="px-4 py-3">
-                                        <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>{customer.email ?? '—'}</p>
+                                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>{customer.email ?? '—'}</p>
+                                            {customer.email && (
+                                                customer.email_verified_at ? (
+                                                    <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-green-500" title="Email verified" />
+                                                ) : (
+                                                    <button
+                                                        onClick={() => { if (confirm(`Manually verify ${customer.name}'s email?`)) router.post(adminCustomersVerifyEmail(customer.id)); }}
+                                                        title="Email not verified — click to verify"
+                                                        className="flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-medium transition-colors hover:bg-amber-100"
+                                                        style={{ color: '#D97706' }}
+                                                    >
+                                                        <ShieldAlert className="h-3 w-3" />
+                                                        Verify
+                                                    </button>
+                                                )
+                                            )}
+                                        </div>
                                         <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>{customer.phone ?? ''}</p>
                                     </td>
                                     {/* Orders */}
