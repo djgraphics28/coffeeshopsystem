@@ -14,8 +14,27 @@ class Order extends Model
     /** @use HasFactory<OrderFactory> */
     use HasFactory;
 
+    /** @var list<string> */
+    public const STATUSES = [
+        'pending',
+        'preparing',
+        'ready',
+        'completed',
+        'cancelled',
+        'voided',
+    ];
+
+    /** @var list<string> */
+    public const TERMINAL_STATUSES = [
+        'completed',
+        'cancelled',
+        'voided',
+    ];
+
     protected $fillable = [
         'table_id',
+        'customer_id',
+        'promo_id',
         'order_number',
         'status',
         'type',
@@ -24,7 +43,13 @@ class Order extends Model
         'discount',
         'total',
         'notes',
+        'void_reason',
+        'voided_by',
         'created_by',
+        'points_earned',
+        'points_redeemed',
+        'free_drink_redeemed',
+        'cups_awarded',
     ];
 
     protected $casts = [
@@ -32,6 +57,8 @@ class Order extends Model
         'tax' => 'float',
         'discount' => 'float',
         'total' => 'float',
+        'free_drink_redeemed' => 'boolean',
+        'cups_awarded' => 'integer',
     ];
 
     public function table(): BelongsTo
@@ -39,9 +66,24 @@ class Order extends Model
         return $this->belongsTo(Table::class);
     }
 
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function promo(): BelongsTo
+    {
+        return $this->belongsTo(Promo::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function voidedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'voided_by');
     }
 
     public function items(): HasMany
@@ -61,7 +103,12 @@ class Order extends Model
 
     public function scopeActive($query): void
     {
-        $query->whereNotIn('status', ['completed', 'cancelled']);
+        $query->whereNotIn('status', self::TERMINAL_STATUSES);
+    }
+
+    public function isVoidable(): bool
+    {
+        return ! in_array($this->status, self::TERMINAL_STATUSES, true);
     }
 
     public function scopeToday($query): void

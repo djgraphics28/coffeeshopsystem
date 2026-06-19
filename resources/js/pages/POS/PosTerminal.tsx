@@ -1,7 +1,7 @@
 import { Head } from '@inertiajs/react';
-import { posOrdersPayment, posOrdersStore, posOrdersUpdateStatus } from '@/lib/routes';
+import { posCustomersSearch, posCustomersStore, posOrdersPayment, posOrdersStore, posOrdersUpdateStatus } from '@/lib/routes';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CreditCard, Minus, Moon, Plus, Printer, Search, Sun, X } from 'lucide-react';
+import { CreditCard, LayoutDashboard, Minus, Moon, Plus, Printer, Search, Sun, UserCircle, UserPlus, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppearance } from '@/hooks/use-appearance';
 import toast, { Toaster } from 'react-hot-toast';
@@ -80,11 +80,19 @@ interface Order {
     created_at: string;
 }
 
+interface Customer {
+    id: number;
+    name: string;
+    phone: string | null;
+    email: string | null;
+    notes: string | null;
+}
+
 interface Props {
     categories: Category[];
     tables: TableOption[];
     initialOrders: Order[];
-    settings: { currency: string; tax_rate: number };
+    settings: { currency: string; tax_rate: number; pay_as_you_order: boolean };
 }
 
 export default function PosTerminal({ categories, tables, initialOrders, settings }: Props) {
@@ -107,6 +115,17 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
     const [itemAddons, setItemAddons] = useState<Record<number, number[]>>({});
     const [itemNotes, setItemNotes] = useState('');
 
+    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+    const [customerModalOpen, setCustomerModalOpen] = useState(false);
+    const [customerSearch, setCustomerSearch] = useState('');
+    const [customerResults, setCustomerResults] = useState<Customer[]>([]);
+    const [customerSearching, setCustomerSearching] = useState(false);
+    const [newCustomerName, setNewCustomerName] = useState('');
+    const [newCustomerPhone, setNewCustomerPhone] = useState('');
+    const [newCustomerEmail, setNewCustomerEmail] = useState('');
+    const [customerTab, setCustomerTab] = useState<'search' | 'new'>('search');
+    const [customerSaving, setCustomerSaving] = useState(false);
+
     const [paymentModalOpen, setPaymentModalOpen] = useState(false);
     const [payingOrder, setPayingOrder] = useState<Order | null>(null);
     const [payMethod, setPayMethod] = useState<'cash' | 'card' | 'gcash' | 'maya'>('cash');
@@ -118,6 +137,7 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
 
     const currency = settings.currency;
     const taxRate = settings.tax_rate;
+    const payAsYouOrder = settings.pay_as_you_order;
 
     const allItems = categories.flatMap((c) => c.menu_items);
     const filteredItems = searchQuery ? allItems.filter((i) => i.name.toLowerCase().includes(searchQuery.toLowerCase())) : null;
@@ -135,7 +155,7 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
                 setActiveOrders((prev) => [e.order, ...prev]);
             })
             .listen('.status.updated', (e: { order: Order }) => {
-                if (e.order.status === 'completed' || e.order.status === 'cancelled') {
+                if (e.order.status === 'completed' || e.order.status === 'cancelled' || e.order.status === 'voided') {
                     setActiveOrders((prev) => prev.filter((o) => o.id !== e.order.id));
                 } else {
                     setActiveOrders((prev) => prev.map((o) => (o.id === e.order.id ? e.order : o)));
@@ -194,6 +214,41 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
     const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
     const socketId = () => window.Echo?.socketId() ?? '';
 
+    async function searchCustomers(q: string) {
+        setCustomerSearch(q);
+        if (!q.trim()) { setCustomerResults([]); return; }
+        setCustomerSearching(true);
+        try {
+            const res = await fetch(`${posCustomersSearch()}?q=${encodeURIComponent(q)}`, { headers: { 'X-CSRF-TOKEN': csrfToken() } });
+            const data = await res.json();
+            setCustomerResults(data);
+        } finally {
+            setCustomerSearching(false);
+        }
+    }
+
+    async function saveNewCustomer() {
+        if (!newCustomerName.trim()) return;
+        setCustomerSaving(true);
+        try {
+            const res = await fetch(posCustomersStore(), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
+                body: JSON.stringify({ name: newCustomerName, phone: newCustomerPhone || null, email: newCustomerEmail || null }),
+            });
+            if (!res.ok) throw new Error('Failed');
+            const customer = await res.json();
+            setSelectedCustomer(customer);
+            setCustomerModalOpen(false);
+            setNewCustomerName(''); setNewCustomerPhone(''); setNewCustomerEmail('');
+            toast.success(`Customer ${customer.name} added!`);
+        } catch {
+            toast.error('Failed to save customer');
+        } finally {
+            setCustomerSaving(false);
+        }
+    }
+
     async function placeOrder() {
         if (cart.length === 0) return;
         setIsSubmitting(true);
@@ -203,6 +258,7 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken(), 'X-Socket-ID': socketId() },
                 body: JSON.stringify({
                     table_id: orderType === 'dine-in' ? selectedTableId : null,
+                    customer_id: selectedCustomer?.id ?? null,
                     type: orderType,
                     notes: orderNotes,
                     discount: cartDiscount,
@@ -215,7 +271,15 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
             setCart([]);
             setOrderNotes('');
             setDiscount(0);
+            setSelectedCustomer(null);
             toast.success(`Order ${data.order.order_number} placed!`);
+            if (payAsYouOrder) {
+                setPayingOrder(data.order);
+                setPayMethod('cash');
+                setCashReceived('');
+                setReferenceNo('');
+                setPaymentModalOpen(true);
+            }
         } catch {
             toast.error('Failed to place order');
         } finally {
@@ -276,6 +340,14 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
             <div className="flex flex-1 flex-col overflow-hidden" style={{ borderRight: '1px solid var(--ap-border)' }}>
                 {/* Header */}
                 <div className="flex items-center gap-3 px-4 py-3" style={{ background: '#2C1A0E', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                    <a
+                        href="/admin"
+                        className="flex items-center justify-center rounded-full transition-colors hover:bg-white/10"
+                        style={{ width: 32, height: 32 }}
+                        title="Back to Dashboard"
+                    >
+                        <LayoutDashboard className="h-4 w-4" style={{ color: '#D4A843' }} />
+                    </a>
                     <span style={{ color: '#D4A843', fontFamily: "'Playfair Display', serif", fontSize: '18px', fontWeight: 700 }}>POS Terminal</span>
                     <div className="relative ml-auto w-56">
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -424,6 +496,34 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
                         </select>
                     </div>
                 )}
+
+                {/* Customer selector */}
+                <div className="px-4 pt-3">
+                    <button
+                        onClick={() => { setCustomerTab('search'); setCustomerSearch(''); setCustomerResults([]); setCustomerModalOpen(true); }}
+                        className="flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-colors"
+                        style={selectedCustomer
+                            ? { borderColor: '#D4A843', background: '#FDF6EC', color: '#2C1A0E' }
+                            : { borderColor: '#E5E7EB', background: 'white', color: '#9CA3AF' }
+                        }
+                    >
+                        <UserCircle className="h-4 w-4 shrink-0" style={{ color: selectedCustomer ? '#D4A843' : '#9CA3AF' }} />
+                        <span className="flex-1 text-left truncate">
+                            {selectedCustomer ? selectedCustomer.name : 'Select customer (optional)'}
+                        </span>
+                        {selectedCustomer && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setSelectedCustomer(null); }}
+                                className="shrink-0 rounded p-0.5 hover:bg-black/10"
+                            >
+                                <X className="h-3 w-3" style={{ color: '#9CA3AF' }} />
+                            </button>
+                        )}
+                    </button>
+                    {selectedCustomer?.phone && (
+                        <p className="mt-1 px-1 text-xs" style={{ color: 'var(--ap-muted)' }}>{selectedCustomer.phone}</p>
+                    )}
+                </div>
 
                 {/* Cart Items */}
                 <div className="flex-1 overflow-y-auto px-4 py-3">
@@ -649,6 +749,125 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
                                     <Printer className="h-4 w-4" />
                                     Print
                                 </button>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+
+            {/* Customer Modal */}
+            <AnimatePresence>
+                {customerModalOpen && (
+                    <>
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/40" style={{ zIndex: 50 }} onClick={() => setCustomerModalOpen(false)} />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="fixed left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl overflow-hidden"
+                            style={{ zIndex: 60 }}
+                        >
+                            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                                <h2 className="font-bold text-lg" style={{ color: '#2C1A0E', fontFamily: "'Playfair Display', serif" }}>Select Customer</h2>
+                                <button onClick={() => setCustomerModalOpen(false)}><X className="h-5 w-5 text-gray-400" /></button>
+                            </div>
+
+                            {/* Tabs */}
+                            <div className="flex border-b border-gray-100">
+                                {(['search', 'new'] as const).map((tab) => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setCustomerTab(tab)}
+                                        className="flex-1 py-2.5 text-sm font-semibold transition-colors"
+                                        style={customerTab === tab ? { color: '#2C1A0E', borderBottom: '2px solid #D4A843' } : { color: '#9CA3AF' }}
+                                    >
+                                        {tab === 'search' ? 'Search Existing' : 'Add New'}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="p-5">
+                                {customerTab === 'search' ? (
+                                    <div>
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                            <input
+                                                autoFocus
+                                                value={customerSearch}
+                                                onChange={(e) => searchCustomers(e.target.value)}
+                                                placeholder="Search by name, phone or email..."
+                                                className="w-full rounded-xl border border-gray-200 py-2.5 pl-9 pr-3 text-sm focus:border-yellow-400 focus:outline-none"
+                                            />
+                                        </div>
+                                        <div className="mt-3 max-h-64 overflow-y-auto space-y-1">
+                                            {customerSearching && <p className="py-4 text-center text-sm text-gray-400">Searching...</p>}
+                                            {!customerSearching && customerSearch && customerResults.length === 0 && (
+                                                <div className="py-6 text-center">
+                                                    <p className="text-sm text-gray-400">No customers found.</p>
+                                                    <button onClick={() => { setCustomerTab('new'); setNewCustomerName(customerSearch); }} className="mt-2 text-sm font-semibold" style={{ color: '#D4A843' }}>
+                                                        <UserPlus className="mr-1 inline h-3.5 w-3.5" />
+                                                        Create "{customerSearch}"
+                                                    </button>
+                                                </div>
+                                            )}
+                                            {customerResults.map((c) => (
+                                                <button
+                                                    key={c.id}
+                                                    onClick={() => { setSelectedCustomer(c); setCustomerModalOpen(false); }}
+                                                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-amber-50"
+                                                >
+                                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white" style={{ background: '#D4A843' }}>
+                                                        {c.name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="truncate font-semibold text-sm" style={{ color: '#2C1A0E' }}>{c.name}</p>
+                                                        <p className="truncate text-xs text-gray-400">{[c.phone, c.email].filter(Boolean).join(' · ') || 'No contact info'}</p>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="text-xs font-medium text-gray-600">Full Name *</label>
+                                            <input
+                                                autoFocus
+                                                value={newCustomerName}
+                                                onChange={(e) => setNewCustomerName(e.target.value)}
+                                                placeholder="Customer name"
+                                                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-medium text-gray-600">Phone</label>
+                                            <input
+                                                value={newCustomerPhone}
+                                                onChange={(e) => setNewCustomerPhone(e.target.value)}
+                                                placeholder="09171234567"
+                                                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-medium text-gray-600">Email</label>
+                                            <input
+                                                type="email"
+                                                value={newCustomerEmail}
+                                                onChange={(e) => setNewCustomerEmail(e.target.value)}
+                                                placeholder="customer@email.com"
+                                                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none"
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={saveNewCustomer}
+                                            disabled={!newCustomerName.trim() || customerSaving}
+                                            className="w-full rounded-full py-2.5 text-sm font-bold disabled:opacity-40"
+                                            style={{ background: '#D4A843', color: '#2C1A0E' }}
+                                        >
+                                            {customerSaving ? 'Saving...' : 'Save & Select'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     </>

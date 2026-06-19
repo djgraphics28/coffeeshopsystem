@@ -49,6 +49,10 @@ class StorefrontController extends Controller
                 'cafe_tagline' => $settings['cafe_tagline'] ?? 'Crafted with love, served with warmth.',
                 'currency' => $settings['currency'] ?? '₱',
                 'estimated_wait_minutes' => $settings['estimated_wait_minutes'] ?? '10-15',
+                'points_earn_rate' => (float) ($settings['points_earn_rate'] ?? 1),
+                'points_redeem_rate' => (int) ($settings['points_redeem_rate'] ?? 100),
+                'loyalty_cups_enabled' => ($settings['loyalty_cups_enabled'] ?? '0') === '1',
+                'loyalty_cups_threshold' => (int) ($settings['loyalty_cups_threshold'] ?? 10),
             ],
         ]);
     }

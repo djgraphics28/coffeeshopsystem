@@ -1,8 +1,8 @@
-import { Head, router } from '@inertiajs/react';
-import { storefrontOrdersShow, storefrontOrdersStore } from '@/lib/routes';
+import { Head, router, usePage } from '@inertiajs/react';
+import { customerAuthLogout, customerPromoApply, storefrontOrdersShow, storefrontOrdersStore } from '@/lib/routes';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Minus, Plus, Search, ShoppingCart, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { LogOut, Minus, Plus, Search, ShoppingCart, Tag, X } from 'lucide-react';
+import { useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 
 interface Addon {
@@ -57,6 +57,10 @@ interface CartItem {
     subtotal: number;
 }
 
+interface CustomerAuth {
+    customer: { id: number; name: string; email: string; points: number; cup_count: number; free_drinks_available: number } | null;
+}
+
 interface Props {
     table: { id: number; name: string; qr_token: string };
     categories: Category[];
@@ -66,10 +70,17 @@ interface Props {
         cafe_tagline: string;
         currency: string;
         estimated_wait_minutes: string;
+        points_earn_rate: string;
+        points_redeem_rate: string;
+        loyalty_cups_enabled: boolean;
+        loyalty_cups_threshold: number;
     };
 }
 
 export default function Storefront({ table, categories, featured_items, settings }: Props) {
+    const { customer_auth } = usePage().props as unknown as { customer_auth: CustomerAuth };
+    const customer = customer_auth?.customer ?? null;
+
     const [activeCategory, setActiveCategory] = useState<number | null>(categories[0]?.id ?? null);
     const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
     const [cart, setCart] = useState<CartItem[]>([]);
@@ -81,10 +92,24 @@ export default function Storefront({ table, categories, featured_items, settings
     const [orderNotes, setOrderNotes] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+
+    // Promo & points state
+    const [promoCode, setPromoCode] = useState('');
+    const [promoApplied, setPromoApplied] = useState<{ code: string; discount: number; message: string } | null>(null);
+    const [isApplyingPromo, setIsApplyingPromo] = useState(false);
+    const [redeemPoints, setRedeemPoints] = useState(false);
+
+    // Loyalty cups — local mirrors updated after order response
+    const [cupCount, setCupCount] = useState(customer?.cup_count ?? 0);
+    const [freeDrinksAvailable, setFreeDrinksAvailable] = useState(customer?.free_drinks_available ?? 0);
+    const [useFreeDrink, setUseFreeDrink] = useState(false);
+
     const categoryRefs = useRef<Record<number, HTMLElement | null>>({});
     const stickyHeaderRef = useRef<HTMLDivElement>(null);
 
     const currency = settings.currency;
+    const earnRate = parseFloat(settings.points_earn_rate ?? '1');
+    const redeemRate = parseFloat(settings.points_redeem_rate ?? '100');
 
     const allItems = categories.flatMap((c) => c.menu_items);
     const filteredItems = searchQuery
@@ -92,7 +117,16 @@ export default function Storefront({ table, categories, featured_items, settings
         : null;
 
     const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-    const cartTotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
+    const cartSubtotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
+    const promoDiscount = promoApplied?.discount ?? 0;
+    const pointsDiscount = redeemPoints && customer
+        ? Math.min(Math.floor(customer.points / redeemRate * 100) / 100, cartSubtotal - promoDiscount)
+        : 0;
+    const cheapestItemPrice = cart.length > 0
+        ? Math.min(...cart.map((i) => i.unitPrice))
+        : 0;
+    const freeDrinkDiscount = useFreeDrink && freeDrinksAvailable > 0 ? cheapestItemPrice : 0;
+    const cartTotal = Math.max(0, cartSubtotal - promoDiscount - pointsDiscount - freeDrinkDiscount);
 
     function scrollToCategory(categoryId: number) {
         setActiveCategory(categoryId);
@@ -193,6 +227,30 @@ export default function Storefront({ table, categories, featured_items, settings
         );
     }
 
+    async function applyPromo() {
+        if (!promoCode.trim()) return;
+        setIsApplyingPromo(true);
+        try {
+            const res = await fetch(customerPromoApply(), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '' },
+                body: JSON.stringify({ code: promoCode, subtotal: cartSubtotal }),
+            });
+            const data = await res.json();
+            if (data.valid) {
+                setPromoApplied({ code: promoCode.toUpperCase(), discount: data.discount_amount, message: data.message });
+                toast.success(data.message);
+            } else {
+                setPromoApplied(null);
+                toast.error(data.message);
+            }
+        } catch {
+            toast.error('Failed to apply promo.');
+        } finally {
+            setIsApplyingPromo(false);
+        }
+    }
+
     async function placeOrder() {
         if (cart.length === 0) return;
         setIsPlacingOrder(true);
@@ -205,6 +263,9 @@ export default function Storefront({ table, categories, featured_items, settings
                     table_id: table.id,
                     type: 'dine-in',
                     notes: orderNotes,
+                    promo_code: promoApplied?.code ?? null,
+                    redeem_points: redeemPoints && customer ? true : false,
+                    use_free_drink: useFreeDrink && freeDrinksAvailable > 0,
                     items: cart.map((item) => ({
                         menu_item_id: item.menuItem.id,
                         variation_id: item.selectedVariation?.id ?? null,
@@ -217,8 +278,28 @@ export default function Storefront({ table, categories, featured_items, settings
 
             if (!response.ok) throw new Error('Order failed');
             const data = await response.json();
+            if (data.points_earned) {
+                toast.success(`⭐ You earned ${data.points_earned} points!`);
+            }
+            if (data.free_drinks_earned > 0) {
+                setTimeout(() => toast.success(`🎉 You earned ${data.free_drinks_earned} free drink${data.free_drinks_earned > 1 ? 's' : ''}!`), 600);
+            }
+            if (data.cups_awarded > 0 && data.free_drinks_earned === 0) {
+                const newCount = data.cup_count ?? 0;
+                const threshold = settings.loyalty_cups_threshold;
+                setTimeout(() => toast(`☕ ${newCount}/${threshold} cups — ${threshold - newCount} more for a free drink!`, { icon: '☕' }), 400);
+            }
+
+            // Sync local cup state
+            if (data.cup_count !== null && data.cup_count !== undefined) setCupCount(data.cup_count);
+            if (data.free_drinks_available !== null && data.free_drinks_available !== undefined) setFreeDrinksAvailable(data.free_drinks_available);
+
             setCart([]);
             setCartOpen(false);
+            setPromoApplied(null);
+            setPromoCode('');
+            setRedeemPoints(false);
+            setUseFreeDrink(false);
             router.visit(storefrontOrdersShow(data.order.id));
         } catch {
             toast.error('Failed to place order. Please try again.');
@@ -255,11 +336,43 @@ export default function Storefront({ table, categories, featured_items, settings
                     <p className="mt-1 text-sm opacity-80" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                         {settings.cafe_tagline}
                     </p>
+                    {customer && (
+                        <div className="mt-2 flex items-center gap-3">
+                            <div className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: 'rgba(212,168,67,0.25)', color: '#D4A843' }}>
+                                ⭐ {customer.points} pts
+                            </div>
+                            {settings.loyalty_cups_enabled && (
+                                <div className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: 'rgba(255,255,255,0.15)', color: 'white' }}>
+                                    ☕ {cupCount}/{settings.loyalty_cups_threshold}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    {settings.loyalty_cups_enabled && customer && freeDrinksAvailable > 0 && (
+                        <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="mt-2 rounded-full px-4 py-1.5 text-xs font-bold"
+                            style={{ background: '#D4A843', color: '#2C1A0E' }}
+                        >
+                            🎁 {freeDrinksAvailable} free drink{freeDrinksAvailable > 1 ? 's' : ''} available!
+                        </motion.div>
+                    )}
                 </div>
                 {/* Table badge */}
                 <div className="absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ background: 'rgba(212,168,67,0.9)' }}>
                     {table.name}
                 </div>
+                {/* Logout button */}
+                {customer && (
+                    <form action={customerAuthLogout()} method="POST" className="absolute left-3 top-3">
+                        <input type="hidden" name="_token" value={document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? ''} />
+                        <button type="submit" className="flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-medium text-white/80 hover:text-white" style={{ background: 'rgba(0,0,0,0.3)' }}>
+                            <LogOut className="h-3 w-3" />
+                            <span>{customer.name.split(' ')[0]}</span>
+                        </button>
+                    </form>
+                )}
             </div>
 
             {/* Sticky Search + Category Tabs */}
@@ -619,18 +732,155 @@ export default function Storefront({ table, categories, featured_items, settings
                             </div>
 
                             {cart.length > 0 && (
-                                <div className="border-t border-gray-100 px-4 py-4">
+                                <div className="border-t border-gray-100 px-4 py-4 space-y-3">
                                     <textarea
                                         value={orderNotes}
                                         onChange={(e) => setOrderNotes(e.target.value)}
                                         placeholder="Any special requests for the whole order?"
-                                        className="mb-3 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none"
+                                        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none"
                                         rows={2}
                                     />
-                                    <div className="mb-3 flex justify-between text-sm">
-                                        <span className="text-gray-500">Subtotal</span>
-                                        <span className="font-semibold" style={{ color: '#2C1A0E' }}>{currency}{cartTotal.toFixed(2)}</span>
+
+                                    {/* Cup progress + free drink redemption */}
+                                    {settings.loyalty_cups_enabled && customer && (
+                                        <div className="rounded-xl border border-gray-200 p-3">
+                                            {freeDrinksAvailable > 0 ? (
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <p className="text-xs font-bold" style={{ color: '#2C1A0E' }}>
+                                                            🎁 Redeem free drink
+                                                        </p>
+                                                        <p className="text-[10px] text-gray-400">
+                                                            {freeDrinksAvailable} available · saves {currency}{cheapestItemPrice.toFixed(2)}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setUseFreeDrink(!useFreeDrink)}
+                                                        className="relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200"
+                                                        style={{ background: useFreeDrink ? '#D4A843' : '#E5E7EB' }}
+                                                    >
+                                                        <span className="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200" style={{ transform: useFreeDrink ? 'translateX(16px)' : 'translateX(0)' }} />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <div className="mb-1.5 flex items-center justify-between">
+                                                        <p className="text-xs font-semibold" style={{ color: '#2C1A0E' }}>
+                                                            ☕ Cup progress
+                                                        </p>
+                                                        <p className="text-[10px] text-gray-400">
+                                                            {cupCount}/{settings.loyalty_cups_threshold} — {settings.loyalty_cups_threshold - cupCount} more to go
+                                                        </p>
+                                                    </div>
+                                                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                                                        <motion.div
+                                                            className="h-full rounded-full"
+                                                            style={{ background: '#D4A843' }}
+                                                            initial={{ width: 0 }}
+                                                            animate={{ width: `${Math.min((cupCount / settings.loyalty_cups_threshold) * 100, 100)}%` }}
+                                                            transition={{ duration: 0.6, ease: 'easeOut' }}
+                                                        />
+                                                    </div>
+                                                    <div className="mt-1.5 flex gap-1">
+                                                        {Array.from({ length: settings.loyalty_cups_threshold }).map((_, i) => (
+                                                            <span key={i} className="text-[10px]" style={{ opacity: i < cupCount ? 1 : 0.25 }}>☕</span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Promo code input */}
+                                    <div>
+                                        <div className="flex gap-2">
+                                            <div className="relative flex-1">
+                                                <Tag className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                                                <input
+                                                    value={promoCode}
+                                                    onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); if (promoApplied) setPromoApplied(null); }}
+                                                    placeholder="Promo code"
+                                                    className="w-full rounded-xl border border-gray-200 py-2 pl-8 pr-3 text-sm focus:border-yellow-400 focus:outline-none font-mono"
+                                                />
+                                            </div>
+                                            <button
+                                                onClick={applyPromo}
+                                                disabled={isApplyingPromo || !promoCode.trim()}
+                                                className="rounded-xl px-4 py-2 text-xs font-bold disabled:opacity-40"
+                                                style={{ background: '#2C1A0E', color: '#D4A843' }}
+                                            >
+                                                {isApplyingPromo ? '...' : 'Apply'}
+                                            </button>
+                                        </div>
+                                        {promoApplied && (
+                                            <p className="mt-1 text-xs font-medium" style={{ color: '#059669' }}>
+                                                ✓ {promoApplied.code} — {currency}{promoApplied.discount.toFixed(2)} off
+                                            </p>
+                                        )}
                                     </div>
+
+                                    {/* Points redemption toggle */}
+                                    {customer && customer.points >= redeemRate && (
+                                        <div className="flex items-center justify-between rounded-xl border border-gray-200 px-3 py-2.5">
+                                            <div>
+                                                <p className="text-xs font-semibold" style={{ color: '#2C1A0E' }}>
+                                                    ⭐ Use {customer.points} points
+                                                </p>
+                                                <p className="text-[10px] text-gray-400">
+                                                    = {currency}{(customer.points / redeemRate).toFixed(2)} off
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setRedeemPoints(!redeemPoints)}
+                                                className="relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200"
+                                                style={{ background: redeemPoints ? '#D4A843' : '#E5E7EB' }}
+                                            >
+                                                <span className="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200" style={{ transform: redeemPoints ? 'translateX(16px)' : 'translateX(0)' }} />
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Order summary */}
+                                    <div className="space-y-1.5 text-sm">
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-500">Subtotal</span>
+                                            <span className="font-semibold" style={{ color: '#2C1A0E' }}>{currency}{cartSubtotal.toFixed(2)}</span>
+                                        </div>
+                                        {promoDiscount > 0 && (
+                                            <div className="flex justify-between" style={{ color: '#059669' }}>
+                                                <span className="text-xs">Promo ({promoApplied!.code})</span>
+                                                <span className="text-xs font-semibold">-{currency}{promoDiscount.toFixed(2)}</span>
+                                            </div>
+                                        )}
+                                        {pointsDiscount > 0 && (
+                                            <div className="flex justify-between" style={{ color: '#D97706' }}>
+                                                <span className="text-xs">Points redeemed</span>
+                                                <span className="text-xs font-semibold">-{currency}{pointsDiscount.toFixed(2)}</span>
+                                            </div>
+                                        )}
+                                        {freeDrinkDiscount > 0 && (
+                                            <div className="flex justify-between" style={{ color: '#059669' }}>
+                                                <span className="text-xs">🎁 Free drink</span>
+                                                <span className="text-xs font-semibold">-{currency}{freeDrinkDiscount.toFixed(2)}</span>
+                                            </div>
+                                        )}
+                                        {(promoDiscount > 0 || pointsDiscount > 0 || freeDrinkDiscount > 0) && (
+                                            <div className="flex justify-between border-t border-gray-100 pt-1.5">
+                                                <span className="font-semibold" style={{ color: '#2C1A0E' }}>Total</span>
+                                                <span className="font-bold" style={{ color: '#D4A843' }}>{currency}{cartTotal.toFixed(2)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Points earn preview */}
+                                    {customer && earnRate > 0 && (
+                                        <p className="text-center text-[10px] text-gray-400">
+                                            ⭐ You'll earn ~{Math.floor(cartTotal * earnRate)} points on this order
+                                        </p>
+                                    )}
+
                                     <button
                                         onClick={placeOrder}
                                         disabled={isPlacingOrder}

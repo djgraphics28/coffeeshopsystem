@@ -7,8 +7,11 @@ use App\Http\Resources\MenuItemResource;
 use App\Models\AddonGroup;
 use App\Models\Category;
 use App\Models\MenuItem;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -39,17 +42,33 @@ class MenuItemController extends Controller
         $categories = Category::active()->get(['id', 'name']);
         $addonGroups = AddonGroup::orderBy('sort_order')->get(['id', 'name', 'is_required']);
 
+        $totalCount = MenuItem::count();
+        $availableCount = MenuItem::where('is_available', true)->count();
+        $featuredCount = MenuItem::where('is_featured', true)->count();
+        $categoryCount = Category::active()->count();
+
         return Inertia::render('Admin/MenuItems/Index', [
             'items' => MenuItemResource::collection($items)->resolve(),
             'categories' => $categories,
             'addon_groups' => $addonGroups,
             'filters' => $request->only(['search', 'category_id', 'availability', 'featured']),
-            'total_count' => MenuItem::count(),
+            'stats' => [
+                'total' => $totalCount,
+                'available' => $availableCount,
+                'unavailable' => $totalCount - $availableCount,
+                'featured' => $featuredCount,
+                'categories' => $categoryCount,
+            ],
+            'can' => [
+                'manage_menu_items' => Auth::user()?->can('manage menu items') ?? false,
+            ],
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
+        Gate::authorize('manage menu items');
+
         $validated = $request->validate($this->rules());
 
         $addonGroupIds = $validated['addon_group_ids'] ?? [];
@@ -70,11 +89,13 @@ class MenuItemController extends Controller
 
         $this->syncVariations($item, $variations);
 
-        return redirect()->route('admin.menu-items.index')->with('success', 'Menu item created.');
+        return redirect()->back()->with('success', 'Menu item created.');
     }
 
     public function update(Request $request, MenuItem $menuItem): RedirectResponse
     {
+        Gate::authorize('manage menu items');
+
         $validated = $request->validate($this->rules());
 
         $addonGroupIds = $validated['addon_group_ids'] ?? [];
@@ -93,15 +114,62 @@ class MenuItemController extends Controller
         $menuItem->addonGroups()->sync($addonGroupIds);
         $this->syncVariations($menuItem, $variations);
 
-        return redirect()->route('admin.menu-items.index')->with('success', 'Menu item updated.');
+        return redirect()->back()->with('success', 'Menu item updated.');
     }
 
     public function destroy(MenuItem $menuItem): RedirectResponse
     {
+        Gate::authorize('manage menu items');
+
         $menuItem->clearMediaCollection('images');
         $menuItem->delete();
 
-        return redirect()->route('admin.menu-items.index')->with('success', 'Menu item deleted.');
+        return redirect()->back()->with('success', 'Menu item deleted.');
+    }
+
+    public function toggleAvailability(MenuItem $menuItem): JsonResponse
+    {
+        Gate::authorize('manage menu items');
+
+        $menuItem->update(['is_available' => ! $menuItem->is_available]);
+
+        return response()->json(['is_available' => $menuItem->is_available]);
+    }
+
+    public function bulkUpdatePrices(Request $request): RedirectResponse
+    {
+        Gate::authorize('manage menu items');
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:menu_items,id'],
+            'type' => ['required', 'in:percent_increase,percent_decrease,fixed'],
+            'value' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $items = MenuItem::with('variations')->whereIn('id', $validated['ids'])->get();
+
+        foreach ($items as $item) {
+            if ($item->variations->isNotEmpty()) {
+                foreach ($item->variations as $variation) {
+                    $variation->update(['price' => $this->applyPriceAdjustment((float) $variation->price, $validated['type'], (float) $validated['value'])]);
+                }
+                $item->update(['price' => (float) $item->variations()->min('price')]);
+            } else {
+                $item->update(['price' => $this->applyPriceAdjustment((float) $item->price, $validated['type'], (float) $validated['value'])]);
+            }
+        }
+
+        return redirect()->back()->with('success', count($validated['ids']).' item(s) prices updated.');
+    }
+
+    private function applyPriceAdjustment(float $price, string $type, float $value): float
+    {
+        return match ($type) {
+            'percent_increase' => round($price * (1 + $value / 100), 2),
+            'percent_decrease' => round(max(0, $price * (1 - $value / 100)), 2),
+            'fixed' => round($value, 2),
+        };
     }
 
     /**

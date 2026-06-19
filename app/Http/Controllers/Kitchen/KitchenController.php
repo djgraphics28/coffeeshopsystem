@@ -30,7 +30,7 @@ class KitchenController extends Controller
     public function updateStatus(Request $request, Order $order): JsonResponse
     {
         $validated = $request->validate([
-            'status' => ['required', Rule::in(['pending', 'preparing', 'ready', 'completed', 'cancelled'])],
+            'status' => ['required', Rule::in(Order::STATUSES)],
         ]);
 
         $order->update(['status' => $validated['status']]);

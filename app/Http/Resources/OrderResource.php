@@ -19,11 +19,35 @@ class OrderResource extends JsonResource
             'discount' => $this->discount,
             'total' => $this->total,
             'notes' => $this->notes,
+            'void_reason' => $this->void_reason,
+            'points_earned' => $this->points_earned,
+            'points_redeemed' => $this->points_redeemed,
+            'free_drink_redeemed' => $this->free_drink_redeemed,
+            'cups_awarded' => $this->cups_awarded,
             'table' => $this->whenLoaded('table', fn () => [
                 'id' => $this->table?->id,
                 'name' => $this->table?->name,
                 'qr_token' => $this->table?->qr_token,
             ]),
+            'customer' => $this->whenLoaded('customer', fn () => $this->customer ? [
+                'id' => $this->customer->id,
+                'name' => $this->customer->name,
+                'email' => $this->customer->email,
+                'phone' => $this->customer->phone,
+            ] : null),
+            'promo' => $this->whenLoaded('promo', fn () => $this->promo ? [
+                'id' => $this->promo->id,
+                'code' => $this->promo->code,
+                'name' => $this->promo->name,
+            ] : null),
+            'creator' => $this->whenLoaded('creator', fn () => $this->creator ? [
+                'id' => $this->creator->id,
+                'name' => $this->creator->name,
+            ] : null),
+            'voided_by' => $this->whenLoaded('voidedBy', fn () => $this->voidedBy ? [
+                'id' => $this->voidedBy->id,
+                'name' => $this->voidedBy->name,
+            ] : null),
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($item) => [
                 'id' => $item->id,
                 'menu_item_id' => $item->menu_item_id,

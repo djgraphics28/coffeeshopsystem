@@ -1,14 +1,13 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     BarChart2, Bell, ChefHat, Coffee, Home, LogOut,
-    Menu, Moon, Search, Settings, ShoppingBag,
-    Sun, Table2, Users, X,
+    Menu, Moon, Search, Settings, Shield, ShoppingBag,
+    Sun, Table2, Tag, UserCircle, Users, X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useAppearance } from '@/hooks/use-appearance';
-import {
-    adminAddonGroupsIndex, adminCategoriesIndex, adminDashboard,
-    adminMenuItemsIndex, adminOrdersIndex, adminSettings,
+import { adminAddonGroupsIndex, adminCategoriesIndex, adminCustomersIndex, adminDashboard,
+    adminMenuItemsIndex, adminOrdersIndex, adminPromosIndex, adminRolesIndex, adminSettings,
     adminTablesIndex, adminUsersIndex, kitchenIndex, logout, posIndex,
 } from '@/lib/routes';
 
@@ -22,12 +21,15 @@ const NAV_GROUPS = [
             { href: adminMenuItemsIndex(),  label: 'Menu Items',  icon: ChefHat,   color: '#F59E0B' },
             { href: adminAddonGroupsIndex(),label: 'Add-ons',     icon: BarChart2, color: '#A78BFA' },
             { href: adminTablesIndex(),     label: 'Tables & QR', icon: Table2,    color: '#10B981' },
+            { href: adminCustomersIndex(), label: 'Customers',   icon: UserCircle, color: '#F97316' },
+            { href: adminPromosIndex(),   label: 'Promos',      icon: Tag,        color: '#EF4444' },
         ],
     },
     {
         label: 'SETTINGS',
         items: [
             { href: adminUsersIndex(), label: 'Users',    icon: Users,    color: '#EC4899' },
+            { href: adminRolesIndex(), label: 'Roles',    icon: Shield,   color: '#6366F1' },
             { href: adminSettings(),   label: 'Settings', icon: Settings, color: '#6B7280' },
         ],
     },

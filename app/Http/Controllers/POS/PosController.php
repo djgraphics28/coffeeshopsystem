@@ -6,9 +6,11 @@ use App\Events\OrderPlaced;
 use App\Events\OrderStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CategoryResource;
+use App\Http\Resources\CustomerResource;
 use App\Http\Resources\OrderResource;
 use App\Models\Addon;
 use App\Models\Category;
+use App\Models\Customer;
 use App\Models\MenuItem;
 use App\Models\MenuItemVariation;
 use App\Models\Order;
@@ -47,14 +49,43 @@ class PosController extends Controller
             'settings' => [
                 'currency' => $settings['currency'] ?? '₱',
                 'tax_rate' => (float) ($settings['tax_rate'] ?? 12),
+                'pay_as_you_order' => ($settings['pay_as_you_order'] ?? '0') === '1',
             ],
         ]);
+    }
+
+    public function searchCustomers(Request $request): JsonResponse
+    {
+        $query = $request->string('q')->trim();
+
+        $customers = Customer::when($query, fn ($q) => $q->where('name', 'like', "%{$query}%")
+            ->orWhere('phone', 'like', "%{$query}%")
+            ->orWhere('email', 'like', "%{$query}%"))
+            ->limit(10)
+            ->get();
+
+        return response()->json(CustomerResource::collection($customers)->resolve());
+    }
+
+    public function storeCustomer(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:30', 'unique:customers,phone'],
+            'email' => ['nullable', 'email', 'unique:customers,email'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $customer = Customer::create($validated);
+
+        return response()->json((new CustomerResource($customer))->resolve(), 201);
     }
 
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'table_id' => ['nullable', 'exists:tables,id'],
+            'customer_id' => ['nullable', 'exists:customers,id'],
             'type' => ['required', Rule::in(['dine-in', 'takeout', 'walkin'])],
             'notes' => ['nullable', 'string', 'max:500'],
             'discount' => ['nullable', 'numeric', 'min:0'],
@@ -73,6 +104,7 @@ class PosController extends Controller
 
             $order = Order::create([
                 'table_id' => $validated['table_id'] ?? null,
+                'customer_id' => $validated['customer_id'] ?? null,
                 'order_number' => Order::generateOrderNumber(),
                 'status' => 'pending',
                 'type' => $validated['type'],
@@ -159,10 +191,27 @@ class PosController extends Controller
     public function updateStatus(Request $request, Order $order): JsonResponse
     {
         $validated = $request->validate([
-            'status' => ['required', Rule::in(['pending', 'preparing', 'ready', 'completed', 'cancelled'])],
+            'status' => ['required', Rule::in(Order::STATUSES)],
         ]);
 
         $order->update(['status' => $validated['status']]);
+
+        broadcast(new OrderStatusUpdated(
+            $order->fresh()->load(['table', 'items.menuItem', 'items.addons.addon'])
+        ))->toOthers();
+
+        return response()->json([
+            'order' => (new OrderResource($order->load(['table', 'items.menuItem', 'items.addons.addon'])))->resolve(),
+        ]);
+    }
+
+    public function void(Order $order): JsonResponse
+    {
+        if (! $order->isVoidable()) {
+            return response()->json(['message' => 'This order cannot be voided.'], 422);
+        }
+
+        $order->update(['status' => 'voided']);
 
         broadcast(new OrderStatusUpdated(
             $order->fresh()->load(['table', 'items.menuItem', 'items.addons.addon'])

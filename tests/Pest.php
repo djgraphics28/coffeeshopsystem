@@ -1,6 +1,8 @@
 <?php
 
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 /*
@@ -17,12 +19,8 @@ use Tests\TestCase;
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
     ->beforeEach(function () {
-        // Create Spatie Permission roles needed for auth tests
-        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
-        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'web']);
-        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'kitchen', 'guard_name' => 'web']);
-        // Clear permission cache after creating roles
-        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        (new RolePermissionSeeder)->run();
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
     })
     ->in('Feature');
 

@@ -1,7 +1,7 @@
 import { Head } from '@inertiajs/react';
 import { kitchenOrdersUpdateStatus } from '@/lib/routes';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, BellOff, Clock } from 'lucide-react';
+import { Bell, BellOff, Clock, LayoutDashboard } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import '../../echo';
 
@@ -207,7 +207,7 @@ export default function KitchenDisplay({ initialOrders }: Props) {
             })
             .listen('.status.updated', (e: { order: Order }) => {
                 if (e.order.status === 'ready') playChime('ready');
-                if (e.order.status === 'completed' || e.order.status === 'cancelled') {
+                if (e.order.status === 'completed' || e.order.status === 'cancelled' || e.order.status === 'voided') {
                     setOrders((prev) => prev.filter((o) => o.id !== e.order.id));
                 } else {
                     setOrders((prev) => sortOrdersFifo(prev.map((o) => (o.id === e.order.id ? e.order : o))));
@@ -241,7 +241,7 @@ export default function KitchenDisplay({ initialOrders }: Props) {
 
             const data: { order?: Order } = await res.json().catch(() => ({}));
 
-            if (status === 'completed' || status === 'cancelled') {
+            if (status === 'completed' || status === 'cancelled' || status === 'voided') {
                 setOrders((prev) => prev.filter((o) => o.id !== orderId));
             } else if (data.order) {
                 setOrders((prev) => sortOrdersFifo(prev.map((o) => (o.id === orderId ? data.order! : o))));
@@ -268,6 +268,14 @@ export default function KitchenDisplay({ initialOrders }: Props) {
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-3" style={{ background: '#1A1A1A', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                 <div className="flex items-center gap-3">
+                    <a
+                        href="/admin"
+                        className="flex items-center justify-center rounded-full transition-colors"
+                        style={{ width: 32, height: 32, background: 'rgba(212,168,67,0.12)' }}
+                        title="Back to Dashboard"
+                    >
+                        <LayoutDashboard className="h-4 w-4" style={{ color: '#D4A843' }} />
+                    </a>
                     <span style={{ color: '#D4A843', fontFamily: "'Playfair Display', serif", fontSize: '20px', fontWeight: 700 }}>
                         Milk&Honey — Kitchen
                     </span>
