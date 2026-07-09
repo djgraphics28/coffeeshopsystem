@@ -21,7 +21,7 @@ export default function CustomerLogin({ qrToken }: Props) {
     }
 
     return (
-        <div className="flex min-h-screen flex-col" style={{ background: '#FDF6EC', fontFamily: "'DM Sans', sans-serif", maxWidth: '430px', margin: '0 auto' }}>
+        <div className="customer-page flex min-h-screen flex-col" style={{ background: '#FDF6EC', fontFamily: "'DM Sans', sans-serif", maxWidth: '430px', margin: '0 auto' }}>
             <Head title="Login — Milk&Honey" />
 
             {/* Header */}

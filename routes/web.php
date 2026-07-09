@@ -1,9 +1,12 @@
 <?php
 
+use App\Http\Controllers\Admin\AccountController;
 use App\Http\Controllers\Admin\AddonGroupController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\ExpenseCategoryController;
+use App\Http\Controllers\Admin\ExpenseController;
 use App\Http\Controllers\Admin\MenuItemController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\PromoController as AdminPromoController;
@@ -43,13 +46,14 @@ Route::post('/order/promo/apply', [CustomerPromoController::class, 'apply'])
     ->name('storefront.promo.apply')
     ->middleware('customer.auth');
 
-// Public storefront (QR self-order) — protected by customer auth
-Route::prefix('order')->name('storefront.')->middleware('customer.auth')->group(function () {
+// Public storefront (QR self-order) — browsing is open to guests; placing an
+// order requires a verified customer account (enforced in the controller)
+Route::prefix('order')->name('storefront.')->group(function () {
     Route::get('/{qrToken}', [StorefrontController::class, 'show'])->name('show')
         ->where('qrToken', '^(?!auth|promo)[a-zA-Z0-9_-]+$');
     Route::post('/', [CustomerOrderController::class, 'store'])->name('orders.store')->middleware('throttle:10,1');
-    Route::get('/track/{order}', [CustomerOrderController::class, 'show'])->name('orders.show');
-    Route::get('/status/{order}', [CustomerOrderController::class, 'status'])->name('orders.status');
+    Route::get('/track/{order}', [CustomerOrderController::class, 'show'])->name('orders.show')->middleware('customer.auth');
+    Route::get('/status/{order}', [CustomerOrderController::class, 'status'])->name('orders.status')->middleware('customer.auth');
 });
 
 // Authenticated app routes
@@ -77,6 +81,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Admin Panel
     Route::middleware('role:admin')->prefix('admin')->name('admin.')->group(function () {
         Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+        Route::get('account', [AccountController::class, 'index'])->name('account');
 
         Route::resource('categories', CategoryController::class)->except(['show', 'edit', 'create']);
         Route::post('menu-items/bulk-price-update', [MenuItemController::class, 'bulkUpdatePrices'])->name('menu-items.bulk-price-update');
@@ -97,6 +102,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('orders/{order}', [AdminOrderController::class, 'show'])->name('orders.show');
         Route::patch('orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->name('orders.update-status');
         Route::post('orders/{order}/void', [AdminOrderController::class, 'void'])->name('orders.void');
+        Route::resource('expense-categories', ExpenseCategoryController::class)->except(['show', 'edit', 'create']);
+        Route::resource('expenses', ExpenseController::class)->except(['show', 'edit', 'create']);
+
         Route::get('settings', [SettingsController::class, 'index'])->name('settings');
         Route::put('settings', [SettingsController::class, 'update'])->name('settings.update');
     });

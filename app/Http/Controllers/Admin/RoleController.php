@@ -25,6 +25,7 @@ class RoleController extends Controller
         'Customers' => ['view customers', 'manage customers', 'adjust loyalty'],
         'Promos' => ['view promos', 'manage promos'],
         'Tables' => ['view tables', 'manage tables'],
+        'Expenses' => ['view expenses', 'manage expenses', 'manage expense categories'],
         'Staff' => ['manage users', 'manage roles'],
         'Settings' => ['manage settings'],
     ];

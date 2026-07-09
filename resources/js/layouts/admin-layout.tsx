@@ -1,12 +1,13 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     BarChart2, Bell, ChefHat, Coffee, Home, LogOut,
-    Menu, Moon, Search, Settings, Shield, ShoppingBag,
+    Menu, Moon, Receipt, Search, Settings, Shield, ShoppingBag,
     Sun, Table2, Tag, UserCircle, Users, X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useAppearance } from '@/hooks/use-appearance';
-import { adminAddonGroupsIndex, adminCategoriesIndex, adminCustomersIndex, adminDashboard,
+import { adminAccount, adminAddonGroupsIndex, adminCategoriesIndex, adminCustomersIndex, adminDashboard,
+    adminExpenseCategoriesIndex, adminExpensesIndex,
     adminMenuItemsIndex, adminOrdersIndex, adminPromosIndex, adminRolesIndex, adminSettings,
     adminTablesIndex, adminUsersIndex, kitchenIndex, logout, posIndex,
 } from '@/lib/routes';
@@ -22,7 +23,9 @@ const NAV_GROUPS = [
             { href: adminAddonGroupsIndex(),label: 'Add-ons',     icon: BarChart2, color: '#A78BFA' },
             { href: adminTablesIndex(),     label: 'Tables & QR', icon: Table2,    color: '#10B981' },
             { href: adminCustomersIndex(), label: 'Customers',   icon: UserCircle, color: '#F97316' },
-            { href: adminPromosIndex(),   label: 'Promos',      icon: Tag,        color: '#EF4444' },
+            { href: adminPromosIndex(),          label: 'Promos',       icon: Tag,        color: '#EF4444' },
+            { href: adminExpensesIndex(),        label: 'Expenses',     icon: Receipt,    color: '#F43F5E' },
+            { href: adminExpenseCategoriesIndex(), label: 'Exp. Categories', icon: BarChart2, color: '#8B5CF6' },
         ],
     },
     {
@@ -161,21 +164,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <div className="border-t border-white/10 p-3">
                     {sidebarOpen ? (
                         <div className="flex items-center gap-2">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: '#D4A843' }}>
+                            <Link href={adminAccount()} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white transition-opacity hover:opacity-80" style={{ background: '#D4A843' }} title="Account settings">
                                 {auth?.user?.name?.charAt(0).toUpperCase() ?? 'A'}
-                            </div>
+                            </Link>
                             <div className="min-w-0 flex-1">
-                                <p className="truncate text-xs font-semibold text-white">{auth?.user?.name ?? 'Admin'}</p>
+                                <Link href={adminAccount()} className="truncate text-xs font-semibold text-white hover:text-amber-300 block transition-colors">{auth?.user?.name ?? 'Admin'}</Link>
                                 <p className="truncate text-[10px] text-gray-500">{auth?.user?.email ?? ''}</p>
                             </div>
-                            <Link href={logout()} method="post" as="button" className="rounded-lg p-1.5 text-gray-500 hover:text-red-400">
+                            <Link href={logout()} method="post" as="button" className="rounded-lg p-1.5 text-gray-500 hover:text-red-400" title="Logout">
                                 <LogOut className="h-4 w-4" />
                             </Link>
                         </div>
                     ) : (
-                        <Link href={logout()} method="post" as="button" className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:text-red-400 mx-auto">
-                            <LogOut className="h-4 w-4" />
-                        </Link>
+                        <div className="flex flex-col items-center gap-2">
+                            <Link href={adminAccount()} className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white transition-opacity hover:opacity-80" style={{ background: '#D4A843' }} title="Account settings">
+                                {auth?.user?.name?.charAt(0).toUpperCase() ?? 'A'}
+                            </Link>
+                            <Link href={logout()} method="post" as="button" className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:text-red-400" title="Logout">
+                                <LogOut className="h-4 w-4" />
+                            </Link>
+                        </div>
                     )}
                 </div>
             </aside>

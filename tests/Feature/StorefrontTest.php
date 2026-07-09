@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Category;
+use App\Models\Customer;
 use App\Models\MenuItem;
 use App\Models\Table;
 
@@ -30,8 +31,9 @@ describe('Customer Storefront', function () {
     it('places a customer order successfully', function () {
         $category = Category::factory()->create();
         $item = MenuItem::factory()->create(['category_id' => $category->id, 'price' => 180]);
+        $customer = Customer::factory()->create();
 
-        $response = $this->withSession([
+        $response = $this->actingAs($customer, 'customer')->withSession([
             'storefront_qr_scan' => ['table_id' => $this->table->id, 'scanned_at' => now()->timestamp],
         ])->postJson(route('storefront.orders.store'), [
             'table_id' => $this->table->id,
@@ -45,8 +47,35 @@ describe('Customer Storefront', function () {
         $this->assertDatabaseHas('orders', ['table_id' => $this->table->id, 'status' => 'pending']);
     });
 
+    it('rejects an order from a guest and asks them to sign in', function () {
+        $category = Category::factory()->create();
+        $item = MenuItem::factory()->create(['category_id' => $category->id, 'price' => 180]);
+
+        $this->withSession([
+            'storefront_qr_scan' => ['table_id' => $this->table->id, 'scanned_at' => now()->timestamp],
+        ])->postJson(route('storefront.orders.store'), [
+            'table_id' => $this->table->id,
+            'type' => 'dine-in',
+            'items' => [['menu_item_id' => $item->id, 'quantity' => 1, 'addon_ids' => []]],
+        ])->assertStatus(401)->assertJsonPath('requires_auth', true);
+    });
+
+    it('rejects an order from an unverified customer', function () {
+        $category = Category::factory()->create();
+        $item = MenuItem::factory()->create(['category_id' => $category->id, 'price' => 180]);
+        $customer = Customer::factory()->unverified()->create();
+
+        $this->actingAs($customer, 'customer')->withSession([
+            'storefront_qr_scan' => ['table_id' => $this->table->id, 'scanned_at' => now()->timestamp],
+        ])->postJson(route('storefront.orders.store'), [
+            'table_id' => $this->table->id,
+            'type' => 'dine-in',
+            'items' => [['menu_item_id' => $item->id, 'quantity' => 1, 'addon_ids' => []]],
+        ])->assertStatus(403)->assertJsonPath('requires_verification', true);
+    });
+
     it('rejects an order with missing required fields', function () {
-        $response = $this->withSession([
+        $response = $this->actingAs(Customer::factory()->create(), 'customer')->withSession([
             'storefront_qr_scan' => ['table_id' => $this->table->id, 'scanned_at' => now()->timestamp],
         ])->postJson(route('storefront.orders.store'), ['table_id' => $this->table->id]);
         expect($response->getStatusCode())->toBeIn([302, 422]);
@@ -81,7 +110,7 @@ describe('Customer Storefront', function () {
         $category = Category::factory()->create();
         $item = MenuItem::factory()->create(['category_id' => $category->id, 'price' => 180]);
 
-        $this->withSession([
+        $this->actingAs(Customer::factory()->create(), 'customer')->withSession([
             'storefront_qr_scan' => ['table_id' => $this->table->id, 'scanned_at' => now()->timestamp],
         ])->postJson(route('storefront.orders.store'), [
             'table_id' => $otherTable->id,

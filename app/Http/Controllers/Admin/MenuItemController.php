@@ -140,27 +140,52 @@ class MenuItemController extends Controller
     {
         Gate::authorize('manage menu items');
 
-        $validated = $request->validate([
-            'ids' => ['required', 'array', 'min:1'],
-            'ids.*' => ['integer', 'exists:menu_items,id'],
-            'type' => ['required', 'in:percent_increase,percent_decrease,fixed'],
-            'value' => ['required', 'numeric', 'min:0'],
-        ]);
+        $type = $request->input('type');
 
-        $items = MenuItem::with('variations')->whereIn('id', $validated['ids'])->get();
+        if ($type === 'per_variation') {
+            $validated = $request->validate([
+                'ids' => ['required', 'array', 'min:1'],
+                'ids.*' => ['integer', 'exists:menu_items,id'],
+                'type' => ['required', 'in:per_variation'],
+                'prices' => ['required', 'array', 'min:1'],
+                'prices.*' => ['numeric', 'min:0.01'],
+            ]);
 
-        foreach ($items as $item) {
-            if ($item->variations->isNotEmpty()) {
+            $items = MenuItem::with('variations')->whereIn('id', $validated['ids'])->get();
+
+            foreach ($items as $item) {
                 foreach ($item->variations as $variation) {
-                    $variation->update(['price' => $this->applyPriceAdjustment((float) $variation->price, $validated['type'], (float) $validated['value'])]);
+                    if (isset($validated['prices'][$variation->name])) {
+                        $variation->update(['price' => round((float) $validated['prices'][$variation->name], 2)]);
+                    }
                 }
-                $item->update(['price' => (float) $item->variations()->min('price')]);
-            } else {
-                $item->update(['price' => $this->applyPriceAdjustment((float) $item->price, $validated['type'], (float) $validated['value'])]);
+                if ($item->variations->isNotEmpty()) {
+                    $item->update(['price' => (float) $item->variations()->min('price')]);
+                }
+            }
+        } else {
+            $validated = $request->validate([
+                'ids' => ['required', 'array', 'min:1'],
+                'ids.*' => ['integer', 'exists:menu_items,id'],
+                'type' => ['required', 'in:percent_increase,percent_decrease,fixed_increase,fixed_decrease'],
+                'value' => ['required', 'numeric', 'min:0'],
+            ]);
+
+            $items = MenuItem::with('variations')->whereIn('id', $validated['ids'])->get();
+
+            foreach ($items as $item) {
+                if ($item->variations->isNotEmpty()) {
+                    foreach ($item->variations as $variation) {
+                        $variation->update(['price' => $this->applyPriceAdjustment((float) $variation->price, $validated['type'], (float) $validated['value'])]);
+                    }
+                    $item->update(['price' => (float) $item->variations()->min('price')]);
+                } else {
+                    $item->update(['price' => $this->applyPriceAdjustment((float) $item->price, $validated['type'], (float) $validated['value'])]);
+                }
             }
         }
 
-        return redirect()->back()->with('success', count($validated['ids']).' item(s) prices updated.');
+        return redirect()->back()->with('success', count($request->input('ids', [])).' item(s) prices updated.');
     }
 
     private function applyPriceAdjustment(float $price, string $type, float $value): float
@@ -168,7 +193,8 @@ class MenuItemController extends Controller
         return match ($type) {
             'percent_increase' => round($price * (1 + $value / 100), 2),
             'percent_decrease' => round(max(0, $price * (1 - $value / 100)), 2),
-            'fixed' => round($value, 2),
+            'fixed_increase' => round($price + $value, 2),
+            'fixed_decrease' => round(max(0, $price - $value), 2),
         };
     }
 

@@ -1,28 +1,59 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { customerAuthLogin, customerAuthRegisterStore } from '@/lib/routes';
 import { Eye, EyeOff } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-interface Props { qrToken: string | null }
+interface Props { qrToken: string | null; recaptchaSiteKey: string | null }
 
-export default function CustomerRegister({ qrToken }: Props) {
+declare global {
+    interface Window {
+        grecaptcha?: {
+            ready: (cb: () => void) => void;
+            execute: (siteKey: string, options: { action: string }) => Promise<string>;
+        };
+    }
+}
+
+export default function CustomerRegister({ qrToken, recaptchaSiteKey }: Props) {
     const [showPassword, setShowPassword] = useState(false);
-    const { data, setData, post, processing, errors } = useForm({
+    const { data, setData, post, processing, errors, transform } = useForm({
         name: '',
         email: '',
         phone: '',
         password: '',
         password_confirmation: '',
         qrToken: qrToken ?? '',
+        recaptcha_token: '',
     });
 
-    function submit(e: React.FormEvent) {
+    useEffect(() => {
+        if (!recaptchaSiteKey || document.getElementById('recaptcha-script')) return;
+        const script = document.createElement('script');
+        script.id = 'recaptcha-script';
+        script.src = `https://www.google.com/recaptcha/api.js?render=${recaptchaSiteKey}`;
+        script.async = true;
+        document.head.appendChild(script);
+    }, [recaptchaSiteKey]);
+
+    async function submit(e: React.FormEvent) {
         e.preventDefault();
+
+        let token = '';
+        if (recaptchaSiteKey && window.grecaptcha) {
+            try {
+                await new Promise<void>((resolve) => window.grecaptcha!.ready(resolve));
+                token = await window.grecaptcha.execute(recaptchaSiteKey, { action: 'register' });
+            } catch {
+                // Verification happens server-side; an empty token will be rejected there
+            }
+        }
+
+        transform((formData) => ({ ...formData, recaptcha_token: token }));
         post(customerAuthRegisterStore());
     }
 
     return (
-        <div className="flex min-h-screen flex-col" style={{ background: '#FDF6EC', fontFamily: "'DM Sans', sans-serif", maxWidth: '430px', margin: '0 auto' }}>
+        <div className="customer-page flex min-h-screen flex-col" style={{ background: '#FDF6EC', fontFamily: "'DM Sans', sans-serif", maxWidth: '430px', margin: '0 auto' }}>
             <Head title="Register — Milk&Honey" />
 
             {/* Header */}
@@ -105,6 +136,10 @@ export default function CustomerRegister({ qrToken }: Props) {
                     <div className="rounded-xl p-3 text-xs" style={{ background: '#FEF3C7', color: '#92400E' }}>
                         ⭐ Earn loyalty points on every order — redeem them for discounts!
                     </div>
+
+                    {errors.recaptcha_token && (
+                        <p className="text-xs text-red-500">{errors.recaptcha_token}</p>
+                    )}
 
                     <button
                         type="submit"

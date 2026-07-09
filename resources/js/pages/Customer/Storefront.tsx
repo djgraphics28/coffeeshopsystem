@@ -1,8 +1,8 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { customerAuthLogout, customerPromoApply, storefrontOrdersShow, storefrontOrdersStore } from '@/lib/routes';
+import { customerAuthLogin, customerAuthLogout, customerAuthRegister, customerPromoApply, storefrontOrdersShow, storefrontOrdersStore } from '@/lib/routes';
 import { AnimatePresence, motion } from 'framer-motion';
 import { LogOut, Minus, Plus, Search, ShoppingCart, Tag, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 
 interface Addon {
@@ -83,7 +83,15 @@ export default function Storefront({ table, categories, featured_items, settings
 
     const [activeCategory, setActiveCategory] = useState<number | null>(categories[0]?.id ?? null);
     const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
-    const [cart, setCart] = useState<CartItem[]>([]);
+    const cartStorageKey = `storefront_cart_${table.qr_token}`;
+    const [cart, setCart] = useState<CartItem[]>(() => {
+        if (typeof sessionStorage === 'undefined') return [];
+        try {
+            return JSON.parse(sessionStorage.getItem(cartStorageKey) ?? '[]') as CartItem[];
+        } catch {
+            return [];
+        }
+    });
     const [cartOpen, setCartOpen] = useState(false);
     const [quantity, setQuantity] = useState(1);
     const [selectedVariationId, setSelectedVariationId] = useState<number | null>(null);
@@ -92,6 +100,7 @@ export default function Storefront({ table, categories, featured_items, settings
     const [orderNotes, setOrderNotes] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+    const [authPromptOpen, setAuthPromptOpen] = useState(false);
 
     // Promo & points state
     const [promoCode, setPromoCode] = useState('');
@@ -103,6 +112,16 @@ export default function Storefront({ table, categories, featured_items, settings
     const [cupCount, setCupCount] = useState(customer?.cup_count ?? 0);
     const [freeDrinksAvailable, setFreeDrinksAvailable] = useState(customer?.free_drinks_available ?? 0);
     const [useFreeDrink, setUseFreeDrink] = useState(false);
+
+    // Keep the cart across sign-in/register redirects
+    useEffect(() => {
+        try {
+            if (typeof sessionStorage === 'undefined') return;
+            sessionStorage.setItem(cartStorageKey, JSON.stringify(cart));
+        } catch {
+            // Storage unavailable (private mode) — cart just won't survive navigation
+        }
+    }, [cart, cartStorageKey]);
 
     const categoryRefs = useRef<Record<number, HTMLElement | null>>({});
     const stickyHeaderRef = useRef<HTMLDivElement>(null);
@@ -229,6 +248,10 @@ export default function Storefront({ table, categories, featured_items, settings
 
     async function applyPromo() {
         if (!promoCode.trim()) return;
+        if (!customer) {
+            setAuthPromptOpen(true);
+            return;
+        }
         setIsApplyingPromo(true);
         try {
             const res = await fetch(customerPromoApply(), {
@@ -253,6 +276,12 @@ export default function Storefront({ table, categories, featured_items, settings
 
     async function placeOrder() {
         if (cart.length === 0) return;
+
+        if (!customer) {
+            setAuthPromptOpen(true);
+            return;
+        }
+
         setIsPlacingOrder(true);
 
         try {
@@ -276,6 +305,15 @@ export default function Storefront({ table, categories, featured_items, settings
                 }),
             });
 
+            if (response.status === 401) {
+                setAuthPromptOpen(true);
+                return;
+            }
+            if (response.status === 403) {
+                const err = await response.json().catch(() => null);
+                toast.error(err?.message ?? 'Unable to place order.');
+                return;
+            }
             if (!response.ok) throw new Error('Order failed');
             const data = await response.json();
             if (data.points_earned) {
@@ -311,7 +349,7 @@ export default function Storefront({ table, categories, featured_items, settings
     const displayItems = filteredItems ?? (activeCategory ? categories.find((c) => c.id === activeCategory)?.menu_items ?? [] : []);
 
     return (
-        <div className="min-h-screen" style={{ background: '#FDF6EC', fontFamily: "'DM Sans', sans-serif", maxWidth: '430px', margin: '0 auto' }}>
+        <div className="customer-page min-h-screen" style={{ background: '#FDF6EC', fontFamily: "'DM Sans', sans-serif", maxWidth: '430px', margin: '0 auto' }}>
             <Head title={`${settings.cafe_name} — Order`} />
             <Toaster position="top-center" />
 
@@ -366,7 +404,7 @@ export default function Storefront({ table, categories, featured_items, settings
                 {/* Logout button */}
                 {customer && (
                     <form action={customerAuthLogout()} method="POST" className="absolute left-3 top-3">
-                        <input type="hidden" name="_token" value={document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? ''} />
+                        <input type="hidden" name="_token" value={typeof document !== 'undefined' ? (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '') : ''} />
                         <button type="submit" className="flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-medium text-white/80 hover:text-white" style={{ background: 'rgba(0,0,0,0.3)' }}>
                             <LogOut className="h-3 w-3" />
                             <span>{customer.name.split(' ')[0]}</span>
@@ -891,6 +929,60 @@ export default function Storefront({ table, categories, featured_items, settings
                                     </button>
                                 </div>
                             )}
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+
+            {/* Sign-in prompt (required before placing an order) */}
+            <AnimatePresence>
+                {authPromptOpen && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/50"
+                            style={{ zIndex: 80 }}
+                            onClick={() => setAuthPromptOpen(false)}
+                        />
+                        <motion.div
+                            initial={{ y: '100%' }}
+                            animate={{ y: 0 }}
+                            exit={{ y: '100%' }}
+                            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+                            className="fixed bottom-0 left-1/2 w-full -translate-x-1/2 rounded-t-3xl bg-white px-6 pb-8 pt-6 text-center"
+                            style={{ zIndex: 90, maxWidth: '430px' }}
+                        >
+                            <div className="text-4xl">☕</div>
+                            <h2 className="mt-2 text-lg font-bold" style={{ color: '#2C1A0E', fontFamily: "'Playfair Display', serif" }}>
+                                Almost there!
+                            </h2>
+                            <p className="mt-1 text-sm text-gray-500">
+                                Sign in or create a free account to place your order — and earn loyalty points on every purchase.
+                            </p>
+                            <div className="mt-5 space-y-2">
+                                <button
+                                    onClick={() => router.visit(customerAuthLogin(table.qr_token))}
+                                    className="w-full rounded-full py-3 text-sm font-bold"
+                                    style={{ background: '#D4A843', color: '#2C1A0E' }}
+                                >
+                                    Sign In
+                                </button>
+                                <button
+                                    onClick={() => router.visit(customerAuthRegister(table.qr_token))}
+                                    className="w-full rounded-full border-2 py-3 text-sm font-bold"
+                                    style={{ borderColor: '#D4A843', color: '#2C1A0E', background: 'white' }}
+                                >
+                                    Create Account
+                                </button>
+                                <button
+                                    onClick={() => setAuthPromptOpen(false)}
+                                    className="w-full py-2 text-xs font-medium text-gray-400"
+                                >
+                                    Keep browsing
+                                </button>
+                            </div>
                         </motion.div>
                     </>
                 )}

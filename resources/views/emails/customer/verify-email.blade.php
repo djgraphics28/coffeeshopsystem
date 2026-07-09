@@ -69,7 +69,8 @@
                                 </tr>
                             </table>
 
-                            {{-- Fallback URL --}}
+                            {{-- Fallback URL (production only — dev links trip spam filters) --}}
+                            @production
                             <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom: 24px;">
                                 <tr>
                                     <td style="background-color: #F9F5ED; border-radius: 8px; padding: 14px 16px;">
@@ -78,6 +79,7 @@
                                     </td>
                                 </tr>
                             </table>
+                            @endproduction
 
                             {{-- Footer notes --}}
                             <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-top: 1px solid #F3F4F6; padding-top: 20px;">

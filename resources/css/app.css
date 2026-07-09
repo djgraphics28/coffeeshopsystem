@@ -152,6 +152,16 @@
     }
 }
 
+/* ─── Customer storefront theme ───────────────────────────────────── */
+
+/* Customer-facing pages are always light-branded regardless of the app's
+   dark mode — force a light color scheme so inherited text and native
+   form controls don't switch to dark-mode colors. */
+.customer-page {
+    color-scheme: light;
+    color: #2c1a0e;
+}
+
 /* ─── Admin panel theme ───────────────────────────────────────────── */
 
 /* Light mode */

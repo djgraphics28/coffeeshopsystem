@@ -32,6 +32,7 @@ export const posOrdersPayment = (orderId: number) => `/pos/orders/${orderId}/pay
 
 // ─── Admin ───────────────────────────────────────────────────────────────────
 export const adminDashboard = () => `/admin`;
+export const adminAccount = () => `/admin/account`;
 export const adminCategoriesIndex = () => `/admin/categories`;
 export const adminCategoriesStore = () => `/admin/categories`;
 export const adminCategoriesUpdate = (id: number) => `/admin/categories/${id}`;
@@ -87,6 +88,16 @@ export const adminUsersIndex = () => `/admin/users`;
 export const adminUsersStore = () => `/admin/users`;
 export const adminUsersUpdate = (id: number) => `/admin/users/${id}`;
 export const adminUsersDestroy = (id: number) => `/admin/users/${id}`;
+
+export const adminExpenseCategoriesIndex = () => `/admin/expense-categories`;
+export const adminExpenseCategoriesStore = () => `/admin/expense-categories`;
+export const adminExpenseCategoriesUpdate = (id: number) => `/admin/expense-categories/${id}`;
+export const adminExpenseCategoriesDestroy = (id: number) => `/admin/expense-categories/${id}`;
+
+export const adminExpensesIndex = () => `/admin/expenses`;
+export const adminExpensesStore = () => `/admin/expenses`;
+export const adminExpensesUpdate = (id: number) => `/admin/expenses/${id}`;
+export const adminExpensesDestroy = (id: number) => `/admin/expenses/${id}`;
 
 export const adminSettings = () => `/admin/settings`;
 export const adminSettingsUpdate = () => `/admin/settings`;

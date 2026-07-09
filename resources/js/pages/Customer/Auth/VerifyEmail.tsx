@@ -32,7 +32,7 @@ export default function CustomerVerifyEmail() {
     }, [countdown]);
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center px-4" style={{ background: '#FDF6EC', fontFamily: "'DM Sans', sans-serif" }}>
+        <div className="customer-page flex min-h-screen flex-col items-center justify-center px-4" style={{ background: '#FDF6EC', fontFamily: "'DM Sans', sans-serif" }}>
             <Head title="Verify Your Email — Milk&Honey" />
             <Toaster position="top-center" />
 
@@ -86,7 +86,7 @@ export default function CustomerVerifyEmail() {
                 </div>
 
                 <form action={customerAuthLogout()} method="POST" className="mt-4 text-center">
-                    <input type="hidden" name="_token" value={document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? ''} />
+                    <input type="hidden" name="_token" value={typeof document !== 'undefined' ? (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '') : ''} />
                     <button type="submit" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
                         Use a different account
                     </button>

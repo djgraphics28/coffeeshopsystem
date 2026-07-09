@@ -33,6 +33,22 @@ class OrderController extends Controller
             ], 403);
         }
 
+        $customer = Auth::guard('customer')->user();
+
+        if (! $customer) {
+            return response()->json([
+                'message' => 'Please sign in or create an account to place your order.',
+                'requires_auth' => true,
+            ], 401);
+        }
+
+        if (! $customer->hasVerifiedEmail()) {
+            return response()->json([
+                'message' => 'Please verify your email address before placing an order.',
+                'requires_verification' => true,
+            ], 403);
+        }
+
         $validated = $request->validate([
             'table_id' => ['required', 'exists:tables,id'],
             'type' => ['required', Rule::in(['dine-in', 'takeout'])],
@@ -54,8 +70,6 @@ class OrderController extends Controller
                 'message' => 'Please scan the QR code at your table to place an order.',
             ], 403);
         }
-
-        $customer = Auth::guard('customer')->user();
 
         $meta = [];
 

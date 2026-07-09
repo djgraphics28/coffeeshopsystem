@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
+use App\Rules\Recaptcha;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -67,6 +69,7 @@ class CustomerAuthController extends Controller
     {
         return Inertia::render('Customer/Auth/Register', [
             'qrToken' => $qrToken ?? $request->query('qrToken'),
+            'recaptchaSiteKey' => Recaptcha::isConfigured() ? config('services.recaptcha.site_key') : null,
         ]);
     }
 
@@ -78,6 +81,14 @@ class CustomerAuthController extends Controller
             'phone' => ['nullable', 'string', 'max:30'],
             'password' => ['required', 'confirmed', Password::min(8)],
             'qrToken' => ['nullable', 'string'],
+            'recaptcha_token' => [
+                Rule::requiredIf(Recaptcha::isConfigured()),
+                'nullable',
+                'string',
+                new Recaptcha,
+            ],
+        ], [
+            'recaptcha_token.required' => 'CAPTCHA verification failed. Please refresh the page and try again.',
         ]);
 
         $customer = Customer::create([

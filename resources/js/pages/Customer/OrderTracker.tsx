@@ -67,7 +67,7 @@ export default function OrderTracker({ order: initialOrder, settings }: Props) {
     const isCancelled = order.status === 'cancelled';
 
     return (
-        <div className="min-h-screen" style={{ background: '#FDF6EC', fontFamily: "'DM Sans', sans-serif", maxWidth: '430px', margin: '0 auto' }}>
+        <div className="customer-page min-h-screen" style={{ background: '#FDF6EC', fontFamily: "'DM Sans', sans-serif", maxWidth: '430px', margin: '0 auto' }}>
             <Head title={isCompleted ? `Thank You! — ${settings.cafe_name}` : `Order ${order.order_number} — ${settings.cafe_name}`} />
 
             <AnimatePresence mode="wait">

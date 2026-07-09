@@ -73,7 +73,7 @@ interface Props {
     can: { manage_menu_items: boolean };
 }
 
-type BulkType = 'percent_increase' | 'percent_decrease' | 'fixed';
+type BulkType = 'percent_increase' | 'percent_decrease' | 'fixed_increase' | 'fixed_decrease' | 'per_variation';
 
 export default function MenuItemsIndex({ items, categories, addon_groups, filters, stats, can }: Props) {
     const [modalOpen, setModalOpen] = useState(false);
@@ -88,6 +88,7 @@ export default function MenuItemsIndex({ items, categories, addon_groups, filter
     const [bulkOpen, setBulkOpen] = useState(false);
     const [bulkType, setBulkType] = useState<BulkType>('percent_increase');
     const [bulkValue, setBulkValue] = useState('');
+    const [bulkVariationPrices, setBulkVariationPrices] = useState<Record<string, string>>({});
     const [bulkProcessing, setBulkProcessing] = useState(false);
 
     const [localItems, setLocalItems] = useState<MenuItem[]>(items);
@@ -234,22 +235,49 @@ export default function MenuItemsIndex({ items, categories, addon_groups, filter
         });
     }
 
+    // Unique variation names across all currently selected items (preserving first-seen order)
+    const selectedVariationNames: string[] = Array.from(
+        localItems
+            .filter((i) => selected.has(i.id) && i.has_variations && i.variations && i.variations.length > 0)
+            .flatMap((i) => i.variations!.map((v) => v.name))
+            .reduce((set, name) => set.add(name), new Set<string>())
+    );
+    const hasSelectedWithVariations = selectedVariationNames.length > 0;
+
     function applyBulkPrice() {
-        if (!bulkValue || Number(bulkValue) < 0) { toast.error('Enter a valid value'); return; }
         setBulkProcessing(true);
-        router.post(adminMenuItemsBulkPriceUpdate(), { ids: Array.from(selected), type: bulkType, value: bulkValue }, {
-            onSuccess: () => {
-                toast.success(`Prices updated for ${selected.size} item(s)`);
-                setSelected(new Set()); setBulkOpen(false); setBulkValue(''); setBulkProcessing(false);
-            },
-            onError: () => { toast.error('Failed to update prices'); setBulkProcessing(false); },
-        });
+        if (bulkType === 'per_variation') {
+            const prices: Record<string, number> = {};
+            for (const name of selectedVariationNames) {
+                const val = parseFloat(bulkVariationPrices[name] ?? '');
+                if (!isNaN(val) && val > 0) prices[name] = val;
+            }
+            if (Object.keys(prices).length === 0) { toast.error('Enter at least one size price'); setBulkProcessing(false); return; }
+            router.post(adminMenuItemsBulkPriceUpdate(), { ids: Array.from(selected), type: 'per_variation', prices }, {
+                onSuccess: () => {
+                    toast.success(`Prices updated for ${selected.size} item(s)`);
+                    setSelected(new Set()); setBulkOpen(false); setBulkVariationPrices({}); setBulkProcessing(false);
+                },
+                onError: () => { toast.error('Failed to update prices'); setBulkProcessing(false); },
+            });
+        } else {
+            if (!bulkValue || Number(bulkValue) < 0) { toast.error('Enter a valid value'); setBulkProcessing(false); return; }
+            router.post(adminMenuItemsBulkPriceUpdate(), { ids: Array.from(selected), type: bulkType, value: bulkValue }, {
+                onSuccess: () => {
+                    toast.success(`Prices updated for ${selected.size} item(s)`);
+                    setSelected(new Set()); setBulkOpen(false); setBulkValue(''); setBulkProcessing(false);
+                },
+                onError: () => { toast.error('Failed to update prices'); setBulkProcessing(false); },
+            });
+        }
     }
 
     const bulkTypeLabel: Record<BulkType, string> = {
         percent_increase: '% Increase',
         percent_decrease: '% Decrease',
-        fixed: 'Set Fixed Price',
+        fixed_increase: '+₱ Amount',
+        fixed_decrease: '-₱ Amount',
+        per_variation: 'Per Size',
     };
 
     return (
@@ -341,30 +369,57 @@ export default function MenuItemsIndex({ items, categories, addon_groups, filter
                                     <div>
                                         <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--ap-muted)' }}>Adjustment type</label>
                                         <div className="flex overflow-hidden rounded-xl" style={{ border: '1px solid var(--ap-border)' }}>
-                                            {(['percent_increase', 'percent_decrease', 'fixed'] as BulkType[]).map((t, i) => (
-                                                <button key={t} onClick={() => setBulkType(t)} className="px-3 py-2 text-xs font-medium transition-all" style={{ background: bulkType === t ? '#2C1A0E' : 'var(--ap-card)', color: bulkType === t ? '#D4A843' : 'var(--ap-muted)', borderRight: i < 2 ? '1px solid var(--ap-border)' : undefined }}>
+                                            {((['percent_increase', 'percent_decrease', 'fixed_increase', 'fixed_decrease'] as BulkType[]).concat(hasSelectedWithVariations ? ['per_variation' as BulkType] : [])).map((t, i, arr) => (
+                                                <button key={t} onClick={() => setBulkType(t)} className="px-3 py-2 text-xs font-medium transition-all" style={{ background: bulkType === t ? '#2C1A0E' : 'var(--ap-card)', color: bulkType === t ? '#D4A843' : 'var(--ap-muted)', borderRight: i < arr.length - 1 ? '1px solid var(--ap-border)' : undefined }}>
                                                     {bulkTypeLabel[t]}
                                                 </button>
                                             ))}
                                         </div>
                                     </div>
+
+                                    {bulkType === 'per_variation' ? (
+                                        <div>
+                                            <label className="mb-2 block text-xs font-medium" style={{ color: 'var(--ap-muted)' }}>Set price per size</label>
+                                            <div className="flex flex-wrap gap-2">
+                                                {selectedVariationNames.map((name) => (
+                                                    <div key={name} className="flex items-center gap-1.5 rounded-xl px-3 py-2" style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)' }}>
+                                                        <span className="text-xs font-semibold w-16 truncate" style={{ color: 'var(--ap-input-text)' }}>{name}</span>
+                                                        <span className="text-xs" style={{ color: 'var(--ap-muted)' }}>₱</span>
+                                                        <input
+                                                            type="number" min="0" step="0.01"
+                                                            value={bulkVariationPrices[name] ?? ''}
+                                                            onChange={(e) => setBulkVariationPrices((prev) => ({ ...prev, [name]: e.target.value }))}
+                                                            placeholder="0.00"
+                                                            className="w-20 rounded-lg py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                                                            style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)', color: 'var(--ap-input-text)' }}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <p className="mt-2 text-xs" style={{ color: 'var(--ap-muted)' }}>Leave blank to skip that size. Items without that size name are unaffected.</p>
+                                        </div>
+                                    ) : (
                                     <div>
-                                        <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--ap-muted)' }}>{bulkType === 'fixed' ? 'New price (₱)' : 'Percentage (%)'}</label>
+                                        <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--ap-muted)' }}>
+                                            {bulkType === 'fixed_increase' || bulkType === 'fixed_decrease' ? 'Amount (₱)' : 'Percentage (%)'}
+                                        </label>
                                         <div className="relative">
                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--ap-muted)' }}>
-                                                {bulkType === 'fixed' ? '₱' : <Percent className="h-3.5 w-3.5" />}
+                                                {bulkType === 'fixed_increase' || bulkType === 'fixed_decrease' ? '₱' : <Percent className="h-3.5 w-3.5" />}
                                             </span>
-                                            <input type="number" min="0" step={bulkType === 'fixed' ? '0.01' : '1'} value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} placeholder={bulkType === 'fixed' ? '0.00' : '0'} className="w-36 rounded-xl py-2 pl-7 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400" style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)', color: 'var(--ap-input-text)' }} />
+                                            <input type="number" min="0" step="0.01" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} placeholder="0.00" className="w-36 rounded-xl py-2 pl-7 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400" style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)', color: 'var(--ap-input-text)' }} />
                                         </div>
                                     </div>
-                                    {bulkValue && Number(bulkValue) > 0 && (
+                                    )}
+                                    {bulkType !== 'per_variation' && bulkValue && Number(bulkValue) > 0 && (
                                         <p className="pb-2 text-xs" style={{ color: 'var(--ap-muted)' }}>
-                                            {bulkType === 'percent_increase' && `Prices will increase by ${bulkValue}%`}
-                                            {bulkType === 'percent_decrease' && `Prices will decrease by ${bulkValue}%`}
-                                            {bulkType === 'fixed' && `All selected prices set to ₱${Number(bulkValue).toFixed(2)}`}
+                                            {bulkType === 'percent_increase' && `Each price increases by ${bulkValue}%`}
+                                            {bulkType === 'percent_decrease' && `Each price decreases by ${bulkValue}%`}
+                                            {bulkType === 'fixed_increase' && `₱${Number(bulkValue).toFixed(2)} added to each price (per size)`}
+                                            {bulkType === 'fixed_decrease' && `₱${Number(bulkValue).toFixed(2)} subtracted from each price (per size)`}
                                         </p>
                                     )}
-                                    <button onClick={applyBulkPrice} disabled={bulkProcessing || !bulkValue} className="rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50" style={{ background: '#D4A843', color: '#2C1A0E' }}>
+                                    <button onClick={applyBulkPrice} disabled={bulkProcessing || (bulkType !== 'per_variation' && !bulkValue)} className="rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50" style={{ background: '#D4A843', color: '#2C1A0E' }}>
                                         {bulkProcessing ? 'Applying...' : 'Apply'}
                                     </button>
                                     <button onClick={() => { setBulkOpen(false); setBulkValue(''); }} className="rounded-xl px-3 py-2 text-sm" style={{ color: 'var(--ap-muted)', border: '1px solid var(--ap-border)' }}>Cancel</button>

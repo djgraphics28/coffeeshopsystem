@@ -39,7 +39,8 @@ class AppServiceProvider extends ServiceProvider
                     'mail_encryption', 'mail_from_address', 'mail_from_name',
                     'pusher_app_id', 'pusher_app_key', 'pusher_app_secret', 'pusher_app_cluster',
                 ])
-                ->pluck('value', 'key');
+                ->pluck('value', 'key')
+                ->filter(fn (?string $value): bool => $value !== null && $value !== '');
 
             if ($settings->isEmpty()) {
                 return;
