@@ -24,6 +24,16 @@ describe('Customer Storefront', function () {
         );
     });
 
+    it('loads the table-less browse storefront', function () {
+        get(route('storefront.browse'))
+            ->assertStatus(200)
+            ->assertInertia(fn ($page) => $page
+                ->component('Customer/Storefront')
+                ->where('table', null)
+                ->has('categories')
+            );
+    });
+
     it('returns 404 for an invalid QR token', function () {
         get(route('storefront.show', ['qrToken' => 'invalid-token']))->assertNotFound();
     });

@@ -24,6 +24,19 @@ class StorefrontController extends Controller
             'scanned_at' => now()->timestamp,
         ]);
 
+        return $this->renderStorefront($table);
+    }
+
+    /**
+     * Menu browsing without a table — ordering requires scanning a table QR.
+     */
+    public function browse(): Response
+    {
+        return $this->renderStorefront(null);
+    }
+
+    protected function renderStorefront(?Table $table): Response
+    {
         $categories = Category::active()
             ->with(['availableMenuItems.variations', 'availableMenuItems.addonGroups.addons'])
             ->get();
@@ -37,11 +50,11 @@ class StorefrontController extends Controller
         $settings = Setting::getAll();
 
         return Inertia::render('Customer/Storefront', [
-            'table' => [
+            'table' => $table ? [
                 'id' => $table->id,
                 'name' => $table->name,
                 'qr_token' => $table->qr_token,
-            ],
+            ] : null,
             'categories' => CategoryResource::collection($categories)->resolve(),
             'featured_items' => MenuItemResource::collection($featuredItems)->resolve(),
             'settings' => [

@@ -49,6 +49,7 @@ Route::post('/order/promo/apply', [CustomerPromoController::class, 'apply'])
 // Public storefront (QR self-order) — browsing is open to guests; placing an
 // order requires a verified customer account (enforced in the controller)
 Route::prefix('order')->name('storefront.')->group(function () {
+    Route::get('/', [StorefrontController::class, 'browse'])->name('browse');
     Route::get('/{qrToken}', [StorefrontController::class, 'show'])->name('show')
         ->where('qrToken', '^(?!auth|promo)[a-zA-Z0-9_-]+$');
     Route::post('/', [CustomerOrderController::class, 'store'])->name('orders.store')->middleware('throttle:10,1');

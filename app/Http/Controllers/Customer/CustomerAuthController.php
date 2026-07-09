@@ -63,7 +63,23 @@ class CustomerAuthController extends Controller
             return redirect()->route('storefront.show', ['qrToken' => $validated['qrToken']]);
         }
 
-        return redirect('/');
+        return $this->redirectToStorefront();
+    }
+
+    /**
+     * Redirect to the storefront of the most recently scanned table,
+     * falling back to table-less menu browsing — never the admin side.
+     */
+    protected function redirectToStorefront(?string $successMessage = null): RedirectResponse
+    {
+        $scan = session('storefront_qr_scan');
+        $scannedTable = $scan ? Table::find($scan['table_id']) : null;
+
+        $redirect = $scannedTable
+            ? redirect()->route('storefront.show', ['qrToken' => $scannedTable->qr_token])
+            : redirect()->route('storefront.browse');
+
+        return $successMessage ? $redirect->with('success', $successMessage) : $redirect;
     }
 
     public function showRegister(Request $request, ?string $qrToken = null): Response
@@ -154,18 +170,7 @@ class CustomerAuthController extends Controller
                 ->with('success', 'Email verified! Welcome to Milk&Honey.');
         }
 
-        // No table context (e.g. link opened in another browser) — fall back to
-        // the storefront of the most recently scanned table, else customer login
-        $scan = session('storefront_qr_scan');
-        $scannedTable = $scan ? Table::find($scan['table_id']) : null;
-
-        if ($scannedTable) {
-            return redirect()->route('storefront.show', ['qrToken' => $scannedTable->qr_token])
-                ->with('success', 'Email verified! Welcome to Milk&Honey.');
-        }
-
-        return redirect()->route('customer.auth.login')
-            ->with('success', 'Email verified! Scan the QR code at your table to start ordering.');
+        return $this->redirectToStorefront('Email verified! Welcome to Milk&Honey.');
     }
 
     public function resendVerification(Request $request): RedirectResponse
@@ -186,6 +191,6 @@ class CustomerAuthController extends Controller
     {
         Auth::guard('customer')->logout();
 
-        return redirect('/');
+        return $this->redirectToStorefront();
     }
 }

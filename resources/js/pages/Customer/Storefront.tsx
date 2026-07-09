@@ -62,7 +62,7 @@ interface CustomerAuth {
 }
 
 interface Props {
-    table: { id: number; name: string; qr_token: string };
+    table: { id: number; name: string; qr_token: string } | null;
     categories: Category[];
     featured_items: MenuItem[];
     settings: {
@@ -83,7 +83,7 @@ export default function Storefront({ table, categories, featured_items, settings
 
     const [activeCategory, setActiveCategory] = useState<number | null>(categories[0]?.id ?? null);
     const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
-    const cartStorageKey = `storefront_cart_${table.qr_token}`;
+    const cartStorageKey = `storefront_cart_${table?.qr_token ?? 'browse'}`;
     const [cart, setCart] = useState<CartItem[]>(() => {
         if (typeof sessionStorage === 'undefined') return [];
         try {
@@ -282,6 +282,11 @@ export default function Storefront({ table, categories, featured_items, settings
             return;
         }
 
+        if (!table) {
+            toast('Scan the QR code at your table to place your order — your cart will be waiting!', { icon: '📱', duration: 5000 });
+            return;
+        }
+
         setIsPlacingOrder(true);
 
         try {
@@ -398,9 +403,11 @@ export default function Storefront({ table, categories, featured_items, settings
                     )}
                 </div>
                 {/* Table badge */}
-                <div className="absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ background: 'rgba(212,168,67,0.9)' }}>
-                    {table.name}
-                </div>
+                {table && (
+                    <div className="absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ background: 'rgba(212,168,67,0.9)' }}>
+                        {table.name}
+                    </div>
+                )}
                 {/* Logout button */}
                 {customer && (
                     <form action={customerAuthLogout()} method="POST" className="absolute left-3 top-3">
@@ -963,14 +970,14 @@ export default function Storefront({ table, categories, featured_items, settings
                             </p>
                             <div className="mt-5 space-y-2">
                                 <button
-                                    onClick={() => router.visit(customerAuthLogin(table.qr_token))}
+                                    onClick={() => router.visit(customerAuthLogin(table?.qr_token))}
                                     className="w-full rounded-full py-3 text-sm font-bold"
                                     style={{ background: '#D4A843', color: '#2C1A0E' }}
                                 >
                                     Sign In
                                 </button>
                                 <button
-                                    onClick={() => router.visit(customerAuthRegister(table.qr_token))}
+                                    onClick={() => router.visit(customerAuthRegister(table?.qr_token))}
                                     className="w-full rounded-full border-2 py-3 text-sm font-bold"
                                     style={{ borderColor: '#D4A843', color: '#2C1A0E', background: 'white' }}
                                 >

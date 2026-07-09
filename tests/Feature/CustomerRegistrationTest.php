@@ -102,12 +102,33 @@ describe('Customer Registration', function () {
         expect($customer->fresh()->hasVerifiedEmail())->toBeTrue();
     });
 
-    it('redirects to customer login after verification without any table context', function () {
+    it('redirects to menu browsing after verification without any table context', function () {
         $customer = Customer::factory()->unverified()->create();
 
         $this->get(customerVerificationUrl($customer))
-            ->assertRedirect(route('customer.auth.login'));
+            ->assertRedirect(route('storefront.browse'));
 
         expect($customer->fresh()->hasVerifiedEmail())->toBeTrue();
+    });
+
+    it('redirects to the storefront after login when a table was scanned', function () {
+        $table = Table::factory()->create();
+        $customer = Customer::factory()->create(['password' => 'password123']);
+
+        $this->withSession([
+            'storefront_qr_scan' => ['table_id' => $table->id, 'scanned_at' => now()->timestamp],
+        ])->post(route('customer.auth.login.store'), [
+            'email' => $customer->email,
+            'password' => 'password123',
+        ])->assertRedirect(route('storefront.show', ['qrToken' => $table->qr_token]));
+    });
+
+    it('redirects to menu browsing after login without any table context', function () {
+        $customer = Customer::factory()->create(['password' => 'password123']);
+
+        post(route('customer.auth.login.store'), [
+            'email' => $customer->email,
+            'password' => 'password123',
+        ])->assertRedirect(route('storefront.browse'));
     });
 });
