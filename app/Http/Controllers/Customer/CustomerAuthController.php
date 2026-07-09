@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
+use App\Models\Table;
 use App\Rules\Recaptcha;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -153,7 +154,18 @@ class CustomerAuthController extends Controller
                 ->with('success', 'Email verified! Welcome to Milk&Honey.');
         }
 
-        return redirect('/')->with('success', 'Email verified!');
+        // No table context (e.g. link opened in another browser) — fall back to
+        // the storefront of the most recently scanned table, else customer login
+        $scan = session('storefront_qr_scan');
+        $scannedTable = $scan ? Table::find($scan['table_id']) : null;
+
+        if ($scannedTable) {
+            return redirect()->route('storefront.show', ['qrToken' => $scannedTable->qr_token])
+                ->with('success', 'Email verified! Welcome to Milk&Honey.');
+        }
+
+        return redirect()->route('customer.auth.login')
+            ->with('success', 'Email verified! Scan the QR code at your table to start ordering.');
     }
 
     public function resendVerification(Request $request): RedirectResponse

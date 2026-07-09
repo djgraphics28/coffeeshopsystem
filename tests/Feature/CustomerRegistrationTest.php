@@ -1,10 +1,20 @@
 <?php
 
 use App\Models\Customer;
+use App\Models\Table;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\URL;
 
 use function Pest\Laravel\post;
+
+function customerVerificationUrl(Customer $customer): string
+{
+    return URL::temporarySignedRoute('customer.auth.email.verify', now()->addMinutes(60), [
+        'id' => $customer->getKey(),
+        'hash' => sha1($customer->getEmailForVerification()),
+    ]);
+}
 
 describe('Customer Registration', function () {
     beforeEach(function () {
@@ -78,5 +88,26 @@ describe('Customer Registration', function () {
             'password_confirmation' => 'password123',
             'recaptcha_token' => 'bot-token',
         ])->assertSessionHasErrors('recaptcha_token');
+    });
+
+    it('redirects to the storefront after verification when a table was scanned', function () {
+        $table = Table::factory()->create();
+        $customer = Customer::factory()->unverified()->create();
+
+        $this->withSession([
+            'storefront_qr_scan' => ['table_id' => $table->id, 'scanned_at' => now()->timestamp],
+        ])->get(customerVerificationUrl($customer))
+            ->assertRedirect(route('storefront.show', ['qrToken' => $table->qr_token]));
+
+        expect($customer->fresh()->hasVerifiedEmail())->toBeTrue();
+    });
+
+    it('redirects to customer login after verification without any table context', function () {
+        $customer = Customer::factory()->unverified()->create();
+
+        $this->get(customerVerificationUrl($customer))
+            ->assertRedirect(route('customer.auth.login'));
+
+        expect($customer->fresh()->hasVerifiedEmail())->toBeTrue();
     });
 });
