@@ -6,7 +6,6 @@ use App\Models\MenuItem;
 use App\Models\Table;
 
 use function Pest\Laravel\get;
-use function Pest\Laravel\postJson;
 
 describe('Customer Storefront', function () {
     beforeEach(function () {
@@ -91,22 +90,37 @@ describe('Customer Storefront', function () {
         expect($response->getStatusCode())->toBeIn([302, 422]);
     });
 
-    it('rejects an order when no QR code has been scanned', function () {
+    it('rejects a dine-in order when no QR code has been scanned', function () {
         $category = Category::factory()->create();
         $item = MenuItem::factory()->create(['category_id' => $category->id, 'price' => 180]);
 
-        postJson(route('storefront.orders.store'), [
+        $this->actingAs(Customer::factory()->create(), 'customer')->postJson(route('storefront.orders.store'), [
             'table_id' => $this->table->id,
             'type' => 'dine-in',
             'items' => [['menu_item_id' => $item->id, 'quantity' => 1, 'addon_ids' => []]],
         ])->assertStatus(403);
     });
 
+    it('places a table-less online order as takeout without a QR scan', function () {
+        $category = Category::factory()->create();
+        $item = MenuItem::factory()->create(['category_id' => $category->id, 'price' => 180]);
+        $customer = Customer::factory()->create();
+
+        $response = $this->actingAs($customer, 'customer')->postJson(route('storefront.orders.store'), [
+            'table_id' => null,
+            'type' => 'takeout',
+            'items' => [['menu_item_id' => $item->id, 'quantity' => 1, 'addon_ids' => []]],
+        ]);
+
+        $response->assertStatus(201)->assertJsonPath('order.status', 'pending');
+        $this->assertDatabaseHas('orders', ['customer_id' => $customer->id, 'table_id' => null, 'type' => 'takeout']);
+    });
+
     it('rejects an order when the QR scan has expired', function () {
         $category = Category::factory()->create();
         $item = MenuItem::factory()->create(['category_id' => $category->id, 'price' => 180]);
 
-        $this->withSession([
+        $this->actingAs(Customer::factory()->create(), 'customer')->withSession([
             'storefront_qr_scan' => ['table_id' => $this->table->id, 'scanned_at' => now()->subHours(3)->timestamp],
         ])->postJson(route('storefront.orders.store'), [
             'table_id' => $this->table->id,

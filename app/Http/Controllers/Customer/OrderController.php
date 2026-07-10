@@ -25,14 +25,6 @@ class OrderController extends Controller
 {
     public function store(Request $request): JsonResponse
     {
-        $scan = $request->session()->get('storefront_qr_scan');
-
-        if (! $scan || (now()->timestamp - $scan['scanned_at']) > 7200) {
-            return response()->json([
-                'message' => 'Please scan the QR code at your table to place an order.',
-            ], 403);
-        }
-
         $customer = Auth::guard('customer')->user();
 
         if (! $customer) {
@@ -50,7 +42,7 @@ class OrderController extends Controller
         }
 
         $validated = $request->validate([
-            'table_id' => ['required', 'exists:tables,id'],
+            'table_id' => ['nullable', 'exists:tables,id'],
             'type' => ['required', Rule::in(['dine-in', 'takeout'])],
             'notes' => ['nullable', 'string', 'max:500'],
             'promo_code' => ['nullable', 'string', 'max:50'],
@@ -65,10 +57,18 @@ class OrderController extends Controller
             'items.*.addon_ids.*' => ['exists:addons,id'],
         ]);
 
-        if ($scan['table_id'] !== (int) $validated['table_id']) {
-            return response()->json([
-                'message' => 'Please scan the QR code at your table to place an order.',
-            ], 403);
+        // Dine-in orders (tied to a table) still require a fresh QR scan for that
+        // table; table-less orders are treated as online takeout and skip the check.
+        if (! empty($validated['table_id'])) {
+            $scan = $request->session()->get('storefront_qr_scan');
+
+            if (! $scan || (now()->timestamp - $scan['scanned_at']) > 7200 || $scan['table_id'] !== (int) $validated['table_id']) {
+                return response()->json([
+                    'message' => 'Please scan the QR code at your table to place a dine-in order.',
+                ], 403);
+            }
+        } else {
+            $validated['type'] = 'takeout';
         }
 
         $meta = [];
@@ -78,7 +78,7 @@ class OrderController extends Controller
             $subtotal = 0;
 
             $order = Order::create([
-                'table_id' => $validated['table_id'],
+                'table_id' => $validated['table_id'] ?? null,
                 'customer_id' => $customer?->id,
                 'order_number' => Order::generateOrderNumber(),
                 'status' => 'pending',

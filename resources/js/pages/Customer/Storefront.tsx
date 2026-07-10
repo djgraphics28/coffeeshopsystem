@@ -96,14 +96,19 @@ export default function Storefront({ table, categories, featured_items, settings
     const [activeCategory, setActiveCategory] = useState<number | null>(categories[0]?.id ?? null);
     const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
     const cartStorageKey = `storefront_cart_${table?.qr_token ?? 'browse'}`;
-    const [cart, setCart] = useState<CartItem[]>(() => {
-        if (typeof sessionStorage === 'undefined') return [];
+    // Start empty on both server and client so SSR hydration matches, then
+    // restore the persisted cart after mount (this effect must be registered
+    // before the persist effect below so it reads storage before it's rewritten).
+    const [cart, setCart] = useState<CartItem[]>([]);
+    useEffect(() => {
         try {
-            return JSON.parse(sessionStorage.getItem(cartStorageKey) ?? '[]') as CartItem[];
+            const stored = JSON.parse(sessionStorage.getItem(cartStorageKey) ?? '[]') as CartItem[];
+            if (stored.length > 0) setCart(stored);
         } catch {
-            return [];
+            // Corrupt or unavailable storage — start with an empty cart
         }
-    });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [cartStorageKey]);
     const [cartOpen, setCartOpen] = useState(false);
     const [quantity, setQuantity] = useState(1);
     const [selectedVariationId, setSelectedVariationId] = useState<number | null>(null);
@@ -303,11 +308,6 @@ export default function Storefront({ table, categories, featured_items, settings
             return;
         }
 
-        if (!table) {
-            toast('Scan the QR code at your table to place your order — your cart will be waiting!', { icon: '📱', duration: 5000 });
-            return;
-        }
-
         setIsPlacingOrder(true);
 
         try {
@@ -315,8 +315,8 @@ export default function Storefront({ table, categories, featured_items, settings
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '' },
                 body: JSON.stringify({
-                    table_id: table.id,
-                    type: 'dine-in',
+                    table_id: table?.id ?? null,
+                    type: table ? 'dine-in' : 'takeout',
                     notes: orderNotes,
                     promo_code: promoApplied?.code ?? null,
                     redeem_points: redeemPoints && customer ? true : false,
@@ -811,6 +811,9 @@ export default function Storefront({ table, categories, featured_items, settings
 
                             {cart.length > 0 && (
                                 <div className="space-y-3 px-4 py-4" style={{ borderTop: `2px solid ${P.sand}` }}>
+                                    <div className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-white" style={{ background: table ? P.navy : P.caramel }}>
+                                        {table ? <>🍽️ Dine-in · {table.name}</> : <>🛍️ Takeout / online order — pick up at the counter</>}
+                                    </div>
                                     <textarea
                                         value={orderNotes}
                                         onChange={(e) => setOrderNotes(e.target.value)}
