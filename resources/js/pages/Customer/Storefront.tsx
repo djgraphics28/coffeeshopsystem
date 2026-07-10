@@ -77,6 +77,18 @@ interface Props {
     };
 }
 
+/* Retro-geometric palette (cream / navy / terracotta / caramel) */
+const P = {
+    cream: '#E4DACB',
+    creamLight: '#EFE8DC',
+    navy: '#232B4A',
+    navyDeep: '#1B2240',
+    terracotta: '#C05B2D',
+    caramel: '#B5824F',
+    espresso: '#3B2A1D',
+    sand: '#D8CBB8',
+};
+
 export default function Storefront({ table, categories, featured_items, settings }: Props) {
     const { customer_auth } = usePage().props as unknown as { customer_auth: CustomerAuth };
     const customer = customer_auth?.customer ?? null;
@@ -125,6 +137,7 @@ export default function Storefront({ table, categories, featured_items, settings
 
     const categoryRefs = useRef<Record<number, HTMLElement | null>>({});
     const stickyHeaderRef = useRef<HTMLDivElement>(null);
+    const menuStartRef = useRef<HTMLDivElement>(null);
 
     const currency = settings.currency;
     const earnRate = parseFloat(settings.points_earn_rate ?? '1');
@@ -150,6 +163,14 @@ export default function Storefront({ table, categories, featured_items, settings
     function scrollToCategory(categoryId: number) {
         setActiveCategory(categoryId);
         const el = categoryRefs.current[categoryId];
+        if (!el) return;
+        const offset = stickyHeaderRef.current?.offsetHeight ?? 0;
+        const top = el.getBoundingClientRect().top + window.scrollY - offset;
+        window.scrollTo({ top, behavior: 'smooth' });
+    }
+
+    function scrollToMenu() {
+        const el = menuStartRef.current;
         if (!el) return;
         const offset = stickyHeaderRef.current?.offsetHeight ?? 0;
         const top = el.getBoundingClientRect().top + window.scrollY - offset;
@@ -351,122 +372,135 @@ export default function Storefront({ table, categories, featured_items, settings
         }
     }
 
-    const displayItems = filteredItems ?? (activeCategory ? categories.find((c) => c.id === activeCategory)?.menu_items ?? [] : []);
-
     return (
-        <div className="customer-page min-h-screen" style={{ background: '#FDF6EC', fontFamily: "'DM Sans', sans-serif", maxWidth: '430px', margin: '0 auto' }}>
+        <div className="customer-page min-h-screen" style={{ background: P.cream, fontFamily: "'DM Sans', sans-serif", color: P.espresso }}>
             <Head title={`${settings.cafe_name} — Order`} />
             <Toaster position="top-center" />
 
-            {/* Hero Header */}
-            <div className="relative h-56 overflow-hidden">
-                {/* Background: photo with CSS gradient fallback */}
-                <img
-                    src="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&q=80"
-                    alt=""
-                    className="absolute inset-0 h-full w-full object-cover"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                />
-                {/* Always-visible dark overlay — ensures content is readable even if image fails */}
-                <div className="absolute inset-0" style={{ background: 'linear-gradient(160deg, #2C1A0E 0%, #4a2e18 50%, #2C1A0E 100%)' }} />
-                {/* Decorative coffee-ring pattern */}
-                <div className="absolute inset-0 opacity-10" style={{
-                    backgroundImage: 'radial-gradient(circle at 20% 50%, #D4A843 1px, transparent 1px), radial-gradient(circle at 80% 20%, #D4A843 1px, transparent 1px)',
-                    backgroundSize: '60px 60px',
-                }} />
-                <div className="relative flex h-full flex-col items-center justify-center text-white">
-                    <CafeLogo />
-                    <p className="mt-1 text-sm opacity-80" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                        {settings.cafe_tagline}
-                    </p>
-                    {customer && (
-                        <div className="mt-2 flex items-center gap-3">
-                            <div className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: 'rgba(212,168,67,0.25)', color: '#D4A843' }}>
-                                ⭐ {customer.points} pts
-                            </div>
-                            {settings.loyalty_cups_enabled && (
-                                <div className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: 'rgba(255,255,255,0.15)', color: 'white' }}>
-                                    ☕ {cupCount}/{settings.loyalty_cups_threshold}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                    {settings.loyalty_cups_enabled && customer && freeDrinksAvailable > 0 && (
-                        <motion.div
-                            initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className="mt-2 rounded-full px-4 py-1.5 text-xs font-bold"
-                            style={{ background: '#D4A843', color: '#2C1A0E' }}
-                        >
-                            🎁 {freeDrinksAvailable} free drink{freeDrinksAvailable > 1 ? 's' : ''} available!
-                        </motion.div>
-                    )}
-                </div>
-                {/* Table badge */}
-                {table && (
-                    <div className="absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ background: 'rgba(212,168,67,0.9)' }}>
-                        {table.name}
-                    </div>
-                )}
-                {/* Logout button */}
-                {customer && (
-                    <form action={customerAuthLogout()} method="POST" className="absolute left-3 top-3">
-                        <input type="hidden" name="_token" value={typeof document !== 'undefined' ? (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '') : ''} />
-                        <button type="submit" className="flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-medium text-white/80 hover:text-white" style={{ background: 'rgba(0,0,0,0.3)' }}>
-                            <LogOut className="h-3 w-3" />
-                            <span>{customer.name.split(' ')[0]}</span>
-                        </button>
-                    </form>
-                )}
-            </div>
+            {/* ─── Top Nav ─────────────────────────────────────────── */}
+            <div ref={stickyHeaderRef} className="sticky top-0 z-30 shadow-md" style={{ background: P.navy }}>
+                <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
+                    <CafeLogo name={settings.cafe_name} />
 
-            {/* Sticky Search + Category Tabs */}
-            <div ref={stickyHeaderRef} className="sticky top-0 z-30" style={{ background: '#2C1A0E' }}>
-                {/* Search Bar */}
-                <div className="px-4 pt-3 pb-2">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    {/* Search */}
+                    <div className="relative ml-auto w-40 sm:w-64 md:w-80">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: P.sand }} />
                         <input
                             type="text"
                             placeholder="Search menu..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full rounded-full bg-white/10 py-2 pl-9 pr-4 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2"
-                            style={{ '--tw-ring-color': '#D4A843' } as React.CSSProperties}
+                            className="w-full rounded-full py-2 pl-9 pr-4 text-sm text-white placeholder:text-white/50 focus:outline-none focus:ring-2"
+                            style={{ background: 'rgba(255,255,255,0.12)', '--tw-ring-color': P.terracotta } as React.CSSProperties}
                         />
                     </div>
+
+                    {table && (
+                        <div className="hidden shrink-0 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white sm:block" style={{ background: P.terracotta }}>
+                            {table.name}
+                        </div>
+                    )}
+
+                    {customer && (
+                        <form action={customerAuthLogout()} method="POST" className="shrink-0">
+                            <input type="hidden" name="_token" value={typeof document !== 'undefined' ? (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '') : ''} />
+                            <button type="submit" className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-white/80 transition-colors hover:text-white" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                                <LogOut className="h-3 w-3" />
+                                <span className="hidden sm:inline">{customer.name.split(' ')[0]}</span>
+                            </button>
+                        </form>
+                    )}
                 </div>
 
-                {/* Category Tabs */}
+                {/* Category tabs (inside sticky bar so they're always reachable) */}
                 {!searchQuery && (
-                    <div className="flex gap-2 overflow-x-auto px-4 pb-3" style={{ scrollbarWidth: 'none' }}>
-                        {categories.map((cat) => (
-                            <button
-                                key={cat.id}
-                                onClick={() => scrollToCategory(cat.id)}
-                                className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-all"
-                                style={{
-                                    background: activeCategory === cat.id ? '#D4A843' : 'rgba(255,255,255,0.1)',
-                                    color: activeCategory === cat.id ? '#2C1A0E' : 'white',
-                                }}
-                            >
-                                <span>{cat.icon}</span>
-                                <span>{cat.name}</span>
-                            </button>
-                        ))}
+                    <div className="border-t border-white/10">
+                        <div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 py-2 sm:px-6" style={{ scrollbarWidth: 'none' }}>
+                            {categories.map((cat) => (
+                                <button
+                                    key={cat.id}
+                                    onClick={() => scrollToCategory(cat.id)}
+                                    className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition-all"
+                                    style={{
+                                        background: activeCategory === cat.id ? P.terracotta : 'rgba(255,255,255,0.08)',
+                                        color: 'white',
+                                    }}
+                                >
+                                    <span>{cat.icon}</span>
+                                    <span>{cat.name}</span>
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
 
-            {/* Main Content */}
-            <div className="pb-32">
-                {/* Featured Carousel */}
+            {/* ─── Hero (retro-geometric) ──────────────────────────── */}
+            {!searchQuery && (
+                <div className="relative overflow-hidden" style={{ background: P.cream }}>
+                    <GeometricShapes />
+                    <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 py-12 text-center sm:py-16 md:flex-row md:py-20 md:text-left">
+                        <div className="md:flex-1">
+                            <h1
+                                className="text-4xl font-black uppercase leading-none tracking-tight sm:text-5xl md:text-6xl"
+                                style={{ color: P.espresso, fontFamily: "'DM Sans', sans-serif" }}
+                            >
+                                {settings.cafe_name}
+                            </h1>
+                            <p className="mt-3 text-xl sm:text-2xl" style={{ color: P.espresso, fontFamily: "'Playfair Display', serif" }}>
+                                {settings.cafe_tagline}
+                            </p>
+                            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 md:justify-start">
+                                {customer && (
+                                    <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: P.caramel }}>
+                                        ⭐ {customer.points} pts
+                                    </span>
+                                )}
+                                {settings.loyalty_cups_enabled && customer && (
+                                    <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: P.navy }}>
+                                        ☕ {cupCount}/{settings.loyalty_cups_threshold} cups
+                                    </span>
+                                )}
+                                {settings.loyalty_cups_enabled && customer && freeDrinksAvailable > 0 && (
+                                    <motion.span
+                                        initial={{ scale: 0.8, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        className="rounded-full px-3 py-1 text-xs font-bold text-white"
+                                        style={{ background: P.terracotta }}
+                                    >
+                                        🎁 {freeDrinksAvailable} free drink{freeDrinksAvailable > 1 ? 's' : ''}!
+                                    </motion.span>
+                                )}
+                                {table && (
+                                    <span className="rounded-full px-3 py-1 text-xs font-bold text-white sm:hidden" style={{ background: P.terracotta }}>
+                                        {table.name}
+                                    </span>
+                                )}
+                            </div>
+                            <button
+                                onClick={scrollToMenu}
+                                className="mt-6 px-8 py-3 text-sm font-bold uppercase tracking-widest text-white transition-transform hover:scale-105"
+                                style={{ background: P.navy }}
+                            >
+                                Order Now
+                            </button>
+                        </div>
+
+                        {/* Coffee cup illustration */}
+                        <div className="hidden shrink-0 md:block">
+                            <CoffeeCupIllustration />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── Main Content ────────────────────────────────────── */}
+            <div className="mx-auto max-w-6xl px-4 pb-32 sm:px-6" ref={menuStartRef}>
+                {/* Featured */}
                 {!searchQuery && featured_items.length > 0 && (
-                    <div className="px-4 pb-4">
-                        <h2 className="mb-3 text-base font-semibold" style={{ color: '#2C1A0E', fontFamily: "'Playfair Display', serif" }}>
-                            ✨ Staff Picks
-                        </h2>
-                        <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
+                    <div className="pt-8">
+                        <SectionHeading label="Staff Picks" />
+                        <div className="flex gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-4 md:overflow-visible lg:grid-cols-5" style={{ scrollbarWidth: 'none' }}>
                             {featured_items.map((item) => (
                                 <FeaturedCard key={item.id} item={item} currency={currency} onSelect={openItem} />
                             ))}
@@ -476,9 +510,11 @@ export default function Storefront({ table, categories, featured_items, settings
 
                 {/* Search Results */}
                 {searchQuery && (
-                    <div className="px-4">
-                        <p className="mb-3 text-sm text-gray-500">{filteredItems?.length ?? 0} results for "{searchQuery}"</p>
-                        <div className="grid grid-cols-2 gap-3">
+                    <div className="pt-6">
+                        <p className="mb-4 text-sm" style={{ color: P.caramel }}>
+                            {filteredItems?.length ?? 0} results for "{searchQuery}"
+                        </p>
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                             {(filteredItems ?? []).map((item) => (
                                 <MenuCard key={item.id} item={item} currency={currency} onSelect={openItem} />
                             ))}
@@ -494,13 +530,10 @@ export default function Storefront({ table, categories, featured_items, settings
                             ref={(el) => {
                                 categoryRefs.current[cat.id] = el;
                             }}
-                            className="px-4 pb-6"
+                            className="pt-10"
                         >
-                            <h2 className="mb-3 flex items-center gap-2 text-base font-semibold" style={{ color: '#2C1A0E', fontFamily: "'Playfair Display', serif" }}>
-                                <span>{cat.icon}</span>
-                                {cat.name}
-                            </h2>
-                            <div className="grid grid-cols-2 gap-3">
+                            <SectionHeading label={`${cat.icon} ${cat.name}`} />
+                            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                                 {cat.menu_items.map((item) => (
                                     <MenuCard key={item.id} item={item} currency={currency} onSelect={openItem} />
                                 ))}
@@ -508,45 +541,44 @@ export default function Storefront({ table, categories, featured_items, settings
                         </div>
                     ))}
 
-                {/* While You Wait section */}
+                {/* While You Wait */}
                 {!searchQuery && (
-                    <div className="mx-4 mb-6 rounded-2xl p-4" style={{ background: '#2C1A0E', color: 'white' }}>
-                        <h2 className="mb-2 text-sm font-semibold" style={{ color: '#D4A843', fontFamily: "'Playfair Display', serif" }}>
-                            While you wait...
-                        </h2>
-                        <p className="mb-3 text-xs text-gray-300">Watch our baristas craft your drink with love ☕</p>
-                        <div className="space-y-2">
-                            <iframe
-                                className="w-full rounded-xl"
-                                height="160"
-                                src="https://www.youtube.com/embed/5WCB5BbdxFI"
-                                title="Coffee crafting"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                            />
+                    <div className="mt-12 overflow-hidden rounded-none p-6 sm:p-8 md:flex md:items-center md:gap-8" style={{ background: P.navy, color: 'white' }}>
+                        <div className="md:flex-1">
+                            <h2 className="text-xl font-black uppercase tracking-tight" style={{ color: P.cream }}>
+                                While you wait...
+                            </h2>
+                            <p className="mt-2 text-sm text-white/70">Watch our baristas craft your drink with love ☕</p>
                         </div>
+                        <iframe
+                            className="mt-4 w-full md:mt-0 md:w-[420px]"
+                            height="220"
+                            src="https://www.youtube.com/embed/5WCB5BbdxFI"
+                            title="Coffee crafting"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                        />
                     </div>
                 )}
             </div>
 
-            {/* Floating Cart Button */}
+            {/* ─── Floating Cart Button ────────────────────────────── */}
             {cartItemCount > 0 && (
                 <motion.button
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     onClick={() => setCartOpen(true)}
-                    className="fixed bottom-6 right-4 flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white shadow-lg"
-                    style={{ background: '#D4A843', zIndex: 50, color: '#2C1A0E' }}
+                    className="fixed bottom-6 right-4 flex items-center gap-2 px-6 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-xl sm:right-8"
+                    style={{ background: P.terracotta, zIndex: 50 }}
                 >
                     <ShoppingCart className="h-4 w-4" />
                     <span>{cartItemCount} item{cartItemCount > 1 ? 's' : ''}</span>
-                    <span className="font-bold">
-                        {currency}{cartTotal.toFixed(2)}
-                    </span>
+                    <span>·</span>
+                    <span>{currency}{cartTotal.toFixed(2)}</span>
                 </motion.button>
             )}
 
-            {/* Item Detail Bottom Sheet */}
+            {/* ─── Item Detail Sheet (bottom sheet on mobile, centered modal on desktop) ── */}
             <AnimatePresence>
                 {selectedItem && (
                     <>
@@ -563,29 +595,29 @@ export default function Storefront({ table, categories, featured_items, settings
                             animate={{ y: 0 }}
                             exit={{ y: '100%' }}
                             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                            className="fixed bottom-0 left-1/2 w-full -translate-x-1/2 overflow-y-auto rounded-t-3xl bg-white pb-8"
-                            style={{ zIndex: 70, maxWidth: '430px', maxHeight: '90vh' }}
+                            className="fixed bottom-0 left-1/2 w-full -translate-x-1/2 overflow-y-auto rounded-t-3xl pb-8 sm:bottom-auto sm:top-1/2 sm:max-w-lg sm:-translate-y-1/2 sm:rounded-3xl"
+                            style={{ zIndex: 70, maxHeight: '90vh', background: P.creamLight }}
                         >
                             {/* Item image */}
-                            <div className="relative h-52">
+                            <div className="relative h-52 sm:h-60">
                                 {selectedItem.image_url ? (
                                     <img src={selectedItem.image_url} alt={selectedItem.name} className="h-full w-full object-cover" />
                                 ) : (
-                                    <div className="flex h-full items-center justify-center text-6xl" style={{ background: '#FDF6EC' }}>
+                                    <div className="flex h-full items-center justify-center text-6xl" style={{ background: P.sand }}>
                                         ☕
                                     </div>
                                 )}
-                                <button onClick={() => setSelectedItem(null)} className="absolute right-4 top-4 rounded-full bg-white/80 p-2">
-                                    <X className="h-5 w-5" style={{ color: '#2C1A0E' }} />
+                                <button onClick={() => setSelectedItem(null)} className="absolute right-4 top-4 rounded-full p-2" style={{ background: 'rgba(239,232,220,0.9)' }}>
+                                    <X className="h-5 w-5" style={{ color: P.espresso }} />
                                 </button>
                             </div>
 
-                            <div className="px-5 pt-4">
-                                <h2 className="text-xl font-bold" style={{ color: '#2C1A0E', fontFamily: "'Playfair Display', serif" }}>
+                            <div className="px-5 pt-4 sm:px-7">
+                                <h2 className="text-2xl font-black uppercase tracking-tight" style={{ color: P.espresso }}>
                                     {selectedItem.name}
                                 </h2>
-                                <p className="mt-1 text-sm text-gray-500">{selectedItem.description}</p>
-                                <p className="mt-2 text-lg font-bold" style={{ color: '#D4A843' }}>
+                                <p className="mt-1 text-sm" style={{ color: P.caramel }}>{selectedItem.description}</p>
+                                <p className="mt-2 text-lg font-bold" style={{ color: P.terracotta }}>
                                     {selectedItem.has_variations && !selectedVariationId
                                         ? `From ${currency}${(selectedItem.display_price ?? selectedItem.price).toFixed(2)}`
                                         : `${currency}${computeUnitPrice(selectedItem, selectedVariationId, {}).toFixed(2)}`}
@@ -594,8 +626,8 @@ export default function Storefront({ table, categories, featured_items, settings
                                 {selectedItem.variations && selectedItem.variations.length > 0 && (
                                     <div className="mt-4">
                                         <div className="flex items-center gap-2">
-                                            <h3 className="font-semibold" style={{ color: '#2C1A0E' }}>Size</h3>
-                                            <span className="text-xs text-red-500">* Required</span>
+                                            <h3 className="font-bold" style={{ color: P.espresso }}>Size</h3>
+                                            <span className="text-xs" style={{ color: P.terracotta }}>* Required</span>
                                         </div>
                                         <div className="mt-2 flex flex-wrap gap-2">
                                             {selectedItem.variations.map((variation) => {
@@ -604,16 +636,16 @@ export default function Storefront({ table, categories, featured_items, settings
                                                     <button
                                                         key={variation.id}
                                                         onClick={() => setSelectedVariationId(variation.id)}
-                                                        className="flex flex-col items-center rounded-xl px-3 py-1.5 text-xs transition-all"
+                                                        className="flex flex-col items-center px-3 py-1.5 text-xs transition-all"
                                                         style={{
-                                                            background: isSelected ? '#FDF6EC' : '#F9F9F9',
-                                                            border: `2px solid ${isSelected ? '#D4A843' : '#E5E5E5'}`,
-                                                            color: '#2C1A0E',
+                                                            background: isSelected ? P.navy : 'white',
+                                                            border: `2px solid ${isSelected ? P.navy : P.sand}`,
+                                                            color: isSelected ? 'white' : P.espresso,
                                                             minWidth: '60px',
                                                         }}
                                                     >
-                                                        <span className="font-medium">{variation.name}</span>
-                                                        <span className="text-[10px]" style={{ color: '#D4A843' }}>
+                                                        <span className="font-semibold">{variation.name}</span>
+                                                        <span className="text-[10px]" style={{ color: isSelected ? P.cream : P.terracotta }}>
                                                             {currency}{variation.price.toFixed(2)}
                                                         </span>
                                                     </button>
@@ -627,10 +659,10 @@ export default function Storefront({ table, categories, featured_items, settings
                                 {selectedItem.addon_groups.map((group) => (
                                     <div key={group.id} className="mt-4">
                                         <div className="flex items-center gap-2">
-                                            <h3 className="font-semibold" style={{ color: '#2C1A0E' }}>{group.name}</h3>
-                                            {group.is_required && <span className="text-xs text-red-500">* Required</span>}
+                                            <h3 className="font-bold" style={{ color: P.espresso }}>{group.name}</h3>
+                                            {group.is_required && <span className="text-xs" style={{ color: P.terracotta }}>* Required</span>}
                                             {group.max_selections > 1 && (
-                                                <span className="text-xs text-gray-400">(up to {group.max_selections})</span>
+                                                <span className="text-xs" style={{ color: P.caramel }}>(up to {group.max_selections})</span>
                                             )}
                                         </div>
                                         <div className="mt-2 flex flex-wrap gap-2">
@@ -645,16 +677,16 @@ export default function Storefront({ table, categories, featured_items, settings
                                                     <button
                                                         key={addon.id}
                                                         onClick={() => toggleAddon(group.id, addon.id, group.max_selections)}
-                                                        className="flex flex-col items-center rounded-xl px-3 py-1.5 text-xs transition-all"
+                                                        className="flex flex-col items-center px-3 py-1.5 text-xs transition-all"
                                                         style={{
-                                                            background: isSelected ? '#FDF6EC' : '#F9F9F9',
-                                                            border: `2px solid ${isSelected ? '#D4A843' : '#E5E5E5'}`,
-                                                            color: '#2C1A0E',
+                                                            background: isSelected ? P.navy : 'white',
+                                                            border: `2px solid ${isSelected ? P.navy : P.sand}`,
+                                                            color: isSelected ? 'white' : P.espresso,
                                                             minWidth: '60px',
                                                         }}
                                                     >
-                                                        <span className="font-medium">{addon.name}</span>
-                                                        <span className="text-[10px]" style={{ color: addon.additional_price !== 0 ? '#D4A843' : '#9CA3AF' }}>
+                                                        <span className="font-semibold">{addon.name}</span>
+                                                        <span className="text-[10px]" style={{ color: isSelected ? P.cream : addon.additional_price !== 0 ? P.terracotta : P.caramel }}>
                                                             {priceLabel}
                                                         </span>
                                                     </button>
@@ -666,34 +698,35 @@ export default function Storefront({ table, categories, featured_items, settings
 
                                 {/* Item notes */}
                                 <div className="mt-4">
-                                    <label className="text-sm font-medium" style={{ color: '#2C1A0E' }}>Special instructions (optional)</label>
+                                    <label className="text-sm font-semibold" style={{ color: P.espresso }}>Special instructions (optional)</label>
                                     <textarea
                                         value={itemNotes}
                                         onChange={(e) => setItemNotes(e.target.value)}
                                         placeholder="E.g., less ice, extra hot..."
-                                        className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none"
+                                        className="mt-1 w-full bg-white px-3 py-2 text-sm focus:outline-none"
+                                        style={{ border: `2px solid ${P.sand}` }}
                                         rows={2}
                                     />
                                 </div>
 
                                 {/* Quantity + Add to Cart */}
                                 <div className="mt-4 flex items-center gap-3">
-                                    <div className="flex items-center gap-2 rounded-full border border-gray-200 px-2">
+                                    <div className="flex items-center gap-2 bg-white px-2" style={{ border: `2px solid ${P.sand}` }}>
                                         <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-1.5">
-                                            <Minus className="h-4 w-4" style={{ color: '#2C1A0E' }} />
+                                            <Minus className="h-4 w-4" style={{ color: P.espresso }} />
                                         </button>
-                                        <span className="w-6 text-center font-semibold" style={{ color: '#2C1A0E' }}>{quantity}</span>
+                                        <span className="w-6 text-center font-bold" style={{ color: P.espresso }}>{quantity}</span>
                                         <button onClick={() => setQuantity(quantity + 1)} className="p-1.5">
-                                            <Plus className="h-4 w-4" style={{ color: '#2C1A0E' }} />
+                                            <Plus className="h-4 w-4" style={{ color: P.espresso }} />
                                         </button>
                                     </div>
                                     <button
                                         onClick={addToCart}
                                         disabled={!canAddToCart()}
-                                        className="flex-1 rounded-full py-3 text-sm font-semibold transition-all"
+                                        className="flex-1 py-3 text-sm font-bold uppercase tracking-wide transition-all"
                                         style={{
-                                            background: canAddToCart() ? '#D4A843' : '#E5E5E5',
-                                            color: canAddToCart() ? '#2C1A0E' : '#9CA3AF',
+                                            background: canAddToCart() ? P.navy : P.sand,
+                                            color: canAddToCart() ? 'white' : P.caramel,
                                         }}
                                     >
                                         Add to Cart — {currency}{(computeUnitPrice(selectedItem, selectedVariationId, selectedAddons) * quantity).toFixed(2)}
@@ -705,7 +738,7 @@ export default function Storefront({ table, categories, featured_items, settings
                 )}
             </AnimatePresence>
 
-            {/* Cart Drawer */}
+            {/* ─── Cart Drawer ─────────────────────────────────────── */}
             <AnimatePresence>
                 {cartOpen && (
                     <>
@@ -722,11 +755,11 @@ export default function Storefront({ table, categories, featured_items, settings
                             animate={{ x: 0 }}
                             exit={{ x: '100%' }}
                             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                            className="fixed inset-y-0 right-0 flex w-full flex-col bg-white"
-                            style={{ zIndex: 70, maxWidth: '430px' }}
+                            className="fixed inset-y-0 right-0 flex w-full flex-col sm:max-w-md"
+                            style={{ zIndex: 70, background: P.creamLight }}
                         >
-                            <div className="flex items-center justify-between px-5 py-4" style={{ background: '#2C1A0E' }}>
-                                <h2 className="text-lg font-bold text-white" style={{ fontFamily: "'Playfair Display', serif" }}>Your Order</h2>
+                            <div className="flex items-center justify-between px-5 py-4" style={{ background: P.navy }}>
+                                <h2 className="text-lg font-black uppercase tracking-tight text-white">Your Order</h2>
                                 <button onClick={() => setCartOpen(false)}>
                                     <X className="h-5 w-5 text-white" />
                                 </button>
@@ -734,39 +767,39 @@ export default function Storefront({ table, categories, featured_items, settings
 
                             <div className="flex-1 overflow-y-auto px-4 py-4">
                                 {cart.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                                    <div className="flex flex-col items-center justify-center py-20" style={{ color: P.caramel }}>
                                         <ShoppingCart className="mb-3 h-12 w-12 opacity-30" />
                                         <p>Your cart is empty</p>
                                     </div>
                                 ) : (
                                     <div className="space-y-3">
                                         {cart.map((item) => (
-                                            <div key={item.id} className="rounded-xl bg-gray-50 p-3">
+                                            <div key={item.id} className="bg-white p-3" style={{ border: `2px solid ${P.sand}` }}>
                                                 <div className="flex items-start justify-between">
                                                     <div className="flex-1">
-                                                        <p className="font-semibold text-sm" style={{ color: '#2C1A0E' }}>{item.menuItem.name}</p>
+                                                        <p className="text-sm font-bold" style={{ color: P.espresso }}>{item.menuItem.name}</p>
                                                         {(item.selectedVariation || item.selectedAddons.length > 0) && (
-                                                            <p className="mt-0.5 text-xs text-gray-500">
+                                                            <p className="mt-0.5 text-xs" style={{ color: P.caramel }}>
                                                                 {[item.selectedVariation?.name, ...item.selectedAddons.map((a) => a.name)].filter(Boolean).join(', ')}
                                                             </p>
                                                         )}
-                                                        {item.notes && <p className="mt-0.5 text-xs italic text-gray-400">"{item.notes}"</p>}
+                                                        {item.notes && <p className="mt-0.5 text-xs italic" style={{ color: P.caramel }}>"{item.notes}"</p>}
                                                     </div>
                                                     <button onClick={() => removeFromCart(item.id)}>
-                                                        <X className="h-4 w-4 text-gray-400" />
+                                                        <X className="h-4 w-4" style={{ color: P.caramel }} />
                                                     </button>
                                                 </div>
                                                 <div className="mt-2 flex items-center justify-between">
-                                                    <div className="flex items-center gap-2 rounded-full border border-gray-200 px-2">
+                                                    <div className="flex items-center gap-2 px-2" style={{ border: `2px solid ${P.sand}` }}>
                                                         <button onClick={() => updateCartItemQuantity(item.id, -1)} className="p-1">
-                                                            <Minus className="h-3 w-3" style={{ color: '#2C1A0E' }} />
+                                                            <Minus className="h-3 w-3" style={{ color: P.espresso }} />
                                                         </button>
-                                                        <span className="w-4 text-center text-sm font-semibold" style={{ color: '#2C1A0E' }}>{item.quantity}</span>
+                                                        <span className="w-4 text-center text-sm font-bold" style={{ color: P.espresso }}>{item.quantity}</span>
                                                         <button onClick={() => updateCartItemQuantity(item.id, 1)} className="p-1">
-                                                            <Plus className="h-3 w-3" style={{ color: '#2C1A0E' }} />
+                                                            <Plus className="h-3 w-3" style={{ color: P.espresso }} />
                                                         </button>
                                                     </div>
-                                                    <span className="font-bold text-sm" style={{ color: '#D4A843' }}>
+                                                    <span className="text-sm font-bold" style={{ color: P.terracotta }}>
                                                         {currency}{item.subtotal.toFixed(2)}
                                                     </span>
                                                 </div>
@@ -777,25 +810,26 @@ export default function Storefront({ table, categories, featured_items, settings
                             </div>
 
                             {cart.length > 0 && (
-                                <div className="border-t border-gray-100 px-4 py-4 space-y-3">
+                                <div className="space-y-3 px-4 py-4" style={{ borderTop: `2px solid ${P.sand}` }}>
                                     <textarea
                                         value={orderNotes}
                                         onChange={(e) => setOrderNotes(e.target.value)}
                                         placeholder="Any special requests for the whole order?"
-                                        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none"
+                                        className="w-full bg-white px-3 py-2 text-sm focus:outline-none"
+                                        style={{ border: `2px solid ${P.sand}` }}
                                         rows={2}
                                     />
 
                                     {/* Cup progress + free drink redemption */}
                                     {settings.loyalty_cups_enabled && customer && (
-                                        <div className="rounded-xl border border-gray-200 p-3">
+                                        <div className="bg-white p-3" style={{ border: `2px solid ${P.sand}` }}>
                                             {freeDrinksAvailable > 0 ? (
                                                 <div className="flex items-center justify-between">
                                                     <div>
-                                                        <p className="text-xs font-bold" style={{ color: '#2C1A0E' }}>
+                                                        <p className="text-xs font-bold" style={{ color: P.espresso }}>
                                                             🎁 Redeem free drink
                                                         </p>
-                                                        <p className="text-[10px] text-gray-400">
+                                                        <p className="text-[10px]" style={{ color: P.caramel }}>
                                                             {freeDrinksAvailable} available · saves {currency}{cheapestItemPrice.toFixed(2)}
                                                         </p>
                                                     </div>
@@ -803,7 +837,7 @@ export default function Storefront({ table, categories, featured_items, settings
                                                         type="button"
                                                         onClick={() => setUseFreeDrink(!useFreeDrink)}
                                                         className="relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200"
-                                                        style={{ background: useFreeDrink ? '#D4A843' : '#E5E7EB' }}
+                                                        style={{ background: useFreeDrink ? P.terracotta : P.sand }}
                                                     >
                                                         <span className="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200" style={{ transform: useFreeDrink ? 'translateX(16px)' : 'translateX(0)' }} />
                                                     </button>
@@ -811,17 +845,17 @@ export default function Storefront({ table, categories, featured_items, settings
                                             ) : (
                                                 <div>
                                                     <div className="mb-1.5 flex items-center justify-between">
-                                                        <p className="text-xs font-semibold" style={{ color: '#2C1A0E' }}>
+                                                        <p className="text-xs font-bold" style={{ color: P.espresso }}>
                                                             ☕ Cup progress
                                                         </p>
-                                                        <p className="text-[10px] text-gray-400">
+                                                        <p className="text-[10px]" style={{ color: P.caramel }}>
                                                             {cupCount}/{settings.loyalty_cups_threshold} — {settings.loyalty_cups_threshold - cupCount} more to go
                                                         </p>
                                                     </div>
-                                                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                                                    <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: P.sand }}>
                                                         <motion.div
                                                             className="h-full rounded-full"
-                                                            style={{ background: '#D4A843' }}
+                                                            style={{ background: P.terracotta }}
                                                             initial={{ width: 0 }}
                                                             animate={{ width: `${Math.min((cupCount / settings.loyalty_cups_threshold) * 100, 100)}%` }}
                                                             transition={{ duration: 0.6, ease: 'easeOut' }}
@@ -841,19 +875,20 @@ export default function Storefront({ table, categories, featured_items, settings
                                     <div>
                                         <div className="flex gap-2">
                                             <div className="relative flex-1">
-                                                <Tag className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                                                <Tag className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: P.caramel }} />
                                                 <input
                                                     value={promoCode}
                                                     onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); if (promoApplied) setPromoApplied(null); }}
                                                     placeholder="Promo code"
-                                                    className="w-full rounded-xl border border-gray-200 py-2 pl-8 pr-3 text-sm focus:border-yellow-400 focus:outline-none font-mono"
+                                                    className="w-full bg-white py-2 pl-8 pr-3 font-mono text-sm focus:outline-none"
+                                                    style={{ border: `2px solid ${P.sand}` }}
                                                 />
                                             </div>
                                             <button
                                                 onClick={applyPromo}
                                                 disabled={isApplyingPromo || !promoCode.trim()}
-                                                className="rounded-xl px-4 py-2 text-xs font-bold disabled:opacity-40"
-                                                style={{ background: '#2C1A0E', color: '#D4A843' }}
+                                                className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-40"
+                                                style={{ background: P.navy }}
                                             >
                                                 {isApplyingPromo ? '...' : 'Apply'}
                                             </button>
@@ -867,12 +902,12 @@ export default function Storefront({ table, categories, featured_items, settings
 
                                     {/* Points redemption toggle */}
                                     {customer && customer.points >= redeemRate && (
-                                        <div className="flex items-center justify-between rounded-xl border border-gray-200 px-3 py-2.5">
+                                        <div className="flex items-center justify-between bg-white px-3 py-2.5" style={{ border: `2px solid ${P.sand}` }}>
                                             <div>
-                                                <p className="text-xs font-semibold" style={{ color: '#2C1A0E' }}>
+                                                <p className="text-xs font-bold" style={{ color: P.espresso }}>
                                                     ⭐ Use {customer.points} points
                                                 </p>
-                                                <p className="text-[10px] text-gray-400">
+                                                <p className="text-[10px]" style={{ color: P.caramel }}>
                                                     = {currency}{(customer.points / redeemRate).toFixed(2)} off
                                                 </p>
                                             </div>
@@ -880,7 +915,7 @@ export default function Storefront({ table, categories, featured_items, settings
                                                 type="button"
                                                 onClick={() => setRedeemPoints(!redeemPoints)}
                                                 className="relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200"
-                                                style={{ background: redeemPoints ? '#D4A843' : '#E5E7EB' }}
+                                                style={{ background: redeemPoints ? P.terracotta : P.sand }}
                                             >
                                                 <span className="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200" style={{ transform: redeemPoints ? 'translateX(16px)' : 'translateX(0)' }} />
                                             </button>
@@ -890,8 +925,8 @@ export default function Storefront({ table, categories, featured_items, settings
                                     {/* Order summary */}
                                     <div className="space-y-1.5 text-sm">
                                         <div className="flex justify-between">
-                                            <span className="text-gray-500">Subtotal</span>
-                                            <span className="font-semibold" style={{ color: '#2C1A0E' }}>{currency}{cartSubtotal.toFixed(2)}</span>
+                                            <span style={{ color: P.caramel }}>Subtotal</span>
+                                            <span className="font-bold" style={{ color: P.espresso }}>{currency}{cartSubtotal.toFixed(2)}</span>
                                         </div>
                                         {promoDiscount > 0 && (
                                             <div className="flex justify-between" style={{ color: '#059669' }}>
@@ -912,16 +947,16 @@ export default function Storefront({ table, categories, featured_items, settings
                                             </div>
                                         )}
                                         {(promoDiscount > 0 || pointsDiscount > 0 || freeDrinkDiscount > 0) && (
-                                            <div className="flex justify-between border-t border-gray-100 pt-1.5">
-                                                <span className="font-semibold" style={{ color: '#2C1A0E' }}>Total</span>
-                                                <span className="font-bold" style={{ color: '#D4A843' }}>{currency}{cartTotal.toFixed(2)}</span>
+                                            <div className="flex justify-between pt-1.5" style={{ borderTop: `2px solid ${P.sand}` }}>
+                                                <span className="font-bold" style={{ color: P.espresso }}>Total</span>
+                                                <span className="font-bold" style={{ color: P.terracotta }}>{currency}{cartTotal.toFixed(2)}</span>
                                             </div>
                                         )}
                                     </div>
 
                                     {/* Points earn preview */}
                                     {customer && earnRate > 0 && (
-                                        <p className="text-center text-[10px] text-gray-400">
+                                        <p className="text-center text-[10px]" style={{ color: P.caramel }}>
                                             ⭐ You'll earn ~{Math.floor(cartTotal * earnRate)} points on this order
                                         </p>
                                     )}
@@ -929,8 +964,8 @@ export default function Storefront({ table, categories, featured_items, settings
                                     <button
                                         onClick={placeOrder}
                                         disabled={isPlacingOrder}
-                                        className="w-full rounded-full py-3.5 text-center text-sm font-bold transition-all"
-                                        style={{ background: '#D4A843', color: '#2C1A0E' }}
+                                        className="w-full py-3.5 text-center text-sm font-bold uppercase tracking-widest text-white transition-all"
+                                        style={{ background: P.terracotta }}
                                     >
                                         {isPlacingOrder ? 'Placing Order...' : `Place Order — ${currency}${cartTotal.toFixed(2)}`}
                                     </button>
@@ -941,7 +976,7 @@ export default function Storefront({ table, categories, featured_items, settings
                 )}
             </AnimatePresence>
 
-            {/* Sign-in prompt (required before placing an order) */}
+            {/* ─── Sign-in prompt ──────────────────────────────────── */}
             <AnimatePresence>
                 {authPromptOpen && (
                     <>
@@ -958,34 +993,35 @@ export default function Storefront({ table, categories, featured_items, settings
                             animate={{ y: 0 }}
                             exit={{ y: '100%' }}
                             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                            className="fixed bottom-0 left-1/2 w-full -translate-x-1/2 rounded-t-3xl bg-white px-6 pb-8 pt-6 text-center"
-                            style={{ zIndex: 90, maxWidth: '430px' }}
+                            className="fixed bottom-0 left-1/2 w-full -translate-x-1/2 rounded-t-3xl px-6 pb-8 pt-6 text-center sm:bottom-auto sm:top-1/2 sm:max-w-md sm:-translate-y-1/2 sm:rounded-3xl"
+                            style={{ zIndex: 90, background: P.creamLight }}
                         >
                             <div className="text-4xl">☕</div>
-                            <h2 className="mt-2 text-lg font-bold" style={{ color: '#2C1A0E', fontFamily: "'Playfair Display', serif" }}>
+                            <h2 className="mt-2 text-lg font-black uppercase tracking-tight" style={{ color: P.espresso }}>
                                 Almost there!
                             </h2>
-                            <p className="mt-1 text-sm text-gray-500">
+                            <p className="mt-1 text-sm" style={{ color: P.caramel }}>
                                 Sign in or create a free account to place your order — and earn loyalty points on every purchase.
                             </p>
                             <div className="mt-5 space-y-2">
                                 <button
                                     onClick={() => router.visit(customerAuthLogin(table?.qr_token))}
-                                    className="w-full rounded-full py-3 text-sm font-bold"
-                                    style={{ background: '#D4A843', color: '#2C1A0E' }}
+                                    className="w-full py-3 text-sm font-bold uppercase tracking-widest text-white"
+                                    style={{ background: P.navy }}
                                 >
                                     Sign In
                                 </button>
                                 <button
                                     onClick={() => router.visit(customerAuthRegister(table?.qr_token))}
-                                    className="w-full rounded-full border-2 py-3 text-sm font-bold"
-                                    style={{ borderColor: '#D4A843', color: '#2C1A0E', background: 'white' }}
+                                    className="w-full py-3 text-sm font-bold uppercase tracking-widest"
+                                    style={{ border: `2px solid ${P.navy}`, color: P.navy, background: 'transparent' }}
                                 >
                                     Create Account
                                 </button>
                                 <button
                                     onClick={() => setAuthPromptOpen(false)}
-                                    className="w-full py-2 text-xs font-medium text-gray-400"
+                                    className="w-full py-2 text-xs font-medium"
+                                    style={{ color: P.caramel }}
                                 >
                                     Keep browsing
                                 </button>
@@ -998,17 +1034,70 @@ export default function Storefront({ table, categories, featured_items, settings
     );
 }
 
-function CafeLogo() {
+function CafeLogo({ name }: { name: string }) {
     return (
-        <div className="flex items-center gap-2">
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <path d="M14 2C14 2 8 8 8 14C8 17.314 10.686 20 14 20C17.314 20 20 17.314 20 14C20 8 14 2 14 2Z" fill="#D4A843" />
-                <path d="M14 20V26M11 26H17" stroke="#D4A843" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M10 26C10 26 12 24 14 26C16 28 18 26 18 26" stroke="#FAF3E0" strokeWidth="1" strokeLinecap="round" />
+        <div className="flex shrink-0 items-center gap-2">
+            <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
+                <path d="M14 2C14 2 8 8 8 14C8 17.314 10.686 20 14 20C17.314 20 20 17.314 20 14C20 8 14 2 14 2Z" fill="#C05B2D" />
+                <path d="M14 20V26M11 26H17" stroke="#C05B2D" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M10 26C10 26 12 24 14 26C16 28 18 26 18 26" stroke="#E4DACB" strokeWidth="1" strokeLinecap="round" />
             </svg>
-            <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '22px', fontWeight: 700, color: '#FAF3E0' }}>
-                Milk&Honey
+            <span className="hidden text-lg font-black uppercase tracking-tight text-white sm:inline">
+                {name}
             </span>
+        </div>
+    );
+}
+
+/* Retro geometric decoration inspired by the reference design:
+   semicircles, arcs and circles in navy / terracotta / caramel */
+function GeometricShapes() {
+    return (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+            {/* Left cluster */}
+            <div className="absolute -left-10 top-6 h-32 w-32 rounded-full" style={{ background: P.terracotta, opacity: 0.9 }} />
+            <div className="absolute left-8 top-28 h-24 w-24 rounded-full" style={{ background: P.navy }} />
+            <div className="absolute -left-6 bottom-4 h-40 w-40" style={{ background: P.caramel, borderRadius: '0 100% 0 0' }} />
+            {/* Rainbow arcs (nested half rings) */}
+            <div className="absolute left-16 bottom-16 h-20 w-40 overflow-hidden">
+                <div className="absolute bottom-0 left-0 h-40 w-40 rounded-full border-[10px]" style={{ borderColor: P.terracotta }} />
+                <div className="absolute bottom-[-10px] left-[10px] h-[120px] w-[120px] rounded-full border-[10px]" style={{ borderColor: P.caramel }} />
+                <div className="absolute bottom-[-20px] left-[20px] h-[80px] w-[80px] rounded-full border-[10px]" style={{ borderColor: P.navy }} />
+            </div>
+            {/* Top semicircle */}
+            <div className="absolute left-1/3 -top-12 h-24 w-24 rounded-full" style={{ background: P.espresso, opacity: 0.15 }} />
+            {/* Right cluster */}
+            <div className="absolute -right-12 -top-16 h-56 w-56 rounded-full" style={{ background: P.caramel, opacity: 0.55 }} />
+            <div className="absolute right-10 bottom-0 h-32 w-32" style={{ background: P.terracotta, opacity: 0.7, borderRadius: '100% 0 0 0' }} />
+            <div className="absolute right-40 bottom-10 hidden h-16 w-16 rounded-full md:block" style={{ background: P.navy, opacity: 0.85 }} />
+        </div>
+    );
+}
+
+function CoffeeCupIllustration() {
+    return (
+        <svg width="200" height="240" viewBox="0 0 200 240" fill="none" aria-hidden="true">
+            {/* Cup body */}
+            <path d="M45 70 L60 220 C60 228 70 234 100 234 C130 234 140 228 140 220 L155 70 Z" fill="#F3EEE6" stroke="#D8CBB8" strokeWidth="2" />
+            {/* Sleeve */}
+            <path d="M50 115 L150 115 L146 160 L54 160 Z" fill="#6B4423" />
+            <circle cx="100" cy="137" r="16" fill="#F3EEE6" />
+            <path d="M100 127 C100 127 96 131 96 135 C96 137.5 97.8 139 100 139 C102.2 139 104 137.5 104 135 C104 131 100 127 100 127Z" fill="#6B4423" />
+            {/* Lid */}
+            <ellipse cx="100" cy="62" rx="62" ry="14" fill="#33302E" />
+            <rect x="38" y="48" width="124" height="16" rx="8" fill="#33302E" />
+            <rect x="62" y="34" width="76" height="18" rx="9" fill="#3E3B38" />
+        </svg>
+    );
+}
+
+function SectionHeading({ label }: { label: string }) {
+    return (
+        <div className="mb-4 flex items-center gap-3">
+            <h2 className="text-lg font-black uppercase tracking-tight sm:text-xl" style={{ color: P.espresso }}>
+                {label}
+            </h2>
+            <div className="h-[3px] flex-1 max-w-24" style={{ background: P.terracotta }} />
         </div>
     );
 }
@@ -1018,19 +1107,19 @@ function FeaturedCard({ item, currency, onSelect }: { item: MenuItem; currency: 
         <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => onSelect(item)}
-            className="shrink-0 w-44 overflow-hidden rounded-2xl text-left shadow-sm"
-            style={{ background: 'white' }}
+            className="w-44 shrink-0 overflow-hidden text-left shadow-sm transition-shadow hover:shadow-md md:w-auto"
+            style={{ background: P.creamLight, border: `2px solid ${P.navy}` }}
         >
             <div className="h-28 overflow-hidden">
                 {item.image_url ? (
                     <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
                 ) : (
-                    <div className="flex h-full items-center justify-center text-4xl" style={{ background: '#FDF6EC' }}>☕</div>
+                    <div className="flex h-full items-center justify-center text-4xl" style={{ background: P.sand }}>☕</div>
                 )}
             </div>
             <div className="p-3">
-                <p className="text-sm font-semibold leading-tight" style={{ color: '#2C1A0E' }}>{item.name}</p>
-                <p className="mt-1 text-sm font-bold" style={{ color: '#D4A843' }}>
+                <p className="text-sm font-bold leading-tight" style={{ color: P.espresso }}>{item.name}</p>
+                <p className="mt-1 text-sm font-bold" style={{ color: P.terracotta }}>
                     {item.has_variations ? `From ${currency}${(item.display_price ?? item.price).toFixed(2)}` : `${currency}${item.price.toFixed(2)}`}
                 </p>
             </div>
@@ -1043,22 +1132,22 @@ function MenuCard({ item, currency, onSelect }: { item: MenuItem; currency: stri
         <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => onSelect(item)}
-            className="overflow-hidden rounded-2xl text-left shadow-sm"
-            style={{ background: 'white' }}
+            className="overflow-hidden text-left shadow-sm transition-shadow hover:shadow-md"
+            style={{ background: P.creamLight, border: `2px solid ${P.sand}` }}
         >
-            <div className="h-32 overflow-hidden">
+            <div className="h-32 overflow-hidden sm:h-36">
                 {item.image_url ? (
                     <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
                 ) : (
-                    <div className="flex h-full items-center justify-center text-4xl" style={{ background: '#FDF6EC' }}>☕</div>
+                    <div className="flex h-full items-center justify-center text-4xl" style={{ background: P.sand }}>☕</div>
                 )}
             </div>
             <div className="p-3">
-                <p className="text-sm font-semibold leading-tight" style={{ color: '#2C1A0E' }}>{item.name}</p>
+                <p className="text-sm font-bold leading-tight" style={{ color: P.espresso }}>{item.name}</p>
                 {item.description && (
-                    <p className="mt-0.5 text-xs text-gray-400 leading-tight line-clamp-2">{item.description}</p>
+                    <p className="mt-0.5 line-clamp-2 text-xs leading-tight" style={{ color: P.caramel }}>{item.description}</p>
                 )}
-                <p className="mt-2 text-sm font-bold" style={{ color: '#D4A843' }}>
+                <p className="mt-2 text-sm font-bold" style={{ color: P.terracotta }}>
                     {item.has_variations ? `From ${currency}${(item.display_price ?? item.price).toFixed(2)}` : `${currency}${item.price.toFixed(2)}`}
                 </p>
             </div>
