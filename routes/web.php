@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AddonGroupController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DeliveryManController;
 use App\Http\Controllers\Admin\ExpenseCategoryController;
 use App\Http\Controllers\Admin\ExpenseController;
 use App\Http\Controllers\Admin\MenuItemController;
@@ -14,10 +15,13 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\TableController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Customer\CustomerAccountController;
 use App\Http\Controllers\Customer\CustomerAuthController;
 use App\Http\Controllers\Customer\OrderController as CustomerOrderController;
 use App\Http\Controllers\Customer\PromoController as CustomerPromoController;
 use App\Http\Controllers\Customer\StorefrontController;
+use App\Http\Controllers\Driver\DriverAuthController;
+use App\Http\Controllers\Driver\DriverController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Kitchen\KitchenController;
 use App\Http\Controllers\POS\PosController;
@@ -26,6 +30,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login');
 Route::redirect('/welcome', '/login');
+
+// Driver login (separate, rider-friendly sign-in page)
+Route::get('driver/login', [DriverAuthController::class, 'showLogin'])->name('driver.login');
+Route::post('driver/login', [DriverAuthController::class, 'login'])->name('driver.login.store')->middleware('throttle:10,1');
 
 // Customer auth (public — must be before the /{qrToken} catch-all)
 Route::prefix('order/auth')->name('customer.auth.')->group(function () {
@@ -46,6 +54,13 @@ Route::post('/order/promo/apply', [CustomerPromoController::class, 'apply'])
     ->name('storefront.promo.apply')
     ->middleware('customer.auth');
 
+// Customer account (order history & profile) — requires verified customer login
+Route::prefix('order/my')->name('customer.account.')->middleware('customer.auth')->group(function () {
+    Route::get('/orders', [CustomerAccountController::class, 'orders'])->name('orders');
+    Route::get('/profile', [CustomerAccountController::class, 'profile'])->name('profile');
+    Route::put('/profile', [CustomerAccountController::class, 'updateProfile'])->name('profile.update');
+});
+
 // Public storefront (QR self-order) — browsing is open to guests; placing an
 // order requires a verified customer account (enforced in the controller)
 Route::prefix('order')->name('storefront.')->group(function () {
@@ -55,6 +70,7 @@ Route::prefix('order')->name('storefront.')->group(function () {
     Route::post('/', [CustomerOrderController::class, 'store'])->name('orders.store')->middleware('throttle:10,1');
     Route::get('/track/{order}', [CustomerOrderController::class, 'show'])->name('orders.show')->middleware('customer.auth');
     Route::get('/status/{order}', [CustomerOrderController::class, 'status'])->name('orders.status')->middleware('customer.auth');
+    Route::post('/track/{order}/cancel', [CustomerOrderController::class, 'cancel'])->name('orders.cancel')->middleware('customer.auth');
 });
 
 // Authenticated app routes
@@ -69,6 +85,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // Counter POS
+    // Driver app — delivery riders manage their assigned orders
+    Route::middleware('role:driver,admin')->prefix('driver')->name('driver.')->group(function () {
+        Route::get('/', [DriverController::class, 'index'])->name('index');
+        Route::post('orders/{order}/collect-payment', [DriverController::class, 'collectPayment'])->name('orders.collect-payment');
+        Route::post('orders/{order}/delivered', [DriverController::class, 'markDelivered'])->name('orders.delivered');
+    });
+
     Route::middleware('role:cashier,admin')->prefix('pos')->name('pos.')->group(function () {
         Route::get('/', [PosController::class, 'index'])->name('index');
         Route::post('/orders', [PosController::class, 'store'])->name('orders.store');
@@ -103,6 +126,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('orders/{order}', [AdminOrderController::class, 'show'])->name('orders.show');
         Route::patch('orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->name('orders.update-status');
         Route::post('orders/{order}/void', [AdminOrderController::class, 'void'])->name('orders.void');
+        Route::patch('orders/{order}/delivery-man', [AdminOrderController::class, 'assignDeliveryMan'])->name('orders.assign-delivery-man');
+        Route::post('orders/{order}/mark-paid', [AdminOrderController::class, 'markPaid'])->name('orders.mark-paid');
+        Route::resource('delivery-men', DeliveryManController::class)->except(['show', 'edit', 'create'])->parameters(['delivery-men' => 'deliveryMan']);
+        Route::put('delivery-men/{deliveryMan}/account', [DeliveryManController::class, 'saveAccount'])->name('delivery-men.account');
         Route::resource('expense-categories', ExpenseCategoryController::class)->except(['show', 'edit', 'create']);
         Route::resource('expenses', ExpenseController::class)->except(['show', 'edit', 'create']);
 

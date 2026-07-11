@@ -23,6 +23,10 @@ class HomeController extends Controller
             return redirect()->route('kitchen.index');
         }
 
+        if ($user->hasRole('driver')) {
+            return redirect()->route('driver.index');
+        }
+
         return redirect()->route('login');
     }
 }

@@ -18,6 +18,10 @@ export const storefrontShow = (qrToken: string) => `/order/${qrToken}`;
 export const storefrontOrdersStore = () => `/order`;
 export const storefrontOrdersShow = (orderId: number) => `/order/track/${orderId}`;
 export const storefrontOrdersStatus = (orderId: number) => `/order/status/${orderId}`;
+export const storefrontOrdersCancel = (orderId: number) => `/order/track/${orderId}/cancel`;
+export const customerMyOrders = () => `/order/my/orders`;
+export const customerMyProfile = () => `/order/my/profile`;
+export const customerMyProfileUpdate = () => `/order/my/profile`;
 
 // ─── Kitchen ─────────────────────────────────────────────────────────────────
 export const kitchenIndex = () => `/kitchen`;
@@ -61,6 +65,18 @@ export const adminPromosStore = () => `/admin/promos`;
 export const adminPromosUpdate = (id: number) => `/admin/promos/${id}`;
 export const adminPromosDestroy = (id: number) => `/admin/promos/${id}`;
 
+export const adminDeliveryMenIndex = () => `/admin/delivery-men`;
+export const adminDeliveryMenStore = () => `/admin/delivery-men`;
+export const adminDeliveryMenUpdate = (id: number) => `/admin/delivery-men/${id}`;
+export const adminDeliveryMenDestroy = (id: number) => `/admin/delivery-men/${id}`;
+export const adminDeliveryMenAccount = (id: number) => `/admin/delivery-men/${id}/account`;
+export const driverIndex = () => `/driver`;
+export const driverLogin = () => `/driver/login`;
+export const driverLoginStore = () => `/driver/login`;
+export const driverCollectPayment = (id: number) => `/driver/orders/${id}/collect-payment`;
+export const driverDelivered = (id: number) => `/driver/orders/${id}/delivered`;
+export const adminOrdersMarkPaid = (id: number) => `/admin/orders/${id}/mark-paid`;
+export const adminOrdersAssignDeliveryMan = (id: number) => `/admin/orders/${id}/delivery-man`;
 export const adminCustomersIndex = () => `/admin/customers`;
 export const adminCustomersShow = (id: number) => `/admin/customers/${id}`;
 export const adminCustomersStore = () => `/admin/customers`;

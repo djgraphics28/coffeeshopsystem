@@ -1,9 +1,9 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
-import { adminOrdersIndex, adminOrdersUpdateStatus, adminOrdersVoid } from '@/lib/routes';
+import { adminOrdersAssignDeliveryMan, adminOrdersIndex, adminOrdersMarkPaid, adminOrdersUpdateStatus, adminOrdersVoid } from '@/lib/routes';
 import { printReceipt, ThermalReceipt } from '@/components/thermal-receipt';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Ban, Coffee, CreditCard, Gift, Hash, Printer, Star, Tag, User, X } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Ban, Bike, Coffee, CreditCard, Gift, Hash, MapPin, Printer, Star, Tag, User, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -27,6 +27,12 @@ interface Order {
     discount: number;
     total: number;
     notes: string | null;
+    delivery_address: string | null;
+    delivery_lat: number | null;
+    delivery_lng: number | null;
+    payment_method: string | null;
+    payment_proof_url: string | null;
+    delivery_man: { id: number; name: string; phone: string | null; vehicle: string | null } | null;
     void_reason: string | null;
     points_earned: number;
     points_redeemed: number;
@@ -43,8 +49,16 @@ interface Order {
     updated_at: string;
 }
 
+interface DeliveryManOption {
+    id: number;
+    name: string;
+    phone: string | null;
+    vehicle: string | null;
+}
+
 interface Props {
     order: Order;
+    delivery_men: DeliveryManOption[];
     can: { manage_orders: boolean; void_orders: boolean };
 }
 
@@ -71,7 +85,27 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
     );
 }
 
-export default function OrderShow({ order, can }: Props) {
+export default function OrderShow({ order, delivery_men, can }: Props) {
+    const [proofOpen, setProofOpen] = useState(false);
+    const [markingPaid, setMarkingPaid] = useState(false);
+
+    function markPaid() {
+        setMarkingPaid(true);
+        router.post(adminOrdersMarkPaid(order.id), {}, {
+            preserveScroll: true,
+            onFinish: () => setMarkingPaid(false),
+        });
+    }
+    const [deliveryManId, setDeliveryManId] = useState<string>(order.delivery_man ? String(order.delivery_man.id) : '');
+    const [assigning, setAssigning] = useState(false);
+
+    function assignDeliveryMan() {
+        setAssigning(true);
+        router.patch(adminOrdersAssignDeliveryMan(order.id), { delivery_man_id: deliveryManId || null }, {
+            onFinish: () => setAssigning(false),
+        });
+    }
+
     const { flash } = usePage().props as { flash?: { success?: string; error?: string } };
     const { data, setData, patch, processing } = useForm({ status: order.status });
     const [voidModal, setVoidModal] = useState(false);
@@ -259,6 +293,72 @@ export default function OrderShow({ order, can }: Props) {
                             </div>
                         )}
 
+                        {/* Delivery details & rider assignment */}
+                        {order.type === 'delivery' && (
+                            <div className="rounded-2xl p-5 shadow-sm" style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}>
+                                <div className="mb-3 flex items-center gap-2">
+                                    <Bike className="h-4 w-4" style={{ color: '#D4A843' }} />
+                                    <h2 className="font-semibold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>Delivery</h2>
+                                </div>
+
+                                {order.delivery_address && (
+                                    <div className="mb-3 flex items-start gap-2 text-sm">
+                                        <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--ap-muted)' }} />
+                                        <div>
+                                            <p style={{ color: 'var(--ap-input-text)' }}>{order.delivery_address}</p>
+                                            {order.delivery_lat && order.delivery_lng && (
+                                                <a
+                                                    href={`https://www.openstreetmap.org/?mlat=${order.delivery_lat}&mlon=${order.delivery_lng}#map=17/${order.delivery_lat}/${order.delivery_lng}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs font-medium underline"
+                                                    style={{ color: '#D4A843' }}
+                                                >
+                                                    View pinned location on map
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <p className="mb-1.5 text-xs font-medium" style={{ color: 'var(--ap-muted)' }}>Assigned delivery man</p>
+                                {can.manage_orders && !isTerminal ? (
+                                    <div className="flex gap-2">
+                                        <select
+                                            value={deliveryManId}
+                                            onChange={(e) => setDeliveryManId(e.target.value)}
+                                            className="flex-1 rounded-xl border px-3 py-2 text-sm focus:outline-none"
+                                            style={{ background: 'var(--ap-bg)', borderColor: 'var(--ap-border)', color: 'var(--ap-input-text)' }}
+                                        >
+                                            <option value="">— Unassigned —</option>
+                                            {delivery_men.map((man) => (
+                                                <option key={man.id} value={man.id}>
+                                                    {man.name}{man.vehicle ? ` (${man.vehicle})` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            onClick={assignDeliveryMan}
+                                            disabled={assigning || deliveryManId === (order.delivery_man ? String(order.delivery_man.id) : '')}
+                                            className="rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50"
+                                            style={{ background: '#D4A843', color: '#2C1A0E' }}
+                                        >
+                                            {assigning ? 'Saving…' : 'Assign'}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>
+                                        {order.delivery_man ? `${order.delivery_man.name}${order.delivery_man.phone ? ` · ${order.delivery_man.phone}` : ''}` : '— Unassigned —'}
+                                    </p>
+                                )}
+                                {order.delivery_man?.phone && can.manage_orders && !isTerminal && (
+                                    <p className="mt-1.5 text-xs" style={{ color: 'var(--ap-muted)' }}>
+                                        📞 {order.delivery_man.phone}{order.delivery_man.vehicle ? ` · ${order.delivery_man.vehicle}` : ''}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
                         {/* Payment */}
                         <div className="rounded-2xl p-5 shadow-sm" style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}>
                             <div className="mb-3 flex items-center gap-2">
@@ -271,6 +371,46 @@ export default function OrderShow({ order, can }: Props) {
                                     <InfoRow label="Amount" value={currency(order.payment.amount)} />
                                     {order.payment.reference_no && <InfoRow label="Reference" value={<span className="font-mono text-xs">{order.payment.reference_no}</span>} />}
                                     <InfoRow label="Paid at" value={new Date(order.payment.paid_at).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })} />
+                                </div>
+                            ) : order.payment_method ? (
+                                <div className="space-y-2">
+                                    <InfoRow label="Method" value={<span className="uppercase">{order.payment_method}</span>} />
+                                    {order.payment_proof_url ? (
+                                        <div>
+                                            <p className="mb-1 text-xs" style={{ color: 'var(--ap-muted)' }}>Proof of payment — click to enlarge</p>
+                                            <button onClick={() => setProofOpen(true)} className="block w-full">
+                                                <img src={order.payment_proof_url} alt="Proof of payment" className="max-h-48 w-full rounded-xl border object-contain transition-opacity hover:opacity-80" style={{ borderColor: 'var(--ap-border)', background: 'var(--ap-bg)' }} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>Cash on delivery — collect on handoff</p>
+                                    )}
+
+                                    {can.manage_orders && !isTerminal && (
+                                        <div className="pt-1">
+                                            {order.payment_method === 'cod' && order.type === 'delivery' && !order.delivery_man ? (
+                                                <p className="rounded-xl px-3 py-2 text-xs" style={{ background: '#FEF3C7', color: '#92400E' }}>
+                                                    ⚠️ Assign a delivery man first — the rider verifies the cash payment on handoff.
+                                                </p>
+                                            ) : (
+                                                <button
+                                                    onClick={markPaid}
+                                                    disabled={markingPaid}
+                                                    className="flex w-full items-center justify-center gap-1.5 rounded-full py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                                                    style={{ background: '#16A34A' }}
+                                                >
+                                                    <BadgeCheck className="h-4 w-4" />
+                                                    {markingPaid
+                                                        ? 'Saving…'
+                                                        : order.payment_method === 'cod'
+                                                            ? order.type === 'delivery'
+                                                                ? `Confirm cash collected by ${order.delivery_man!.name}`
+                                                                : 'Confirm cash collected at counter'
+                                                            : `Approve ${order.payment_method?.toUpperCase()} & mark as paid`}
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <p className="text-sm" style={{ color: 'var(--ap-muted)' }}>No payment recorded</p>
@@ -373,6 +513,25 @@ export default function OrderShow({ order, can }: Props) {
                                     {voiding ? 'Voiding…' : 'Void Order'}
                                 </button>
                             </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+            {/* Proof of payment lightbox */}
+            <AnimatePresence>
+                {proofOpen && order.payment_proof_url && (
+                    <>
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/70" style={{ zIndex: 70 }} onClick={() => setProofOpen(false)} />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                            className="fixed left-1/2 top-1/2 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 p-4"
+                            style={{ zIndex: 80 }}
+                            onClick={() => setProofOpen(false)}
+                        >
+                            <img src={order.payment_proof_url} alt="Proof of payment" className="max-h-[85vh] w-full rounded-2xl object-contain shadow-2xl" style={{ background: 'var(--ap-card)' }} />
+                            <button onClick={() => setProofOpen(false)} className="absolute -top-2 right-2 rounded-full bg-white p-2 shadow-lg">
+                                <X className="h-5 w-5 text-gray-700" />
+                            </button>
                         </motion.div>
                     </>
                 )}

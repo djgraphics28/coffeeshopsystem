@@ -8,11 +8,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
-class Order extends Model
+class Order extends Model implements HasMedia
 {
     /** @use HasFactory<OrderFactory> */
-    use HasFactory;
+    use HasFactory, InteractsWithMedia;
 
     /** @var list<string> */
     public const STATUSES = [
@@ -41,6 +43,7 @@ class Order extends Model
         'subtotal',
         'tax',
         'discount',
+        'delivery_fee',
         'total',
         'notes',
         'void_reason',
@@ -50,16 +53,36 @@ class Order extends Model
         'points_redeemed',
         'free_drink_redeemed',
         'cups_awarded',
+        'delivery_address',
+        'delivery_lat',
+        'delivery_lng',
+        'payment_method',
+        'delivery_man_id',
     ];
 
     protected $casts = [
         'subtotal' => 'float',
         'tax' => 'float',
         'discount' => 'float',
+        'delivery_fee' => 'float',
         'total' => 'float',
         'free_drink_redeemed' => 'boolean',
         'cups_awarded' => 'integer',
+        'delivery_lat' => 'float',
+        'delivery_lng' => 'float',
     ];
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('payment_proof')
+            ->singleFile()
+            ->useDisk('public');
+    }
+
+    public function getPaymentProofUrlAttribute(): ?string
+    {
+        return $this->getFirstMediaUrl('payment_proof') ?: null;
+    }
 
     public function table(): BelongsTo
     {
@@ -84,6 +107,11 @@ class Order extends Model
     public function voidedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'voided_by');
+    }
+
+    public function deliveryMan(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryMan::class);
     }
 
     public function items(): HasMany

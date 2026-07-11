@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Customer;
 
 use App\Events\OrderPlaced;
+use App\Events\OrderStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\OrderResource;
 use App\Models\Addon;
@@ -41,9 +42,16 @@ class OrderController extends Controller
             ], 403);
         }
 
+        $isOnlineOrder = ! $request->filled('table_id');
+
         $validated = $request->validate([
             'table_id' => ['nullable', 'exists:tables,id'],
-            'type' => ['required', Rule::in(['dine-in', 'takeout'])],
+            'type' => ['required', $isOnlineOrder ? Rule::in(['delivery', 'pickup']) : Rule::in(['dine-in', 'takeout'])],
+            'delivery_address' => ['required_if:type,delivery', 'nullable', 'string', 'max:500'],
+            'delivery_lat' => ['nullable', 'numeric', 'between:-90,90'],
+            'delivery_lng' => ['nullable', 'numeric', 'between:-180,180'],
+            'payment_method' => [Rule::requiredIf($isOnlineOrder), 'nullable', Rule::in(['cod', 'gcash', 'maya'])],
+            'payment_proof' => ['required_if:payment_method,gcash,maya', 'nullable', 'image', 'max:5120'],
             'notes' => ['nullable', 'string', 'max:500'],
             'promo_code' => ['nullable', 'string', 'max:50'],
             'redeem_points' => ['nullable', 'boolean'],
@@ -67,8 +75,6 @@ class OrderController extends Controller
                     'message' => 'Please scan the QR code at your table to place a dine-in order.',
                 ], 403);
             }
-        } else {
-            $validated['type'] = 'takeout';
         }
 
         $meta = [];
@@ -84,6 +90,10 @@ class OrderController extends Controller
                 'status' => 'pending',
                 'type' => $validated['type'],
                 'notes' => $validated['notes'] ?? null,
+                'delivery_address' => $validated['type'] === 'delivery' ? ($validated['delivery_address'] ?? null) : null,
+                'delivery_lat' => $validated['type'] === 'delivery' ? ($validated['delivery_lat'] ?? null) : null,
+                'delivery_lng' => $validated['type'] === 'delivery' ? ($validated['delivery_lng'] ?? null) : null,
+                'payment_method' => $validated['payment_method'] ?? null,
                 'subtotal' => 0,
                 'tax' => 0,
                 'discount' => 0,
@@ -227,6 +237,16 @@ class OrderController extends Controller
             $taxable = $subtotal - $totalDiscount;
             $tax = round($taxable * ($taxRate / 100), 2);
 
+            // Delivery fee — waived when the subtotal reaches the free-delivery minimum
+            $deliveryFee = 0.0;
+
+            if ($validated['type'] === 'delivery') {
+                $configuredFee = (float) Setting::get('delivery_fee', 0);
+                $freeMinimum = (float) Setting::get('free_delivery_minimum', 0);
+                $qualifiesForFree = $freeMinimum > 0 && $subtotal >= $freeMinimum;
+                $deliveryFee = $qualifiesForFree ? 0.0 : $configuredFee;
+            }
+
             // Award points on the taxable amount after all discounts
             $pointsEarned = 0;
 
@@ -240,8 +260,9 @@ class OrderController extends Controller
                 'promo_id' => $promoId,
                 'subtotal' => $subtotal,
                 'discount' => $totalDiscount,
+                'delivery_fee' => $deliveryFee,
                 'tax' => $tax,
-                'total' => $taxable + $tax,
+                'total' => $taxable + $tax + $deliveryFee,
                 'points_earned' => $pointsEarned,
                 'points_redeemed' => $pointsRedeemed,
                 'free_drink_redeemed' => $freeDrinkRedeemed,
@@ -259,6 +280,10 @@ class OrderController extends Controller
 
             return $order;
         });
+
+        if ($request->hasFile('payment_proof')) {
+            $order->addMediaFromRequest('payment_proof')->toMediaCollection('payment_proof');
+        }
 
         broadcast(new OrderPlaced(
             $order->fresh()->load(['table', 'items.menuItem', 'items.addons.addon'])
@@ -280,11 +305,65 @@ class OrderController extends Controller
         $settings = Setting::getAll();
 
         return Inertia::render('Customer/OrderTracker', [
-            'order' => (new OrderResource($order->load(['table', 'items.menuItem', 'items.addons.addon', 'payment'])))->resolve(),
+            'order' => (new OrderResource($order->load(['table', 'items.menuItem', 'items.addons.addon', 'payment', 'deliveryMan'])))->resolve(),
             'settings' => [
                 'cafe_name' => $settings['cafe_name'] ?? "Milk&Honey Cafe'",
                 'estimated_wait_minutes' => $settings['estimated_wait_minutes'] ?? '10-15',
             ],
+        ]);
+    }
+
+    /**
+     * Customer-initiated cancellation. Only allowed while the order is still
+     * pending — once the kitchen starts preparing it can no longer be cancelled.
+     * Reverses loyalty effects: earned points/cups are taken back, redeemed
+     * points and free drinks are refunded.
+     */
+    public function cancel(Order $order): JsonResponse
+    {
+        $customer = Auth::guard('customer')->user();
+
+        if (! $customer || $order->customer_id !== $customer->id) {
+            return response()->json(['message' => 'This order does not belong to you.'], 403);
+        }
+
+        if ($order->status !== 'pending') {
+            return response()->json([
+                'message' => 'This order is already being prepared and can no longer be cancelled.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($order, $customer) {
+            if ($order->points_earned > 0) {
+                $customer->decrement('points', min($order->points_earned, $customer->points));
+            }
+
+            if ($order->points_redeemed > 0) {
+                $customer->increment('points', $order->points_redeemed);
+            }
+
+            if ($order->free_drink_redeemed) {
+                $customer->increment('free_drinks_available');
+            }
+
+            if ($order->cups_awarded > 0) {
+                $customer->refresh();
+                $customer->update(['cup_count' => max(0, $customer->cup_count - $order->cups_awarded)]);
+            }
+
+            $order->update(['status' => 'cancelled']);
+        });
+
+        $fresh = $order->fresh(['table', 'items.menuItem', 'items.addons.addon']);
+
+        try {
+            broadcast(new OrderStatusUpdated($fresh))->toOthers();
+        } catch (\Throwable) {
+            // Broadcasting is best-effort; cancellation already persisted
+        }
+
+        return response()->json([
+            'order' => (new OrderResource($fresh))->resolve(),
         ]);
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
@@ -57,6 +58,20 @@ class HandleInertiaRequests extends Middleware
                     'cup_count' => Auth::guard('customer')->user()->cup_count,
                     'free_drinks_available' => Auth::guard('customer')->user()->free_drinks_available,
                 ] : null,
+                'active_order' => function () {
+                    $customer = Auth::guard('customer')->user();
+
+                    if (! $customer) {
+                        return null;
+                    }
+
+                    return Order::query()
+                        ->where('customer_id', $customer->id)
+                        ->active()
+                        ->latest()
+                        ->first(['id', 'order_number', 'status'])
+                        ?->only(['id', 'order_number', 'status']);
+                },
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

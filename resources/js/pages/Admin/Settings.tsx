@@ -4,12 +4,27 @@ import { useEffect } from 'react';
 import AdminLayout from '@/layouts/admin-layout';
 import { adminSettingsUpdate } from '@/lib/routes';
 
-interface Props { settings: Record<string, string> }
+interface Props {
+    settings: Record<string, string>;
+    gcash_qr_url: string | null;
+    maya_qr_url: string | null;
+}
 
-export default function SettingsPage({ settings }: Props) {
+export default function SettingsPage({ settings, gcash_qr_url, maya_qr_url }: Props) {
     const { flash } = usePage().props as { flash?: { success?: string } };
 
-    const { data, setData, put, processing, errors } = useForm({
+    const { data, setData, post, processing, errors } = useForm({
+        _method: 'PUT',
+        // Online payments
+        gcash_number: settings.gcash_number ?? '',
+        gcash_account_name: settings.gcash_account_name ?? '',
+        gcash_qr: null as File | null,
+        maya_number: settings.maya_number ?? '',
+        maya_account_name: settings.maya_account_name ?? '',
+        maya_qr: null as File | null,
+        // Delivery
+        delivery_fee: settings.delivery_fee ?? '0',
+        free_delivery_minimum: settings.free_delivery_minimum ?? '0',
         cafe_name: settings.cafe_name ?? '',
         cafe_tagline: settings.cafe_tagline ?? '',
         tax_rate: settings.tax_rate ?? '12',
@@ -43,7 +58,8 @@ export default function SettingsPage({ settings }: Props) {
 
     function submit(e: React.FormEvent) {
         e.preventDefault();
-        put(adminSettingsUpdate());
+        // POST with _method=PUT so QR image files upload correctly (multipart)
+        post(adminSettingsUpdate(), { forceFormData: true });
     }
 
     return (
@@ -239,6 +255,83 @@ export default function SettingsPage({ settings }: Props) {
                                 <input type="password" value={data.pusher_app_secret} onChange={(e) => setData('pusher_app_secret', e.target.value)} placeholder="••••••••••••••••••••••••" className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none font-mono" />
                             </div>
                         </div>
+                    </div>
+
+                    {/* Delivery */}
+                    <div className="rounded-2xl bg-white p-5 shadow-sm" style={{ border: '1px solid var(--ap-border)' }}>
+                        <h2 className="mb-1 font-semibold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>Delivery</h2>
+                        <p className="mb-4 text-xs" style={{ color: 'var(--ap-muted)' }}>Charged on online delivery orders. Set a minimum order amount to give free delivery.</p>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Delivery Fee ({data.currency})</label>
+                                <input type="number" step="0.01" min="0" value={data.delivery_fee as string} onChange={(e) => setData('delivery_fee', e.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none" />
+                                <p className="mt-1 text-xs" style={{ color: 'var(--ap-muted)' }}>0 = delivery is always free</p>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Free Delivery Minimum ({data.currency})</label>
+                                <input type="number" step="0.01" min="0" value={data.free_delivery_minimum as string} onChange={(e) => setData('free_delivery_minimum', e.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none" />
+                                <p className="mt-1 text-xs" style={{ color: 'var(--ap-muted)' }}>Orders at or above this amount get free delivery. 0 = never free.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Online Payments */}
+                    <div className="rounded-2xl bg-white p-5 shadow-sm" style={{ border: '1px solid var(--ap-border)' }}>
+                        <h2 className="mb-1 font-semibold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>Online Payments (GCash / Maya)</h2>
+                        <p className="mb-4 text-xs" style={{ color: 'var(--ap-muted)' }}>Shown to customers as payment instructions when they choose GCash or Maya for online orders.</p>
+
+                        {([
+                            { key: 'gcash', label: 'GCash', numberField: 'gcash_number', nameField: 'gcash_account_name', qrField: 'gcash_qr', currentUrl: gcash_qr_url },
+                            { key: 'maya', label: 'Maya', numberField: 'maya_number', nameField: 'maya_account_name', qrField: 'maya_qr', currentUrl: maya_qr_url },
+                        ] as const).map((wallet) => (
+                            <div key={wallet.key} className="mb-4 rounded-xl border border-gray-200 p-4 last:mb-0">
+                                <p className="mb-3 text-sm font-semibold" style={{ color: 'var(--ap-input-text)' }}>{wallet.label}</p>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>{wallet.label} Number</label>
+                                        <input
+                                            value={data[wallet.numberField] as string}
+                                            onChange={(e) => setData(wallet.numberField, e.target.value)}
+                                            placeholder="09171234567"
+                                            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Account Name</label>
+                                        <input
+                                            value={data[wallet.nameField] as string}
+                                            onChange={(e) => setData(wallet.nameField, e.target.value)}
+                                            placeholder="Juan D."
+                                            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none"
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>{wallet.label} QR Code</label>
+                                        <div className="mt-1 flex items-center gap-4">
+                                            {(data[wallet.qrField] || wallet.currentUrl) && (
+                                                <img
+                                                    src={data[wallet.qrField] ? URL.createObjectURL(data[wallet.qrField] as File) : wallet.currentUrl!}
+                                                    alt={`${wallet.label} QR code`}
+                                                    className="h-24 w-24 rounded-lg border border-gray-200 object-contain"
+                                                />
+                                            )}
+                                            <label className="cursor-pointer rounded-xl border border-dashed border-gray-300 px-4 py-3 text-xs font-medium hover:border-yellow-400" style={{ color: 'var(--ap-muted)' }}>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onChange={(e) => setData(wallet.qrField, e.target.files?.[0] ?? null)}
+                                                />
+                                                {data[wallet.qrField]
+                                                    ? `✓ ${(data[wallet.qrField] as File).name}`
+                                                    : wallet.currentUrl ? 'Replace QR image' : 'Upload QR image'}
+                                            </label>
+                                        </div>
+                                        {errors[wallet.qrField] && <p className="mt-1 text-xs text-red-500">{errors[wallet.qrField]}</p>}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
                     </div>
 
                     <button type="submit" disabled={processing} className="rounded-full px-8 py-3 text-sm font-bold disabled:opacity-50" style={{ background: '#D4A843', color: '#2C1A0E' }}>

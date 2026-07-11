@@ -1,10 +1,10 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
-import { adminOrdersIndex, adminOrdersShow, adminOrdersVoid } from '@/lib/routes';
+import { adminOrdersAssignDeliveryMan, adminOrdersIndex, adminOrdersMarkPaid, adminOrdersShow, adminOrdersUpdateStatus, adminOrdersVoid } from '@/lib/routes';
 import { printReceipt, ThermalReceipt, type ReceiptOrder } from '@/components/thermal-receipt';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-    Ban, ChevronLeft, ChevronRight, Eye,
+    Ban, BadgeCheck, Bike, ChevronLeft, ChevronRight, Eye, ImageIcon,
     PackageCheck, Printer, Search, ShoppingBag, TrendingUp, X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -26,7 +26,17 @@ interface Order {
     promo: { code: string } | null;
     items: { id: number; menu_item: { name: string }; quantity: number; subtotal: number; addons: { name: string }[] }[];
     payment: { method: string; amount: number; reference_no: string | null } | null;
+    payment_method: string | null;
+    payment_proof_url: string | null;
+    delivery_address: string | null;
+    delivery_man: { id: number; name: string } | null;
     created_at: string;
+}
+
+interface DeliveryManOption {
+    id: number;
+    name: string;
+    vehicle: string | null;
 }
 
 interface Paginated<T> {
@@ -53,8 +63,15 @@ interface Props {
     orders: Paginated<Order>;
     filters: { search?: string; status?: string; date_from?: string; date_to?: string; type?: string; payment?: string };
     stats: Stats;
+    delivery_men: DeliveryManOption[];
     can: { manage_orders: boolean; void_orders: boolean };
 }
+
+const ONLINE_PAYMENT_STYLES: Record<string, { bg: string; text: string; label: string }> = {
+    cod:   { bg: '#F3F4F6', text: '#374151', label: 'COD' },
+    gcash: { bg: '#DBEAFE', text: '#1D4ED8', label: 'GCash' },
+    maya:  { bg: '#D1FAE5', text: '#047857', label: 'Maya' },
+};
 
 const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
     pending:   { bg: '#FEF3C7', text: '#92400E' },
@@ -69,7 +86,39 @@ const TERMINAL = ['completed', 'cancelled', 'voided'];
 
 const currency = (n: number) => `₱${Number(n).toFixed(2)}`;
 
-export default function OrdersIndex({ orders, filters, stats, can }: Props) {
+export default function OrdersIndex({ orders, filters, stats, delivery_men, can }: Props) {
+    const [proofPreview, setProofPreview] = useState<Order | null>(null);
+    const [codConfirm, setCodConfirm] = useState<Order | null>(null);
+    const [updatingId, setUpdatingId] = useState<number | null>(null);
+    const [markingPaid, setMarkingPaid] = useState(false);
+
+    function markPaid(order: Order, onDone?: () => void) {
+        setMarkingPaid(true);
+        router.post(adminOrdersMarkPaid(order.id), {}, {
+            preserveScroll: true,
+            onSuccess: () => onDone?.(),
+            onFinish: () => setMarkingPaid(false),
+        });
+    }
+
+    function quickUpdateStatus(order: Order, status: string) {
+        setUpdatingId(order.id);
+        router.patch(adminOrdersUpdateStatus(order.id), { status }, {
+            preserveScroll: true,
+            preserveState: true,
+            onFinish: () => setUpdatingId(null),
+        });
+    }
+
+    function quickAssignRider(order: Order, deliveryManId: string) {
+        setUpdatingId(order.id);
+        router.patch(adminOrdersAssignDeliveryMan(order.id), { delivery_man_id: deliveryManId || null }, {
+            preserveScroll: true,
+            preserveState: true,
+            onFinish: () => setUpdatingId(null),
+        });
+    }
+
     const { flash } = usePage().props as { flash?: { success?: string; error?: string } };
     const { data, setData } = useForm({ ...filters });
     const [printingOrder, setPrintingOrder] = useState<ReceiptOrder | null>(null);
@@ -170,7 +219,7 @@ export default function OrdersIndex({ orders, filters, stats, can }: Props) {
                             </>}
                             {field === 'type' && <>
                                 <option value="">All types</option>
-                                {['dine-in','takeout','walkin'].map((t) => <option key={t} value={t}>{t.replace('-',' ')}</option>)}
+                                {['dine-in','takeout','walkin','pickup','delivery'].map((t) => <option key={t} value={t}>{t.replace('-',' ')}</option>)}
                             </>}
                             {field === 'payment' && <>
                                 <option value="">All payments</option>
@@ -195,11 +244,11 @@ export default function OrdersIndex({ orders, filters, stats, can }: Props) {
                 </form>
 
                 {/* Table */}
-                <div className="overflow-hidden rounded-2xl shadow-sm" style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}>
-                    <table className="w-full text-sm">
+                <div className="overflow-x-auto rounded-2xl shadow-sm" style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}>
+                    <table className="w-full min-w-[1100px] text-sm">
                         <thead style={{ background: 'var(--ap-bg)', borderBottom: '1px solid var(--ap-border)' }}>
                             <tr>
-                                {['Order #', 'Customer / Table', 'Items', 'Subtotal', 'Discount', 'Total', 'Payment', 'Loyalty', 'Status', 'Date', ''].map((h) => (
+                                {['Order #', 'Customer / Table', 'Items', 'Subtotal', 'Discount', 'Total', 'Payment', 'Delivery', 'Loyalty', 'Status', 'Date', ''].map((h) => (
                                     <th key={h} className="px-3 py-3 text-left text-xs font-semibold" style={{ color: 'var(--ap-muted)' }}>{h}</th>
                                 ))}
                             </tr>
@@ -207,7 +256,7 @@ export default function OrdersIndex({ orders, filters, stats, can }: Props) {
                         <tbody>
                             {orders.data.length === 0 ? (
                                 <tr>
-                                    <td colSpan={11} className="px-4 py-12 text-center text-sm" style={{ color: 'var(--ap-muted)' }}>
+                                    <td colSpan={12} className="px-4 py-12 text-center text-sm" style={{ color: 'var(--ap-muted)' }}>
                                         No orders found
                                     </td>
                                 </tr>
@@ -253,12 +302,69 @@ export default function OrdersIndex({ orders, filters, stats, can }: Props) {
                                             <span className="text-sm font-bold" style={{ color: '#D4A843' }}>{currency(order.total)}</span>
                                         </td>
                                         <td className="px-3 py-3">
-                                            {order.payment ? (
-                                                <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 capitalize">
-                                                    {order.payment.method}
-                                                </span>
+                                            <div className="flex items-center gap-1">
+                                                {order.payment ? (
+                                                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 capitalize">
+                                                        {order.payment.method}
+                                                    </span>
+                                                ) : order.payment_method ? (
+                                                    <span
+                                                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                                        style={{ background: ONLINE_PAYMENT_STYLES[order.payment_method]?.bg, color: ONLINE_PAYMENT_STYLES[order.payment_method]?.text }}
+                                                    >
+                                                        {ONLINE_PAYMENT_STYLES[order.payment_method]?.label ?? order.payment_method}
+                                                    </span>
+                                                ) : (
+                                                    <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-500">Unpaid</span>
+                                                )}
+                                                {order.payment_proof_url && (
+                                                    <button
+                                                        onClick={() => setProofPreview(order)}
+                                                        className="rounded-lg p-1 transition-colors hover:bg-black/5"
+                                                        title="View proof of payment"
+                                                    >
+                                                        <ImageIcon className="h-3.5 w-3.5" style={{ color: '#D4A843' }} />
+                                                    </button>
+                                                )}
+                                                {!order.payment && order.payment_method === 'cod' && can.manage_orders && !isTerminal && (
+                                                    <button
+                                                        onClick={() => setCodConfirm(order)}
+                                                        className="rounded-lg p-1 transition-colors hover:bg-green-50"
+                                                        title="Confirm cash collected"
+                                                    >
+                                                        <BadgeCheck className="h-3.5 w-3.5 text-green-600" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-3">
+                                            {order.type === 'delivery' ? (
+                                                can.manage_orders && !isTerminal ? (
+                                                    <select
+                                                        value={order.delivery_man ? String(order.delivery_man.id) : ''}
+                                                        onChange={(e) => quickAssignRider(order, e.target.value)}
+                                                        disabled={updatingId === order.id}
+                                                        className="max-w-[130px] rounded-lg border px-1.5 py-1 text-[11px] focus:outline-none disabled:opacity-50"
+                                                        style={{
+                                                            background: order.delivery_man ? 'var(--ap-bg)' : '#FEF3C7',
+                                                            borderColor: order.delivery_man ? 'var(--ap-border)' : '#F59E0B',
+                                                            color: 'var(--ap-input-text)',
+                                                        }}
+                                                        title={order.delivery_address ?? undefined}
+                                                    >
+                                                        <option value="">🛵 Assign…</option>
+                                                        {delivery_men.map((man) => (
+                                                            <option key={man.id} value={man.id}>{man.name}</option>
+                                                        ))}
+                                                    </select>
+                                                ) : (
+                                                    <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--ap-input-text)' }}>
+                                                        <Bike className="h-3 w-3" style={{ color: 'var(--ap-muted)' }} />
+                                                        {order.delivery_man?.name ?? '—'}
+                                                    </span>
+                                                )
                                             ) : (
-                                                <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-500">Unpaid</span>
+                                                <span className="text-[10px]" style={{ color: 'var(--ap-muted)' }}>—</span>
                                             )}
                                         </td>
                                         <td className="px-3 py-3">
@@ -277,7 +383,21 @@ export default function OrdersIndex({ orders, filters, stats, can }: Props) {
                                             </div>
                                         </td>
                                         <td className="px-3 py-3">
-                                            <span className="rounded-full px-2 py-0.5 text-[10px] font-medium capitalize" style={s}>{order.status}</span>
+                                            {can.manage_orders && !isTerminal ? (
+                                                <select
+                                                    value={order.status}
+                                                    onChange={(e) => quickUpdateStatus(order, e.target.value)}
+                                                    disabled={updatingId === order.id}
+                                                    className="cursor-pointer rounded-full border-0 py-0.5 pl-2 pr-6 text-[10px] font-semibold capitalize focus:outline-none disabled:opacity-50"
+                                                    style={{ background: s.bg, color: s.text }}
+                                                >
+                                                    {['pending', 'preparing', 'ready', 'completed', 'cancelled'].map((st) => (
+                                                        <option key={st} value={st} className="capitalize">{st}</option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <span className="rounded-full px-2 py-0.5 text-[10px] font-medium capitalize" style={s}>{order.status}</span>
+                                            )}
                                         </td>
                                         <td className="px-3 py-3 text-[10px]" style={{ color: 'var(--ap-muted)' }}>
                                             {new Date(order.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -385,6 +505,100 @@ export default function OrdersIndex({ orders, filters, stats, can }: Props) {
                                 </button>
                                 <button onClick={confirmVoid} disabled={voiding} className="flex-1 rounded-full py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: '#EF4444', color: '#fff' }}>
                                     {voiding ? 'Voiding…' : 'Void Order'}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+
+            {/* Proof of payment modal */}
+            <AnimatePresence>
+                {proofPreview && (
+                    <>
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60" style={{ zIndex: 50 }} onClick={() => setProofPreview(null)} />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                            className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl shadow-2xl"
+                            style={{ background: 'var(--ap-card)' }}
+                        >
+                            <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--ap-border)' }}>
+                                <div>
+                                    <p className="text-sm font-bold" style={{ color: 'var(--ap-input-text)' }}>Proof of Payment</p>
+                                    <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>
+                                        <span className="font-mono">{proofPreview.order_number}</span> · {ONLINE_PAYMENT_STYLES[proofPreview.payment_method ?? '']?.label ?? proofPreview.payment_method} · {currency(proofPreview.total)}
+                                    </p>
+                                </div>
+                                <button onClick={() => setProofPreview(null)}><X className="h-4 w-4" style={{ color: 'var(--ap-muted)' }} /></button>
+                            </div>
+                            <div className="max-h-[70vh] overflow-y-auto p-4" style={{ background: 'var(--ap-bg)' }}>
+                                <img src={proofPreview.payment_proof_url!} alt="Proof of payment" className="w-full rounded-xl object-contain" />
+                            </div>
+                            <div className="flex gap-2 border-t px-4 py-3" style={{ borderColor: 'var(--ap-border)' }}>
+                                <button onClick={() => setProofPreview(null)} className="flex-1 rounded-full border py-2.5 text-sm font-medium" style={{ borderColor: 'var(--ap-border)', color: 'var(--ap-muted)' }}>Close</button>
+                                <a
+                                    href={proofPreview.payment_proof_url!}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex flex-1 items-center justify-center rounded-full border py-2.5 text-sm font-medium"
+                                    style={{ borderColor: 'var(--ap-border)', color: 'var(--ap-input-text)' }}
+                                >
+                                    Full Size
+                                </a>
+                                {!proofPreview.payment && can.manage_orders && !TERMINAL.includes(proofPreview.status) && (
+                                    <button
+                                        onClick={() => markPaid(proofPreview, () => setProofPreview(null))}
+                                        disabled={markingPaid}
+                                        className="flex flex-1 items-center justify-center gap-1.5 rounded-full py-2.5 text-sm font-bold disabled:opacity-50"
+                                        style={{ background: '#16A34A', color: '#fff' }}
+                                    >
+                                        <BadgeCheck className="h-4 w-4" /> {markingPaid ? 'Saving…' : 'Approve & Mark Paid'}
+                                    </button>
+                                )}
+                                {proofPreview.payment && (
+                                    <span className="flex flex-1 items-center justify-center gap-1 rounded-full bg-green-100 py-2.5 text-sm font-bold text-green-700">
+                                        <BadgeCheck className="h-4 w-4" /> Verified & Paid
+                                    </span>
+                                )}
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+
+            {/* COD confirmation modal */}
+            <AnimatePresence>
+                {codConfirm && (
+                    <>
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50" style={{ zIndex: 50 }} onClick={() => setCodConfirm(null)} />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                            className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6 text-center shadow-xl"
+                            style={{ background: 'var(--ap-card)' }}
+                        >
+                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+                                <BadgeCheck className="h-6 w-6 text-green-600" />
+                            </div>
+                            <h2 className="mt-3 font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>Confirm Cash Payment</h2>
+                            <p className="mt-1 text-sm" style={{ color: 'var(--ap-muted)' }}>
+                                <span className="font-mono font-bold">{codConfirm.order_number}</span> · {currency(codConfirm.total)}
+                            </p>
+                            <p className="mt-2 text-xs" style={{ color: 'var(--ap-muted)' }}>
+                                {codConfirm.type === 'delivery'
+                                    ? codConfirm.delivery_man
+                                        ? `Rider ${codConfirm.delivery_man.name} has verified and collected the cash on delivery.`
+                                        : '⚠️ No delivery man assigned yet. Assign a rider first — the rider verifies the cash payment on handoff.'
+                                    : 'Cash was collected from the customer at the counter.'}
+                            </p>
+                            <div className="mt-5 flex gap-2">
+                                <button onClick={() => setCodConfirm(null)} className="flex-1 rounded-full border py-2.5 text-sm font-medium" style={{ borderColor: 'var(--ap-border)', color: 'var(--ap-muted)' }}>Cancel</button>
+                                <button
+                                    onClick={() => markPaid(codConfirm, () => setCodConfirm(null))}
+                                    disabled={markingPaid || (codConfirm.type === 'delivery' && !codConfirm.delivery_man)}
+                                    className="flex-1 rounded-full py-2.5 text-sm font-bold text-white disabled:opacity-40"
+                                    style={{ background: '#16A34A' }}
+                                >
+                                    {markingPaid ? 'Saving…' : 'Mark as Paid'}
                                 </button>
                             </div>
                         </motion.div>

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { LogOut, Minus, Plus, Search, ShoppingCart, Tag, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
+import CustomerNav from '@/components/CustomerNav';
 
 interface Addon {
     id: number;
@@ -59,6 +60,7 @@ interface CartItem {
 
 interface CustomerAuth {
     customer: { id: number; name: string; email: string; points: number; cup_count: number; free_drinks_available: number } | null;
+    active_order: { id: number; order_number: string; status: string } | null;
 }
 
 interface Props {
@@ -74,6 +76,14 @@ interface Props {
         points_redeem_rate: string;
         loyalty_cups_enabled: boolean;
         loyalty_cups_threshold: number;
+        delivery_fee: number;
+        free_delivery_minimum: number;
+        gcash_number: string | null;
+        gcash_account_name: string | null;
+        gcash_qr_url: string | null;
+        maya_number: string | null;
+        maya_account_name: string | null;
+        maya_qr_url: string | null;
     };
 }
 
@@ -92,6 +102,7 @@ const P = {
 export default function Storefront({ table, categories, featured_items, settings }: Props) {
     const { customer_auth } = usePage().props as unknown as { customer_auth: CustomerAuth };
     const customer = customer_auth?.customer ?? null;
+    const activeOrder = customer_auth?.active_order ?? null;
 
     const [activeCategory, setActiveCategory] = useState<number | null>(categories[0]?.id ?? null);
     const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
@@ -118,6 +129,26 @@ export default function Storefront({ table, categories, featured_items, settings
     const [searchQuery, setSearchQuery] = useState('');
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);
     const [authPromptOpen, setAuthPromptOpen] = useState(false);
+
+    // Online (table-less) order state: fulfillment, delivery location, payment
+    const [fulfillment, setFulfillment] = useState<'pickup' | 'delivery'>('pickup');
+    const [deliveryAddress, setDeliveryAddress] = useState('');
+    const [deliveryCoords, setDeliveryCoords] = useState<{ lat: number; lng: number } | null>(null);
+    const [isLocating, setIsLocating] = useState(false);
+    const [paymentMethod, setPaymentMethod] = useState<'cod' | 'gcash' | 'maya'>('cod');
+    const [paymentProof, setPaymentProof] = useState<File | null>(null);
+
+    // Object URL for previewing the selected proof image; revoked on change/unmount
+    const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
+    useEffect(() => {
+        if (!paymentProof) {
+            setProofPreviewUrl(null);
+            return;
+        }
+        const url = URL.createObjectURL(paymentProof);
+        setProofPreviewUrl(url);
+        return () => URL.revokeObjectURL(url);
+    }, [paymentProof]);
 
     // Promo & points state
     const [promoCode, setPromoCode] = useState('');
@@ -163,7 +194,14 @@ export default function Storefront({ table, categories, featured_items, settings
         ? Math.min(...cart.map((i) => i.unitPrice))
         : 0;
     const freeDrinkDiscount = useFreeDrink && freeDrinksAvailable > 0 ? cheapestItemPrice : 0;
-    const cartTotal = Math.max(0, cartSubtotal - promoDiscount - pointsDiscount - freeDrinkDiscount);
+
+    // Delivery fee — waived once the subtotal reaches the free-delivery minimum
+    const deliveryFeeApplies = !table && fulfillment === 'delivery' && settings.delivery_fee > 0;
+    const qualifiesFreeDelivery = settings.free_delivery_minimum > 0 && cartSubtotal >= settings.free_delivery_minimum;
+    const deliveryFee = deliveryFeeApplies && !qualifiesFreeDelivery ? settings.delivery_fee : 0;
+    const amountToFreeDelivery = Math.max(0, settings.free_delivery_minimum - cartSubtotal);
+
+    const cartTotal = Math.max(0, cartSubtotal - promoDiscount - pointsDiscount - freeDrinkDiscount) + deliveryFee;
 
     function scrollToCategory(categoryId: number) {
         setActiveCategory(categoryId);
@@ -282,7 +320,7 @@ export default function Storefront({ table, categories, featured_items, settings
         try {
             const res = await fetch(customerPromoApply(), {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '' },
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '' },
                 body: JSON.stringify({ code: promoCode, subtotal: cartSubtotal }),
             });
             const data = await res.json();
@@ -300,6 +338,30 @@ export default function Storefront({ table, categories, featured_items, settings
         }
     }
 
+    function useCurrentLocation() {
+        if (!navigator.geolocation) {
+            toast.error('Location is not supported by your browser.');
+            return;
+        }
+        setIsLocating(true);
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                setDeliveryCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                setIsLocating(false);
+                toast.success('Location pinned!');
+            },
+            (err) => {
+                setIsLocating(false);
+                if (err.code === err.PERMISSION_DENIED) {
+                    toast.error('Location permission was denied. Please allow location access in your browser, or type your address instead.');
+                } else {
+                    toast.error('Could not get your location. Please type your address instead.');
+                }
+            },
+            { enableHighAccuracy: true, timeout: 10000 },
+        );
+    }
+
     async function placeOrder() {
         if (cart.length === 0) return;
 
@@ -308,28 +370,77 @@ export default function Storefront({ table, categories, featured_items, settings
             return;
         }
 
+        if (!table) {
+            if (fulfillment === 'delivery' && !deliveryAddress.trim()) {
+                toast.error('Please enter your delivery address or pin your location.');
+                return;
+            }
+            if ((paymentMethod === 'gcash' || paymentMethod === 'maya') && !paymentProof) {
+                toast.error('Please upload your proof of payment.');
+                return;
+            }
+        }
+
         setIsPlacingOrder(true);
 
         try {
-            const response = await fetch(storefrontOrdersStore(), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '' },
-                body: JSON.stringify({
-                    table_id: table?.id ?? null,
-                    type: table ? 'dine-in' : 'takeout',
-                    notes: orderNotes,
-                    promo_code: promoApplied?.code ?? null,
-                    redeem_points: redeemPoints && customer ? true : false,
-                    use_free_drink: useFreeDrink && freeDrinksAvailable > 0,
-                    items: cart.map((item) => ({
-                        menu_item_id: item.menuItem.id,
-                        variation_id: item.selectedVariation?.id ?? null,
-                        quantity: item.quantity,
-                        notes: item.notes,
-                        addon_ids: item.selectedAddons.map((a) => a.id),
-                    })),
-                }),
-            });
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+            let response: Response;
+
+            if (table) {
+                // Dine-in: JSON request, unchanged
+                response = await fetch(storefrontOrdersStore(), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                    body: JSON.stringify({
+                        table_id: table.id,
+                        type: 'dine-in',
+                        notes: orderNotes,
+                        promo_code: promoApplied?.code ?? null,
+                        redeem_points: redeemPoints && customer ? true : false,
+                        use_free_drink: useFreeDrink && freeDrinksAvailable > 0,
+                        items: cart.map((item) => ({
+                            menu_item_id: item.menuItem.id,
+                            variation_id: item.selectedVariation?.id ?? null,
+                            quantity: item.quantity,
+                            notes: item.notes,
+                            addon_ids: item.selectedAddons.map((a) => a.id),
+                        })),
+                    }),
+                });
+            } else {
+                // Online order: multipart form so the payment proof file can be uploaded
+                const formData = new FormData();
+                formData.append('type', fulfillment);
+                formData.append('payment_method', paymentMethod);
+                if (paymentProof) formData.append('payment_proof', paymentProof);
+                if (fulfillment === 'delivery') {
+                    formData.append('delivery_address', deliveryAddress);
+                    if (deliveryCoords) {
+                        formData.append('delivery_lat', String(deliveryCoords.lat));
+                        formData.append('delivery_lng', String(deliveryCoords.lng));
+                    }
+                }
+                formData.append('notes', orderNotes);
+                if (promoApplied) formData.append('promo_code', promoApplied.code);
+                formData.append('redeem_points', redeemPoints ? '1' : '0');
+                formData.append('use_free_drink', useFreeDrink && freeDrinksAvailable > 0 ? '1' : '0');
+                cart.forEach((item, i) => {
+                    formData.append(`items[${i}][menu_item_id]`, String(item.menuItem.id));
+                    formData.append(`items[${i}][quantity]`, String(item.quantity));
+                    if (item.selectedVariation) formData.append(`items[${i}][variation_id]`, String(item.selectedVariation.id));
+                    if (item.notes) formData.append(`items[${i}][notes]`, item.notes);
+                    item.selectedAddons.forEach((addon, j) => {
+                        formData.append(`items[${i}][addon_ids][${j}]`, String(addon.id));
+                    });
+                });
+
+                response = await fetch(storefrontOrdersStore(), {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                    body: formData,
+                });
+            }
 
             if (response.status === 401) {
                 setAuthPromptOpen(true);
@@ -338,6 +449,12 @@ export default function Storefront({ table, categories, featured_items, settings
             if (response.status === 403) {
                 const err = await response.json().catch(() => null);
                 toast.error(err?.message ?? 'Unable to place order.');
+                return;
+            }
+            if (response.status === 422) {
+                const err = await response.json().catch(() => null);
+                const firstError = err?.errors ? (Object.values(err.errors)[0] as string[])[0] : null;
+                toast.error(firstError ?? err?.message ?? 'Please check your order details.');
                 return;
             }
             if (!response.ok) throw new Error('Order failed');
@@ -364,6 +481,9 @@ export default function Storefront({ table, categories, featured_items, settings
             setPromoCode('');
             setRedeemPoints(false);
             setUseFreeDrink(false);
+            setDeliveryAddress('');
+            setDeliveryCoords(null);
+            setPaymentProof(null);
             router.visit(storefrontOrdersShow(data.order.id));
         } catch {
             toast.error('Failed to place order. Please try again.');
@@ -434,6 +554,17 @@ export default function Storefront({ table, categories, featured_items, settings
                     </div>
                 )}
             </div>
+
+            {/* ─── Active order banner (back-navigation safety net) ── */}
+            {activeOrder && (
+                <button
+                    onClick={() => router.visit(storefrontOrdersShow(activeOrder.id))}
+                    className="block w-full px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wide text-white"
+                    style={{ background: P.terracotta }}
+                >
+                    ☕ Order {activeOrder.order_number} is {activeOrder.status} — tap to track →
+                </button>
+            )}
 
             {/* ─── Hero (retro-geometric) ──────────────────────────── */}
             {!searchQuery && (
@@ -568,7 +699,7 @@ export default function Storefront({ table, categories, featured_items, settings
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     onClick={() => setCartOpen(true)}
-                    className="fixed bottom-6 right-4 flex items-center gap-2 px-6 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-xl sm:right-8"
+                    className="fixed bottom-20 right-4 flex items-center gap-2 px-6 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-xl sm:right-8"
                     style={{ background: P.terracotta, zIndex: 50 }}
                 >
                     <ShoppingCart className="h-4 w-4" />
@@ -807,13 +938,187 @@ export default function Storefront({ table, categories, featured_items, settings
                                         ))}
                                     </div>
                                 )}
-                            </div>
 
-                            {cart.length > 0 && (
-                                <div className="space-y-3 px-4 py-4" style={{ borderTop: `2px solid ${P.sand}` }}>
-                                    <div className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-white" style={{ background: table ? P.navy : P.caramel }}>
-                                        {table ? <>🍽️ Dine-in · {table.name}</> : <>🛍️ Takeout / online order — pick up at the counter</>}
-                                    </div>
+                                {cart.length > 0 && (
+                                <div className="mt-4 space-y-3">
+                                    {table ? (
+                                        <div className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-white" style={{ background: P.navy }}>
+                                            🍽️ Dine-in · {table.name}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {/* Fulfillment: pickup or delivery */}
+                                            <div>
+                                                <p className="mb-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: P.espresso }}>How do you want it?</p>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {([
+                                                        { value: 'pickup', label: '🏪 Pickup', hint: 'At the counter' },
+                                                        { value: 'delivery', label: '🛵 Delivery', hint: settings.delivery_fee > 0 ? `+${settings.currency}${settings.delivery_fee.toFixed(2)} fee` : 'To your address' },
+                                                    ] as const).map((option) => (
+                                                        <button
+                                                            key={option.value}
+                                                            type="button"
+                                                            onClick={() => setFulfillment(option.value)}
+                                                            className="flex flex-col items-center py-2 text-sm font-bold transition-all"
+                                                            style={{
+                                                                background: fulfillment === option.value ? P.navy : 'white',
+                                                                border: `2px solid ${fulfillment === option.value ? P.navy : P.sand}`,
+                                                                color: fulfillment === option.value ? 'white' : P.espresso,
+                                                            }}
+                                                        >
+                                                            <span>{option.label}</span>
+                                                            <span className="text-[10px] font-normal" style={{ color: fulfillment === option.value ? P.cream : P.caramel }}>{option.hint}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Free delivery progress */}
+                                            {fulfillment === 'delivery' && settings.free_delivery_minimum > 0 && settings.delivery_fee > 0 && (
+                                                qualifiesFreeDelivery ? (
+                                                    <div className="px-3 py-2 text-xs font-bold text-white" style={{ background: '#5B8A4E' }}>
+                                                        🎉 You qualify for FREE delivery!
+                                                    </div>
+                                                ) : (
+                                                    <div className="px-3 py-2 text-xs font-bold" style={{ background: '#FDEBD3', border: `2px solid ${P.caramel}`, color: '#8A5A18' }}>
+                                                        🛵 Add {currency}{amountToFreeDelivery.toFixed(2)} more to get FREE delivery (min. {currency}{settings.free_delivery_minimum.toFixed(2)})
+                                                    </div>
+                                                )
+                                            )}
+
+                                            {/* Delivery location */}
+                                            {fulfillment === 'delivery' && (
+                                                <div className="space-y-2">
+                                                    <textarea
+                                                        value={deliveryAddress}
+                                                        onChange={(e) => setDeliveryAddress(e.target.value)}
+                                                        placeholder="Delivery address (house no., street, barangay, city, landmark...)"
+                                                        className="w-full bg-white px-3 py-2 text-sm focus:outline-none"
+                                                        style={{ border: `2px solid ${P.sand}` }}
+                                                        rows={2}
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={useCurrentLocation}
+                                                        disabled={isLocating}
+                                                        className="w-full py-2 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-50"
+                                                        style={{ background: P.caramel }}
+                                                    >
+                                                        {isLocating ? 'Locating...' : deliveryCoords ? '📍 Location pinned — tap to re-pin' : '📍 Pin my current location'}
+                                                    </button>
+                                                    {deliveryCoords && (
+                                                        <div style={{ border: `2px solid ${P.sand}` }}>
+                                                            <iframe
+                                                                title="Pinned delivery location"
+                                                                className="h-36 w-full"
+                                                                src={`https://www.openstreetmap.org/export/embed.html?bbox=${deliveryCoords.lng - 0.003},${deliveryCoords.lat - 0.002},${deliveryCoords.lng + 0.003},${deliveryCoords.lat + 0.002}&layer=mapnik&marker=${deliveryCoords.lat},${deliveryCoords.lng}`}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Payment method */}
+                                            <div>
+                                                <p className="mb-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: P.espresso }}>Payment method</p>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {([
+                                                        { value: 'cod', label: '💵 COD' },
+                                                        { value: 'gcash', label: 'GCash' },
+                                                        { value: 'maya', label: 'Maya' },
+                                                    ] as const).map((option) => (
+                                                        <button
+                                                            key={option.value}
+                                                            type="button"
+                                                            onClick={() => { setPaymentMethod(option.value); if (option.value === 'cod') setPaymentProof(null); }}
+                                                            className="py-2 text-sm font-bold transition-all"
+                                                            style={{
+                                                                background: paymentMethod === option.value ? P.navy : 'white',
+                                                                border: `2px solid ${paymentMethod === option.value ? P.navy : P.sand}`,
+                                                                color: paymentMethod === option.value ? 'white' : P.espresso,
+                                                            }}
+                                                        >
+                                                            {option.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                {/* Proof of payment upload for e-wallets */}
+                                                {(paymentMethod === 'gcash' || paymentMethod === 'maya') && (
+                                                    <div className="mt-2">
+                                                        {(() => {
+                                                            const walletName = paymentMethod === 'gcash' ? 'GCash' : 'Maya';
+                                                            const walletNumber = paymentMethod === 'gcash' ? settings.gcash_number : settings.maya_number;
+                                                            const walletAccount = paymentMethod === 'gcash' ? settings.gcash_account_name : settings.maya_account_name;
+                                                            const walletQr = paymentMethod === 'gcash' ? settings.gcash_qr_url : settings.maya_qr_url;
+                                                            return (
+                                                                <div className="mb-2 bg-white p-3" style={{ border: `2px solid ${P.sand}` }}>
+                                                                    <p className="text-xs font-bold uppercase tracking-wide" style={{ color: P.espresso }}>
+                                                                        How to pay with {walletName}
+                                                                    </p>
+                                                                    <div className="mt-2 flex items-start gap-3">
+                                                                        {walletQr && (
+                                                                            <img
+                                                                                src={walletQr}
+                                                                                alt={`${walletName} QR code`}
+                                                                                className="h-28 w-28 shrink-0 object-contain"
+                                                                                style={{ border: `2px solid ${P.sand}` }}
+                                                                            />
+                                                                        )}
+                                                                        <ol className="list-inside list-decimal space-y-1 text-[11px]" style={{ color: P.espresso }}>
+                                                                            <li>{walletQr ? `Scan the QR code with your ${walletName} app` : `Open your ${walletName} app`}{walletNumber ? `, or send to ${walletNumber}` : ''}{walletAccount ? ` (${walletAccount})` : ''}.</li>
+                                                                            <li>Send exactly <strong>{currency}{cartTotal.toFixed(2)}</strong>.</li>
+                                                                            <li>Screenshot the receipt and upload it below.</li>
+                                                                        </ol>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                        <label
+                                                            className="flex cursor-pointer items-center justify-center gap-2 py-2.5 text-xs font-bold uppercase tracking-wide"
+                                                            style={{
+                                                                background: paymentProof ? P.navy : 'white',
+                                                                border: `2px dashed ${paymentProof ? P.navy : P.caramel}`,
+                                                                color: paymentProof ? 'white' : P.caramel,
+                                                            }}
+                                                        >
+                                                            <input
+                                                                type="file"
+                                                                accept="image/*"
+                                                                className="hidden"
+                                                                onChange={(e) => setPaymentProof(e.target.files?.[0] ?? null)}
+                                                            />
+                                                            {paymentProof ? `✓ ${paymentProof.name}` : '📷 Upload proof of payment'}
+                                                        </label>
+
+                                                        {/* Preview of the uploaded proof */}
+                                                        {proofPreviewUrl && (
+                                                            <div className="mt-2 bg-white p-2" style={{ border: `2px solid ${P.navy}` }}>
+                                                                <div className="mb-1.5 flex items-center justify-between">
+                                                                    <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: P.espresso }}>
+                                                                        Your proof of payment
+                                                                    </p>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setPaymentProof(null)}
+                                                                        className="text-[10px] font-bold uppercase"
+                                                                        style={{ color: P.terracotta }}
+                                                                    >
+                                                                        ✕ Remove
+                                                                    </button>
+                                                                </div>
+                                                                <img
+                                                                    src={proofPreviewUrl}
+                                                                    alt="Proof of payment preview"
+                                                                    className="max-h-56 w-full object-contain"
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
                                     <textarea
                                         value={orderNotes}
                                         onChange={(e) => setOrderNotes(e.target.value)}
@@ -925,6 +1230,12 @@ export default function Storefront({ table, categories, featured_items, settings
                                         </div>
                                     )}
 
+                                </div>
+                                )}
+                            </div>
+
+                            {cart.length > 0 && (
+                                <div className="space-y-3 px-4 py-4" style={{ borderTop: `2px solid ${P.sand}` }}>
                                     {/* Order summary */}
                                     <div className="space-y-1.5 text-sm">
                                         <div className="flex justify-between">
@@ -949,7 +1260,17 @@ export default function Storefront({ table, categories, featured_items, settings
                                                 <span className="text-xs font-semibold">-{currency}{freeDrinkDiscount.toFixed(2)}</span>
                                             </div>
                                         )}
-                                        {(promoDiscount > 0 || pointsDiscount > 0 || freeDrinkDiscount > 0) && (
+                                        {deliveryFeeApplies && (
+                                            <div className="flex justify-between">
+                                                <span className="text-xs" style={{ color: P.caramel }}>🛵 Delivery fee</span>
+                                                {qualifiesFreeDelivery ? (
+                                                    <span className="text-xs font-bold" style={{ color: '#059669' }}>FREE</span>
+                                                ) : (
+                                                    <span className="text-xs font-semibold" style={{ color: P.espresso }}>{currency}{deliveryFee.toFixed(2)}</span>
+                                                )}
+                                            </div>
+                                        )}
+                                        {(promoDiscount > 0 || pointsDiscount > 0 || freeDrinkDiscount > 0 || deliveryFee > 0) && (
                                             <div className="flex justify-between pt-1.5" style={{ borderTop: `2px solid ${P.sand}` }}>
                                                 <span className="font-bold" style={{ color: P.espresso }}>Total</span>
                                                 <span className="font-bold" style={{ color: P.terracotta }}>{currency}{cartTotal.toFixed(2)}</span>
@@ -1033,6 +1354,8 @@ export default function Storefront({ table, categories, featured_items, settings
                     </>
                 )}
             </AnimatePresence>
+
+            <CustomerNav current="menu" />
         </div>
     );
 }

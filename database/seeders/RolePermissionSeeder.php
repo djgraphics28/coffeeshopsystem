@@ -62,6 +62,7 @@ class RolePermissionSeeder extends Seeder
         ]);
 
         $kitchen = Role::firstOrCreate(['name' => 'kitchen', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'driver', 'guard_name' => 'web']);
         $kitchen->syncPermissions([
             'access kitchen',
             'view orders',

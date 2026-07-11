@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
-    BarChart2, Bell, ChefHat, Coffee, Home, LogOut,
+    BarChart2, Bell, Bike, ChefHat, Coffee, Home, LogOut,
     Menu, Moon, Receipt, Search, Settings, Shield, ShoppingBag,
     Sun, Table2, Tag, UserCircle, Users, X,
 } from 'lucide-react';
@@ -9,7 +9,7 @@ import { useAppearance } from '@/hooks/use-appearance';
 import { adminAccount, adminAddonGroupsIndex, adminCategoriesIndex, adminCustomersIndex, adminDashboard,
     adminExpenseCategoriesIndex, adminExpensesIndex,
     adminMenuItemsIndex, adminOrdersIndex, adminPromosIndex, adminRolesIndex, adminSettings,
-    adminTablesIndex, adminUsersIndex, kitchenIndex, logout, posIndex,
+    adminDeliveryMenIndex, adminTablesIndex, adminUsersIndex, kitchenIndex, logout, posIndex,
 } from '@/lib/routes';
 
 const NAV_GROUPS = [
@@ -22,6 +22,7 @@ const NAV_GROUPS = [
             { href: adminMenuItemsIndex(),  label: 'Menu Items',  icon: ChefHat,   color: '#F59E0B' },
             { href: adminAddonGroupsIndex(),label: 'Add-ons',     icon: BarChart2, color: '#A78BFA' },
             { href: adminTablesIndex(),     label: 'Tables & QR', icon: Table2,    color: '#10B981' },
+            { href: adminDeliveryMenIndex(), label: 'Delivery Men', icon: Bike,     color: '#06B6D4' },
             { href: adminCustomersIndex(), label: 'Customers',   icon: UserCircle, color: '#F97316' },
             { href: adminPromosIndex(),          label: 'Promos',       icon: Tag,        color: '#EF4444' },
             { href: adminExpensesIndex(),        label: 'Expenses',     icon: Receipt,    color: '#F43F5E' },

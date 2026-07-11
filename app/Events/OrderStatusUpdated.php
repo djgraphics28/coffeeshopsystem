@@ -32,7 +32,7 @@ class OrderStatusUpdated implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'order' => (new OrderResource($this->order->load(['table', 'items.menuItem', 'items.addons.addon'])))->resolve(),
+            'order' => (new OrderResource($this->order->load(['table', 'items.menuItem', 'items.addons.addon', 'deliveryMan'])))->resolve(),
         ];
     }
 }

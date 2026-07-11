@@ -10,6 +10,7 @@ use App\Models\MenuItem;
 use App\Models\Setting;
 use App\Models\Table;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -66,6 +67,14 @@ class StorefrontController extends Controller
                 'points_redeem_rate' => (int) ($settings['points_redeem_rate'] ?? 100),
                 'loyalty_cups_enabled' => ($settings['loyalty_cups_enabled'] ?? '0') === '1',
                 'loyalty_cups_threshold' => (int) ($settings['loyalty_cups_threshold'] ?? 10),
+                'delivery_fee' => (float) ($settings['delivery_fee'] ?? 0),
+                'free_delivery_minimum' => (float) ($settings['free_delivery_minimum'] ?? 0),
+                'gcash_number' => $settings['gcash_number'] ?? null,
+                'gcash_account_name' => $settings['gcash_account_name'] ?? null,
+                'gcash_qr_url' => ! empty($settings['gcash_qr_path']) ? Storage::disk('public')->url($settings['gcash_qr_path']) : null,
+                'maya_number' => $settings['maya_number'] ?? null,
+                'maya_account_name' => $settings['maya_account_name'] ?? null,
+                'maya_qr_url' => ! empty($settings['maya_qr_path']) ? Storage::disk('public')->url($settings['maya_qr_path']) : null,
             ],
         ]);
     }

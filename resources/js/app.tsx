@@ -25,6 +25,9 @@ createInertiaApp({
             // Admin — handled by AdminLayout component inside each page
             case name.startsWith('Admin/'):
                 return null;
+            // Driver app — standalone mobile pages with their own DriverLayout
+            case name.startsWith('Driver/'):
+                return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
             case name.startsWith('settings/'):

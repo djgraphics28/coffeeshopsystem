@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -13,8 +14,12 @@ class SettingsController extends Controller
 {
     public function index(): Response
     {
+        $settings = Setting::getAll();
+
         return Inertia::render('Admin/Settings', [
-            'settings' => Setting::getAll(),
+            'settings' => $settings,
+            'gcash_qr_url' => ! empty($settings['gcash_qr_path']) ? Storage::disk('public')->url($settings['gcash_qr_path']) : null,
+            'maya_qr_url' => ! empty($settings['maya_qr_path']) ? Storage::disk('public')->url($settings['maya_qr_path']) : null,
         ]);
     }
 
@@ -46,7 +51,32 @@ class SettingsController extends Controller
             'pusher_app_key' => ['nullable', 'string', 'max:100'],
             'pusher_app_secret' => ['nullable', 'string', 'max:100'],
             'pusher_app_cluster' => ['nullable', 'string', 'max:20'],
+            // Delivery
+            'delivery_fee' => ['nullable', 'numeric', 'min:0'],
+            'free_delivery_minimum' => ['nullable', 'numeric', 'min:0'],
+            // Online payments (GCash / Maya)
+            'gcash_number' => ['nullable', 'string', 'max:50'],
+            'gcash_account_name' => ['nullable', 'string', 'max:100'],
+            'gcash_qr' => ['nullable', 'image', 'max:2048'],
+            'maya_number' => ['nullable', 'string', 'max:50'],
+            'maya_account_name' => ['nullable', 'string', 'max:100'],
+            'maya_qr' => ['nullable', 'image', 'max:2048'],
         ]);
+
+        foreach (['gcash_qr', 'maya_qr'] as $qrField) {
+            unset($validated[$qrField]);
+
+            if ($request->hasFile($qrField)) {
+                $pathKey = $qrField.'_path';
+                $oldPath = Setting::get($pathKey);
+
+                if ($oldPath) {
+                    Storage::disk('public')->delete($oldPath);
+                }
+
+                Setting::set($pathKey, $request->file($qrField)->store('payment-qr', 'public'));
+            }
+        }
 
         $validated['pay_as_you_order'] = $request->boolean('pay_as_you_order') ? '1' : '0';
         $validated['loyalty_cups_enabled'] = $request->boolean('loyalty_cups_enabled') ? '1' : '0';
@@ -56,6 +86,8 @@ class SettingsController extends Controller
         $validated['mail_port'] ??= '587';
         $validated['mail_encryption'] ??= 'tls';
         $validated['pusher_app_cluster'] ??= 'ap1';
+        $validated['delivery_fee'] ??= '0';
+        $validated['free_delivery_minimum'] ??= '0';
 
         foreach ($validated as $key => $value) {
             Setting::set($key, $value);
