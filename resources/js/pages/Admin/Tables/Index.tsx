@@ -1,11 +1,17 @@
 import { Head, useForm } from '@inertiajs/react';
 import { adminTablesDestroy, adminTablesRegenerateQr, adminTablesStore, adminTablesUpdate } from '@/lib/routes';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Download, Edit2, Plus, Printer, RefreshCw, Trash2, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Download, Edit2, Plus, Printer, RefreshCw, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import toast, { Toaster } from 'react-hot-toast';
 import AdminLayout from '@/layouts/admin-layout';
+import { PageHeader } from '@/components/admin/page-header';
+import { CrudModal } from '@/components/admin/crud-modal';
+import { ConfirmDialog } from '@/components/admin/confirm-dialog';
+import { FormField, adminFieldClass } from '@/components/admin/form-field';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface Table {
     id: number;
@@ -25,7 +31,10 @@ export default function TablesIndex({ tables, base_url }: Props) {
     const [editing, setEditing] = useState<Table | null>(null);
     const [qrPreview, setQrPreview] = useState<Table | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-    const qrRef = useRef<SVGSVGElement | null>(null);
+    const [deleting, setDeleting] = useState<Table | null>(null);
+    const [deleteLoading, setDeleteLoading] = useState(false);
+    const [regenTarget, setRegenTarget] = useState<Table | null>(null);
+    const [regenLoading, setRegenLoading] = useState(false);
 
     function toggleSelect(id: number) {
         setSelectedIds((prev) => {
@@ -108,11 +117,19 @@ export default function TablesIndex({ tables, base_url }: Props) {
 
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
-    async function regenerateQr(table: Table) {
-        if (!confirm('Regenerate QR code? The old QR will no longer work.')) return;
-        await fetch(adminTablesRegenerateQr(table.id), { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf() } });
-        toast.success('QR regenerated!');
-        window.location.reload();
+    function confirmDelete() {
+        if (!deleting) return;
+        setDeleteLoading(true);
+        fetch(adminTablesDestroy(deleting.id), { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrf() } }).then(() => window.location.reload());
+    }
+
+    function confirmRegenerate() {
+        if (!regenTarget) return;
+        setRegenLoading(true);
+        fetch(adminTablesRegenerateQr(regenTarget.id), { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf() } }).then(() => {
+            toast.success('QR regenerated!');
+            window.location.reload();
+        });
     }
 
     return (
@@ -121,23 +138,26 @@ export default function TablesIndex({ tables, base_url }: Props) {
             <Toaster position="top-right" />
 
             {/* Screen-only content */}
-            <div className="p-6 print:hidden">
-                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                    <h1 className="text-2xl font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>Tables & QR Codes</h1>
-                    <div className="flex items-center gap-2">
-                        {selectedIds.size > 0 && (
-                            <button onClick={printSelected} className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold" style={{ background: '#D4A843', color: '#2C1A0E' }}>
-                                <Printer className="h-4 w-4" /> Print Selected ({selectedIds.size})
-                            </button>
-                        )}
-                        <button onClick={toggleSelectAll} className="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold" style={{ borderColor: 'var(--ap-border)', color: 'var(--ap-input-text)', background: 'var(--ap-card)' }}>
-                            {selectedIds.size === tables.length && tables.length > 0 ? 'Deselect All' : 'Select All'}
-                        </button>
-                        <button onClick={openCreate} className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold" style={{ background: '#2C1A0E', color: '#D4A843' }}>
-                            <Plus className="h-4 w-4" /> Add Table
-                        </button>
-                    </div>
-                </div>
+            <div className="print:hidden">
+                <PageHeader
+                    title="Tables & QR Codes"
+                    breadcrumbs={[{ label: 'Tables & QR' }]}
+                    actions={
+                        <>
+                            {selectedIds.size > 0 && (
+                                <Button onClick={printSelected}>
+                                    <Printer className="h-4 w-4" /> Print Selected ({selectedIds.size})
+                                </Button>
+                            )}
+                            <Button variant="outline" onClick={toggleSelectAll}>
+                                {selectedIds.size === tables.length && tables.length > 0 ? 'Deselect All' : 'Select All'}
+                            </Button>
+                            <Button onClick={openCreate}>
+                                <Plus className="h-4 w-4" /> Add Table
+                            </Button>
+                        </>
+                    }
+                />
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {tables.map((table) => {
@@ -145,46 +165,48 @@ export default function TablesIndex({ tables, base_url }: Props) {
                         return (
                             <div
                                 key={table.id}
-                                className={`cursor-pointer rounded-2xl bg-white p-4 shadow-sm transition-all ${isSelected ? 'ring-2' : 'ring-1 ring-transparent'}`}
-                                style={{ border: '1px solid var(--ap-border)', ...(isSelected ? { outline: '2px solid #D4A843' } : {}) }}
+                                className={cn(
+                                    'cursor-pointer rounded-2xl border bg-card p-4 shadow-sm transition-all',
+                                    isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-border',
+                                )}
                                 onClick={() => toggleSelect(table.id)}
                             >
-                                <div className="flex items-start justify-between mb-3">
+                                <div className="mb-3 flex items-start justify-between">
                                     <div className="flex items-start gap-2">
                                         <input
                                             type="checkbox"
                                             checked={isSelected}
                                             onChange={() => toggleSelect(table.id)}
                                             onClick={(e) => e.stopPropagation()}
-                                            className="mt-0.5 h-4 w-4 rounded accent-yellow-500"
+                                            className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
                                         />
                                         <div>
-                                            <p className="font-semibold" style={{ color: 'var(--ap-input-text)' }}>{table.name}</p>
-                                            <span className={`mt-1 rounded-full px-2 py-0.5 text-xs ${table.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                            <p className="font-semibold text-foreground">{table.name}</p>
+                                            <Badge variant={table.is_active ? 'success' : 'neutral'} className="mt-1">
                                                 {table.is_active ? 'Active' : 'Inactive'}
-                                            </span>
+                                            </Badge>
                                         </div>
                                     </div>
                                     <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                                        <button onClick={() => openEdit(table)} className="rounded-lg p-1.5 hover:bg-gray-100"><Edit2 className="h-3.5 w-3.5" style={{ color: 'var(--ap-muted)' }} /></button>
-                                        <button onClick={() => { if (confirm('Delete table?')) { fetch(adminTablesDestroy(table.id), { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrf() } }).then(() => window.location.reload()); } }} className="rounded-lg p-1.5 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5 text-red-400" /></button>
+                                        <button onClick={() => openEdit(table)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"><Edit2 className="h-3.5 w-3.5" /></button>
+                                        <button onClick={() => setDeleting(table)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-error/10 hover:text-error"><Trash2 className="h-3.5 w-3.5" /></button>
                                     </div>
                                 </div>
 
                                 {/* QR Code */}
-                                <div className="flex justify-center rounded-xl p-3" style={{ background: '#ffffff' }}>
+                                <div className="flex justify-center rounded-xl bg-white p-3">
                                     <QRCodeSVGWithId id={`qr-${table.id}`} value={qrUrl(table)} size={120} />
                                 </div>
 
                                 <div className="mt-3 flex gap-2" onClick={(e) => e.stopPropagation()}>
-                                    <button onClick={() => setQrPreview(table)} className="flex flex-1 items-center justify-center gap-1 rounded-xl py-1.5 text-xs font-medium" style={{ background: 'var(--ap-bg)', color: 'var(--ap-input-text)' }}>
+                                    <button onClick={() => setQrPreview(table)} className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-muted py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/70">
                                         Preview
                                     </button>
-                                    <button onClick={() => downloadQr(table)} className="flex flex-1 items-center justify-center gap-1 rounded-xl py-1.5 text-xs font-medium" style={{ background: 'var(--ap-bg)', color: 'var(--ap-input-text)' }}>
+                                    <button onClick={() => downloadQr(table)} className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-muted py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/70">
                                         <Download className="h-3.5 w-3.5" /> Download
                                     </button>
-                                    <button onClick={() => regenerateQr(table)} className="rounded-xl p-1.5" style={{ background: 'var(--ap-bg)' }}>
-                                        <RefreshCw className="h-3.5 w-3.5" style={{ color: 'var(--ap-muted)' }} />
+                                    <button onClick={() => setRegenTarget(table)} className="rounded-xl bg-muted p-1.5 text-muted-foreground transition-colors hover:bg-muted/70">
+                                        <RefreshCw className="h-3.5 w-3.5" />
                                     </button>
                                 </div>
                             </div>
@@ -219,61 +241,79 @@ export default function TablesIndex({ tables, base_url }: Props) {
             </div>
 
             {/* Table Form Modal */}
-            <AnimatePresence>
-                {modalOpen && (
-                    <>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/40" style={{ zIndex: 50 }} onClick={() => setModalOpen(false)} />
-                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed left-1/2 top-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-xl" style={{ zIndex: 60 }}>
-                            <div className="flex items-center justify-between mb-4">
-                                <h2 className="font-bold text-lg" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>{editing ? 'Edit Table' : 'New Table'}</h2>
-                                <button onClick={() => setModalOpen(false)}><X className="h-5 w-5" style={{ color: 'var(--ap-muted)' }} /></button>
-                            </div>
-                            <form onSubmit={submit} className="space-y-4">
-                                <div>
-                                    <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Table Name *</label>
-                                    <input value={data.name} onChange={(e) => setData('name', e.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none" placeholder="e.g., Table 1" />
-                                    {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Sort Order</label>
-                                        <input type="number" value={data.sort_order} onChange={(e) => setData('sort_order', parseInt(e.target.value) || 0)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none" />
-                                    </div>
-                                    <div className="flex flex-col justify-end pb-0.5">
-                                        <label className="flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>
-                                            <input type="checkbox" checked={data.is_active} onChange={(e) => setData('is_active', e.target.checked)} />
-                                            Active
-                                        </label>
-                                    </div>
-                                </div>
-                                <button type="submit" disabled={processing} className="w-full rounded-full py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: '#D4A843', color: '#2C1A0E' }}>
-                                    {processing ? 'Saving...' : editing ? 'Save Changes' : 'Create Table'}
-                                </button>
-                            </form>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+            <CrudModal
+                open={modalOpen}
+                onOpenChange={setModalOpen}
+                title={editing ? 'Edit Table' : 'New Table'}
+                className="max-w-sm"
+                footer={
+                    <Button type="submit" form="table-form" disabled={processing} className="w-full sm:w-auto">
+                        {processing ? 'Saving...' : editing ? 'Save Changes' : 'Create Table'}
+                    </Button>
+                }
+            >
+                <form id="table-form" onSubmit={submit} className="space-y-4">
+                    <FormField label="Table Name" required error={errors.name}>
+                        <input value={data.name} onChange={(e) => setData('name', e.target.value)} className={adminFieldClass(!!errors.name)} placeholder="e.g., Table 1" />
+                    </FormField>
+                    <div className="grid grid-cols-2 gap-3">
+                        <FormField label="Sort Order">
+                            <input type="number" value={data.sort_order} onChange={(e) => setData('sort_order', parseInt(e.target.value) || 0)} className={adminFieldClass()} />
+                        </FormField>
+                        <div className="flex items-end pb-2.5">
+                            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                                <input type="checkbox" checked={data.is_active} onChange={(e) => setData('is_active', e.target.checked)} className="h-4 w-4 rounded border-input accent-primary" />
+                                Active
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </CrudModal>
 
             {/* QR Preview Modal */}
-            <AnimatePresence>
+            <CrudModal
+                open={!!qrPreview}
+                onOpenChange={(open) => !open && setQrPreview(null)}
+                title="Table QR Code"
+                className="max-w-xs"
+                footer={
+                    <Button className="w-full" onClick={() => window.print()}>
+                        <Printer className="h-4 w-4" /> Print QR
+                    </Button>
+                }
+            >
                 {qrPreview && (
-                    <>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60" style={{ zIndex: 50 }} onClick={() => setQrPreview(null)} />
-                        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="fixed left-1/2 top-1/2 w-72 -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-white p-8 shadow-2xl text-center" style={{ zIndex: 60 }}>
-                            <p className="mb-1 text-xs" style={{ color: 'var(--ap-muted)' }}>Scan to order at</p>
-                            <p className="mb-4 font-bold text-xl" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>{qrPreview.name}</p>
-                            <div className="flex justify-center rounded-2xl p-4" style={{ background: '#ffffff' }}>
-                                <QRCodeSVG value={qrUrl(qrPreview)} size={180} bgColor="#ffffff" fgColor="#2C1A0E" />
-                            </div>
-                            <p className="mt-3 text-xs break-all" style={{ color: 'var(--ap-muted)' }}>{qrUrl(qrPreview)}</p>
-                            <button onClick={() => window.print()} className="mt-4 w-full rounded-full py-2.5 text-sm font-bold" style={{ background: '#2C1A0E', color: '#D4A843' }}>
-                                🖨 Print QR
-                            </button>
-                        </motion.div>
-                    </>
+                    <div className="text-center">
+                        <p className="mb-1 text-xs text-muted-foreground">Scan to order at</p>
+                        <p className="mb-4 text-xl font-bold text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>{qrPreview.name}</p>
+                        <div className="flex justify-center rounded-2xl bg-white p-4">
+                            <QRCodeSVG value={qrUrl(qrPreview)} size={180} bgColor="#ffffff" fgColor="#2C1A0E" />
+                        </div>
+                        <p className="mt-3 text-xs break-all text-muted-foreground">{qrUrl(qrPreview)}</p>
+                    </div>
                 )}
-            </AnimatePresence>
+            </CrudModal>
+
+            <ConfirmDialog
+                open={!!deleting}
+                onOpenChange={(open) => !open && setDeleting(null)}
+                onConfirm={confirmDelete}
+                loading={deleteLoading}
+                title="Delete table?"
+                description={deleting ? `"${deleting.name}" will be permanently removed.` : undefined}
+                confirmLabel="Delete"
+            />
+
+            <ConfirmDialog
+                open={!!regenTarget}
+                onOpenChange={(open) => !open && setRegenTarget(null)}
+                onConfirm={confirmRegenerate}
+                loading={regenLoading}
+                tone="default"
+                title="Regenerate QR code?"
+                description="The old QR code will no longer work."
+                confirmLabel="Regenerate"
+            />
         </AdminLayout>
     );
 }

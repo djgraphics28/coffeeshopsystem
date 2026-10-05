@@ -1,11 +1,11 @@
 import { Link, usePage } from '@inertiajs/react';
 import { ClipboardList, Coffee, ReceiptText, UserRound } from 'lucide-react';
 
-/* Retro-geometric palette shared with the storefront */
+/* TailAdmin-aligned palette shared with the storefront */
 const P = {
-    navy: '#232B4A',
-    terracotta: '#C05B2D',
-    cream: '#E4DACB',
+    navy: '#465FFF',
+    terracotta: '#7592FF',
+    cream: '#DDE9FF',
 };
 
 interface ActiveOrder {

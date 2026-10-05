@@ -24,6 +24,7 @@ class MenuItem extends Model implements HasMedia
         'price',
         'is_available',
         'is_featured',
+        'is_kitchen',
         'sort_order',
     ];
 
@@ -31,6 +32,7 @@ class MenuItem extends Model implements HasMedia
         'price' => 'float',
         'is_available' => 'boolean',
         'is_featured' => 'boolean',
+        'is_kitchen' => 'boolean',
         'sort_order' => 'integer',
     ];
 

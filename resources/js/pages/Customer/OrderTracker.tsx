@@ -9,15 +9,15 @@ import CustomerNav from '@/components/CustomerNav';
 
 /* Retro-geometric palette shared with the storefront */
 const P = {
-    cream: '#E4DACB',
-    creamLight: '#EFE8DC',
-    navy: '#232B4A',
-    navyDeep: '#1B2240',
-    terracotta: '#C05B2D',
-    caramel: '#B5824F',
-    espresso: '#3B2A1D',
-    sand: '#D8CBB8',
-    green: '#5B8A4E',
+    cream: '#F9FAFB',
+    creamLight: '#FFFFFF',
+    navy: '#465FFF',
+    navyDeep: '#2A31D8',
+    terracotta: '#7592FF',
+    caramel: '#F79009',
+    espresso: '#1D2939',
+    sand: '#DDE9FF',
+    green: '#12B76A',
 };
 
 interface OrderAddon {
@@ -117,7 +117,7 @@ export default function OrderTracker({ order: initialOrder, settings }: Props) {
         });
 
         return () => {
-            window.Echo.leaveChannel(`order.${order.id}`);
+            window.Echo?.leaveChannel(`order.${order.id}`);
         };
     }, [order.id]);
 

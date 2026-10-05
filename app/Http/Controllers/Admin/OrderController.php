@@ -97,10 +97,15 @@ class OrderController extends Controller
         Gate::authorize('manage orders');
 
         $validated = $request->validate([
-            'status' => ['required', Rule::in(Order::STATUSES)],
+            // Voiding goes through void() so a reason and the acting user are always recorded.
+            'status' => ['required', Rule::in(array_diff(Order::STATUSES, ['voided']))],
         ]);
 
-        $order->update(['status' => $validated['status']]);
+        if (! $order->isVoidable()) {
+            return redirect()->back()->with('error', "This order is already {$order->status} and can no longer be changed.");
+        }
+
+        $order->setStatusManually($validated['status']);
         $this->broadcastStatusUpdate($order);
 
         return redirect()->back()->with('success', 'Order status updated.');

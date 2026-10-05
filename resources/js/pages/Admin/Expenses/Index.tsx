@@ -6,13 +6,21 @@ import {
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     ArrowDownCircle, Calendar, Edit2, Filter, Plus,
-    Receipt, Search, Tag, Trash2, X,
+    Receipt, Search, Tag, Tags, Trash2,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import AdminLayout from '@/layouts/admin-layout';
+import { PageHeader } from '@/components/admin/page-header';
+import { CrudModal } from '@/components/admin/crud-modal';
+import { ConfirmDialog } from '@/components/admin/confirm-dialog';
+import { FormField, adminFieldClass } from '@/components/admin/form-field';
+import { ExpenseCategoriesDialog } from '@/components/admin/expense-categories-dialog';
+import { Button } from '@/components/ui/button';
+import { TableCard, TableScroll, Table, TableHead, TableHeadCell, TableBody, TableRow, TableCell, TableEmpty } from '@/components/admin/data-table';
 
 interface Category { id: number; name: string; color: string }
+interface ManagedCategory extends Category { description: string | null; is_active: boolean; expenses_count: number }
 interface Expense {
     id: number;
     title: string;
@@ -32,11 +40,11 @@ interface Stats {
 }
 interface Props {
     expenses: Expense[];
-    categories: Category[];
+    categories: ManagedCategory[];
     stats: Stats;
     filters: { category_id?: string; from?: string; to?: string; search?: string };
     settings: { currency: string };
-    can: { manage_expenses: boolean };
+    can: { manage_expenses: boolean; manage_categories: boolean };
 }
 
 export default function ExpensesIndex({ expenses, categories, stats, filters, settings, can }: Props) {
@@ -44,6 +52,9 @@ export default function ExpensesIndex({ expenses, categories, stats, filters, se
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<Expense | null>(null);
     const [filterOpen, setFilterOpen] = useState(false);
+    const [categoriesOpen, setCategoriesOpen] = useState(false);
+    const [deleting, setDeleting] = useState<Expense | null>(null);
+    const [deleteLoading, setDeleteLoading] = useState(false);
 
     // local filter state
     const [search, setSearch] = useState(filters.search ?? '');
@@ -105,16 +116,29 @@ export default function ExpensesIndex({ expenses, categories, stats, filters, se
 
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
+    function confirmDelete() {
+        if (!deleting) return;
+        setDeleteLoading(true);
+        fetch(adminExpensesDestroy(deleting.id), { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrf() } })
+            .then(() => window.location.reload());
+    }
+
     function fmtDate(iso: string) {
         return new Date(iso + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
     }
 
     const statCards = [
-        { label: 'Total Expenses', value: stats.total, format: 'count', color: '#3B82F6', bg: '#EFF6FF' },
-        { label: 'Total Amount', value: stats.total_amount, format: 'currency', color: '#EF4444', bg: '#FEF2F2' },
-        { label: 'This Month', value: stats.this_month, format: 'currency', color: '#F59E0B', bg: '#FEF3C7' },
-        { label: 'This Week', value: stats.this_week, format: 'currency', color: '#10B981', bg: '#D1FAE5' },
+        { label: 'Total Expenses', value: stats.total, format: 'count', tone: 'brand' as const },
+        { label: 'Total Amount', value: stats.total_amount, format: 'currency', tone: 'error' as const },
+        { label: 'This Month', value: stats.this_month, format: 'currency', tone: 'warning' as const },
+        { label: 'This Week', value: stats.this_week, format: 'currency', tone: 'success' as const },
     ];
+    const toneClasses: Record<string, string> = {
+        brand: 'bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300',
+        warning: 'bg-warning/10 text-warning',
+        success: 'bg-success/10 text-success',
+        error: 'bg-error/10 text-error',
+    };
 
     const activeFilterCount = [categoryId, from, to, search].filter(Boolean).length;
 
@@ -122,317 +146,272 @@ export default function ExpensesIndex({ expenses, categories, stats, filters, se
         <AdminLayout>
             <Head title="Expenses — Admin" />
             <Toaster position="top-right" />
-            <div className="p-6 space-y-6">
 
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>
-                            Expenses
-                        </h1>
-                        <p className="mt-0.5 text-sm" style={{ color: 'var(--ap-muted)' }}>
-                            {expenses.length} record{expenses.length !== 1 ? 's' : ''}
-                            {activeFilterCount > 0 && ` (filtered)`}
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setFilterOpen((v) => !v)}
-                            className="relative flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors"
-                            style={{ border: '1px solid var(--ap-border)', color: 'var(--ap-input-text)', background: 'var(--ap-card)' }}
-                        >
+            <PageHeader
+                title="Expenses"
+                breadcrumbs={[{ label: 'Expenses' }]}
+                actions={
+                    <>
+                        <Button variant="outline" className="relative" onClick={() => setFilterOpen((v) => !v)}>
                             <Filter className="h-4 w-4" />
                             Filters
                             {activeFilterCount > 0 && (
-                                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: '#EF4444' }}>
+                                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-error text-[10px] font-bold text-white">
                                     {activeFilterCount}
                                 </span>
                             )}
-                        </button>
-                        {can.manage_expenses && (
-                            <button onClick={openCreate} className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold" style={{ background: '#2C1A0E', color: '#D4A843' }}>
-                                <Plus className="h-4 w-4" /> Add Expense
-                            </button>
+                        </Button>
+                        {can.manage_categories && (
+                            <Button variant="outline" onClick={() => setCategoriesOpen(true)}>
+                                <Tags className="h-4 w-4" /> Categories
+                            </Button>
                         )}
-                    </div>
-                </div>
+                        {can.manage_expenses && (
+                            <Button onClick={openCreate}>
+                                <Plus className="h-4 w-4" /> Add Expense
+                            </Button>
+                        )}
+                    </>
+                }
+            />
+            <p className="-mt-4 mb-6 text-sm text-muted-foreground">
+                {expenses.length} record{expenses.length !== 1 ? 's' : ''}
+                {activeFilterCount > 0 && ` (filtered)`}
+            </p>
 
-                {/* Stats */}
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                    {statCards.map(({ label, value, format, color, bg }) => (
-                        <div key={label} className="rounded-2xl p-4 shadow-sm" style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}>
-                            <div className="flex items-center justify-between mb-2">
-                                <p className="text-xs font-medium" style={{ color: 'var(--ap-muted)' }}>{label}</p>
-                                <div className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ background: bg }}>
-                                    {format === 'count'
-                                        ? <ArrowDownCircle className="h-4 w-4" style={{ color }} />
-                                        : <Receipt className="h-4 w-4" style={{ color }} />}
-                                </div>
+            {/* Stats */}
+            <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                {statCards.map(({ label, value, format, tone }) => (
+                    <div key={label} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                        <div className="mb-2 flex items-center justify-between">
+                            <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                            <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${toneClasses[tone]}`}>
+                                {format === 'count' ? <ArrowDownCircle className="h-4 w-4" /> : <Receipt className="h-4 w-4" />}
                             </div>
-                            <p className="text-2xl font-bold" style={{ color: 'var(--ap-input-text)' }}>
-                                {format === 'currency' ? `${currency}${Number(value).toFixed(2)}` : value}
-                            </p>
                         </div>
-                    ))}
-                </div>
+                        <p className="text-2xl font-bold text-foreground">
+                            {format === 'currency' ? `${currency}${Number(value).toFixed(2)}` : value}
+                        </p>
+                    </div>
+                ))}
+            </div>
 
-                {/* Filters */}
-                <AnimatePresence>
-                    {filterOpen && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="overflow-hidden"
-                        >
-                            <div className="rounded-2xl p-4" style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}>
-                                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                                    <div>
-                                        <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--ap-muted)' }}>Search</label>
-                                        <div className="relative">
-                                            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: 'var(--ap-muted)' }} />
-                                            <input
-                                                value={search}
-                                                onChange={(e) => setSearch(e.target.value)}
-                                                placeholder="Search title..."
-                                                className="w-full rounded-xl py-2 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                                                style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                            />
-                                        </div>
+            {/* Filters */}
+            <AnimatePresence>
+                {filterOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mb-6 overflow-hidden"
+                    >
+                        <div className="rounded-2xl border border-border bg-card p-4">
+                            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                                <FormField label="Search">
+                                    <div className="relative">
+                                        <Search className="absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                                        <input
+                                            value={search}
+                                            onChange={(e) => setSearch(e.target.value)}
+                                            placeholder="Search title..."
+                                            className={adminFieldClass() + ' pl-8'}
+                                        />
                                     </div>
-                                    <div>
-                                        <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--ap-muted)' }}>Category</label>
-                                        <select
-                                            value={categoryId}
-                                            onChange={(e) => setCategoryId(e.target.value)}
-                                            className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                                            style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                        >
-                                            <option value="">All categories</option>
-                                            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--ap-muted)' }}>From</label>
-                                        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400" style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)', color: 'var(--ap-input-text)' }} />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--ap-muted)' }}>To</label>
-                                        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400" style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)', color: 'var(--ap-input-text)' }} />
-                                    </div>
-                                </div>
-                                <div className="mt-3 flex gap-2">
-                                    <button onClick={applyFilters} className="rounded-full px-4 py-1.5 text-sm font-semibold" style={{ background: '#2C1A0E', color: '#D4A843' }}>
-                                        Apply
-                                    </button>
-                                    <button onClick={resetFilters} className="rounded-full px-4 py-1.5 text-sm font-medium" style={{ border: '1px solid var(--ap-border)', color: 'var(--ap-muted)' }}>
-                                        Reset
-                                    </button>
-                                </div>
+                                </FormField>
+                                <FormField label="Category">
+                                    <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={adminFieldClass()}>
+                                        <option value="">All categories</option>
+                                        {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </FormField>
+                                <FormField label="From">
+                                    <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={adminFieldClass()} />
+                                </FormField>
+                                <FormField label="To">
+                                    <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={adminFieldClass()} />
+                                </FormField>
                             </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                            <div className="mt-3 flex gap-2">
+                                <Button size="sm" onClick={applyFilters}>Apply</Button>
+                                <Button size="sm" variant="outline" onClick={resetFilters}>Reset</Button>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
-                {/* Table */}
-                <div className="overflow-hidden rounded-2xl shadow-sm" style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}>
-                    <table className="w-full text-sm">
-                        <thead style={{ background: 'var(--ap-bg)', borderBottom: '1px solid var(--ap-border)' }}>
+            {/* Table */}
+            <TableCard>
+                <TableScroll>
+                    <Table>
+                        <TableHead>
                             <tr>
                                 {['Date', 'Title', 'Category', 'Amount', 'Reference', 'Recorded by', ''].map((h) => (
-                                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold" style={{ color: 'var(--ap-muted)' }}>{h}</th>
+                                    <TableHeadCell key={h}>{h}</TableHeadCell>
                                 ))}
                             </tr>
-                        </thead>
-                        <tbody>
+                        </TableHead>
+                        <TableBody>
                             {expenses.length === 0 && (
-                                <tr>
-                                    <td colSpan={7} className="px-4 py-20 text-center" style={{ color: 'var(--ap-muted)' }}>
-                                        <Receipt className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                                        <p className="text-sm">No expenses found.</p>
-                                        {can.manage_expenses && (
-                                            <button onClick={openCreate} className="mt-2 text-sm font-semibold" style={{ color: '#D4A843' }}>
-                                                Record your first expense →
-                                            </button>
-                                        )}
-                                    </td>
-                                </tr>
+                                <TableEmpty colSpan={7}>
+                                    <Receipt className="mx-auto mb-3 h-10 w-10 text-muted-foreground opacity-20" />
+                                    <p>No expenses found.</p>
+                                    {can.manage_expenses && (
+                                        <button onClick={openCreate} className="mt-2 text-sm font-semibold text-primary hover:underline">
+                                            Record your first expense →
+                                        </button>
+                                    )}
+                                </TableEmpty>
                             )}
                             {expenses.map((expense) => (
-                                <tr key={expense.id} className="group border-t" style={{ borderColor: 'var(--ap-border)' }}>
+                                <TableRow key={expense.id}>
                                     {/* Date */}
-                                    <td className="px-4 py-3">
+                                    <TableCell>
                                         <div className="flex items-center gap-1.5">
-                                            <Calendar className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--ap-muted)' }} />
-                                            <span className="text-xs" style={{ color: 'var(--ap-input-text)' }}>{fmtDate(expense.expense_date)}</span>
+                                            <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                            <span className="text-xs">{fmtDate(expense.expense_date)}</span>
                                         </div>
-                                    </td>
+                                    </TableCell>
                                     {/* Title */}
-                                    <td className="px-4 py-3">
-                                        <p className="font-semibold text-sm" style={{ color: 'var(--ap-input-text)' }}>{expense.title}</p>
-                                        {expense.notes && <p className="mt-0.5 text-xs truncate max-w-[180px]" style={{ color: 'var(--ap-muted)' }}>{expense.notes}</p>}
-                                    </td>
+                                    <TableCell>
+                                        <p className="text-sm font-semibold">{expense.title}</p>
+                                        {expense.notes && <p className="mt-0.5 max-w-[180px] truncate text-xs text-muted-foreground">{expense.notes}</p>}
+                                    </TableCell>
                                     {/* Category */}
-                                    <td className="px-4 py-3">
+                                    <TableCell>
                                         {expense.category ? (
                                             <span className="flex items-center gap-1.5 text-xs font-medium">
                                                 <Tag className="h-3 w-3" style={{ color: expense.category.color }} />
-                                                <span style={{ color: 'var(--ap-input-text)' }}>{expense.category.name}</span>
+                                                {expense.category.name}
                                             </span>
-                                        ) : <span style={{ color: 'var(--ap-muted)' }}>—</span>}
-                                    </td>
+                                        ) : <span className="text-muted-foreground">—</span>}
+                                    </TableCell>
                                     {/* Amount */}
-                                    <td className="px-4 py-3">
-                                        <span className="font-bold text-sm" style={{ color: '#EF4444' }}>
+                                    <TableCell>
+                                        <span className="text-sm font-bold text-error">
                                             {currency}{Number(expense.amount).toFixed(2)}
                                         </span>
-                                    </td>
+                                    </TableCell>
                                     {/* Reference */}
-                                    <td className="px-4 py-3 text-xs" style={{ color: 'var(--ap-muted)' }}>
+                                    <TableCell className="text-xs text-muted-foreground">
                                         {expense.reference_no || '—'}
-                                    </td>
+                                    </TableCell>
                                     {/* User */}
-                                    <td className="px-4 py-3 text-xs" style={{ color: 'var(--ap-muted)' }}>
+                                    <TableCell className="text-xs text-muted-foreground">
                                         {expense.user?.name ?? '—'}
-                                    </td>
+                                    </TableCell>
                                     {/* Actions */}
                                     {can.manage_expenses && (
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => openEdit(expense)} className="rounded-lg p-1.5 hover:bg-black/5">
-                                                    <Edit2 className="h-3.5 w-3.5" style={{ color: 'var(--ap-muted)' }} />
+                                        <TableCell>
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => openEdit(expense)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary">
+                                                    <Edit2 className="h-3.5 w-3.5" />
                                                 </button>
-                                                <button
-                                                    onClick={() => {
-                                                        if (confirm(`Delete "${expense.title}"?`)) {
-                                                            fetch(adminExpensesDestroy(expense.id), { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrf() } })
-                                                                .then(() => window.location.reload());
-                                                        }
-                                                    }}
-                                                    className="rounded-lg p-1.5 hover:bg-red-50"
-                                                >
-                                                    <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                                                <button onClick={() => setDeleting(expense)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-error/10 hover:text-error">
+                                                    <Trash2 className="h-3.5 w-3.5" />
                                                 </button>
                                             </div>
-                                        </td>
+                                        </TableCell>
                                     )}
-                                </tr>
+                                </TableRow>
                             ))}
-                        </tbody>
+                        </TableBody>
                         {expenses.length > 0 && (
-                            <tfoot style={{ borderTop: '2px solid var(--ap-border)' }}>
+                            <tfoot className="border-t-2 border-border">
                                 <tr>
-                                    <td colSpan={3} className="px-4 py-3 text-xs font-semibold text-right" style={{ color: 'var(--ap-muted)' }}>Total</td>
-                                    <td className="px-4 py-3 font-bold" style={{ color: '#EF4444' }}>
+                                    <td colSpan={3} className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground">Total</td>
+                                    <td className="px-5 py-3 font-bold text-error">
                                         {currency}{expenses.reduce((s, e) => s + Number(e.amount), 0).toFixed(2)}
                                     </td>
                                     <td colSpan={3} />
                                 </tr>
                             </tfoot>
                         )}
-                    </table>
-                </div>
-            </div>
+                    </Table>
+                </TableScroll>
+            </TableCard>
 
             {/* Create / Edit Modal */}
-            <AnimatePresence>
-                {modalOpen && (
-                    <>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/40" style={{ zIndex: 50 }} onClick={() => setModalOpen(false)} />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="fixed left-1/2 top-1/2 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-6 shadow-xl"
-                            style={{ zIndex: 60, maxHeight: '90vh', background: 'var(--ap-card)' }}
+            <CrudModal
+                open={modalOpen}
+                onOpenChange={setModalOpen}
+                title={editing ? 'Edit Expense' : 'Record Expense'}
+                footer={
+                    <Button type="submit" form="expense-form" disabled={processing} className="w-full sm:w-auto">
+                        {processing ? 'Saving...' : editing ? 'Save Changes' : 'Record Expense'}
+                    </Button>
+                }
+            >
+                <form id="expense-form" onSubmit={submit} className="grid grid-cols-2 gap-4">
+                    <FormField label="Title" required error={errors.title} className="col-span-2">
+                        <input
+                            value={data.title}
+                            onChange={(e) => setData('title', e.target.value)}
+                            placeholder="e.g. Office supplies, Electricity..."
+                            className={adminFieldClass(!!errors.title)}
+                        />
+                    </FormField>
+                    <FormField label="Amount" required error={errors.amount}>
+                        <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={data.amount}
+                            onChange={(e) => setData('amount', e.target.value)}
+                            placeholder="0.00"
+                            className={adminFieldClass(!!errors.amount)}
+                        />
+                    </FormField>
+                    <FormField label="Date" required error={errors.expense_date}>
+                        <input
+                            type="date"
+                            value={data.expense_date}
+                            onChange={(e) => setData('expense_date', e.target.value)}
+                            className={adminFieldClass(!!errors.expense_date)}
+                        />
+                    </FormField>
+                    <FormField label="Category" required error={errors.expense_category_id} className="col-span-2">
+                        <select
+                            value={data.expense_category_id}
+                            onChange={(e) => setData('expense_category_id', e.target.value)}
+                            className={adminFieldClass(!!errors.expense_category_id)}
                         >
-                            <div className="mb-5 flex items-center justify-between">
-                                <h2 className="text-lg font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>
-                                    {editing ? 'Edit Expense' : 'Record Expense'}
-                                </h2>
-                                <button onClick={() => setModalOpen(false)}><X className="h-5 w-5" style={{ color: 'var(--ap-muted)' }} /></button>
-                            </div>
-                            <form onSubmit={submit} className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="col-span-2">
-                                        <label className="text-sm font-medium block mb-1" style={{ color: 'var(--ap-input-text)' }}>Title *</label>
-                                        <input
-                                            value={data.title}
-                                            onChange={(e) => setData('title', e.target.value)}
-                                            placeholder="e.g. Office supplies, Electricity..."
-                                            className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                                            style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                        />
-                                        {errors.title && <p className="mt-1 text-xs text-red-500">{errors.title}</p>}
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium block mb-1" style={{ color: 'var(--ap-input-text)' }}>Amount *</label>
-                                        <input
-                                            type="number"
-                                            min="0.01"
-                                            step="0.01"
-                                            value={data.amount}
-                                            onChange={(e) => setData('amount', e.target.value)}
-                                            placeholder="0.00"
-                                            className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                                            style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                        />
-                                        {errors.amount && <p className="mt-1 text-xs text-red-500">{errors.amount}</p>}
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium block mb-1" style={{ color: 'var(--ap-input-text)' }}>Date *</label>
-                                        <input
-                                            type="date"
-                                            value={data.expense_date}
-                                            onChange={(e) => setData('expense_date', e.target.value)}
-                                            className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                                            style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                        />
-                                        {errors.expense_date && <p className="mt-1 text-xs text-red-500">{errors.expense_date}</p>}
-                                    </div>
-                                    <div className="col-span-2">
-                                        <label className="text-sm font-medium block mb-1" style={{ color: 'var(--ap-input-text)' }}>Category *</label>
-                                        <select
-                                            value={data.expense_category_id}
-                                            onChange={(e) => setData('expense_category_id', e.target.value)}
-                                            className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                                            style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                        >
-                                            <option value="">Select category...</option>
-                                            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                        </select>
-                                        {errors.expense_category_id && <p className="mt-1 text-xs text-red-500">{errors.expense_category_id}</p>}
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium block mb-1" style={{ color: 'var(--ap-input-text)' }}>Reference No.</label>
-                                        <input
-                                            value={data.reference_no}
-                                            onChange={(e) => setData('reference_no', e.target.value)}
-                                            placeholder="Receipt / OR no."
-                                            className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                                            style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                        />
-                                    </div>
-                                    <div className="col-span-2">
-                                        <label className="text-sm font-medium block mb-1" style={{ color: 'var(--ap-input-text)' }}>Notes</label>
-                                        <textarea
-                                            value={data.notes}
-                                            onChange={(e) => setData('notes', e.target.value)}
-                                            rows={2}
-                                            placeholder="Additional details..."
-                                            className="w-full resize-none rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                                            style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                        />
-                                    </div>
-                                </div>
-                                <button type="submit" disabled={processing} className="w-full rounded-full py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: '#D4A843', color: '#2C1A0E' }}>
-                                    {processing ? 'Saving...' : editing ? 'Save Changes' : 'Record Expense'}
-                                </button>
-                            </form>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+                            <option value="">Select category...</option>
+                            {categories.filter((c) => c.is_active || String(c.id) === data.expense_category_id).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                    </FormField>
+                    <FormField label="Reference No.">
+                        <input
+                            value={data.reference_no}
+                            onChange={(e) => setData('reference_no', e.target.value)}
+                            placeholder="Receipt / OR no."
+                            className={adminFieldClass()}
+                        />
+                    </FormField>
+                    <FormField label="Notes" className="col-span-2">
+                        <textarea
+                            value={data.notes}
+                            onChange={(e) => setData('notes', e.target.value)}
+                            rows={2}
+                            placeholder="Additional details..."
+                            className={adminFieldClass() + ' resize-none'}
+                        />
+                    </FormField>
+                </form>
+            </CrudModal>
+
+            {can.manage_categories && (
+                <ExpenseCategoriesDialog open={categoriesOpen} onOpenChange={setCategoriesOpen} categories={categories} />
+            )}
+
+            <ConfirmDialog
+                open={!!deleting}
+                onOpenChange={(open) => !open && setDeleting(null)}
+                onConfirm={confirmDelete}
+                loading={deleteLoading}
+                title={deleting ? `Delete "${deleting.title}"?` : 'Delete expense?'}
+                confirmLabel="Delete"
+            />
         </AdminLayout>
     );
 }

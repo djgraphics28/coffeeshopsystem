@@ -50,7 +50,9 @@ class ExpenseController extends Controller
             'this_week' => $expenses->filter(fn ($e) => $e->expense_date->isCurrentWeek())->sum('amount'),
         ];
 
-        $categories = ExpenseCategory::active()->get(['id', 'name', 'color']);
+        $categories = ExpenseCategory::withCount('expenses')
+            ->orderBy('name')
+            ->get(['id', 'name', 'description', 'color', 'is_active']);
 
         return Inertia::render('Admin/Expenses/Index', [
             'expenses' => $expenses->map(fn ($e) => [
@@ -72,6 +74,7 @@ class ExpenseController extends Controller
             ],
             'can' => [
                 'manage_expenses' => Auth::user()?->can('manage expenses') ?? false,
+                'manage_categories' => Auth::user()?->can('manage expense categories') ?? false,
             ],
         ]);
     }

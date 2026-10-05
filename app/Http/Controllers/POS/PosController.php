@@ -84,7 +84,7 @@ class PosController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'table_id' => ['nullable', 'exists:tables,id'],
+            'table_id' => ['nullable', 'required_if:type,dine-in', 'exists:tables,id'],
             'customer_id' => ['nullable', 'exists:customers,id'],
             'type' => ['required', Rule::in(['dine-in', 'takeout', 'walkin'])],
             'notes' => ['nullable', 'string', 'max:500'],
@@ -191,10 +191,14 @@ class PosController extends Controller
     public function updateStatus(Request $request, Order $order): JsonResponse
     {
         $validated = $request->validate([
-            'status' => ['required', Rule::in(Order::STATUSES)],
+            'status' => ['required', Rule::in(array_diff(Order::STATUSES, ['voided']))],
         ]);
 
-        $order->update(['status' => $validated['status']]);
+        if (! $order->isVoidable()) {
+            return response()->json(['message' => "This order is already {$order->status} and can no longer be changed."], 422);
+        }
+
+        $order->setStatusManually($validated['status']);
 
         broadcast(new OrderStatusUpdated(
             $order->fresh()->load(['table', 'items.menuItem', 'items.addons.addon'])
@@ -205,13 +209,19 @@ class PosController extends Controller
         ]);
     }
 
-    public function void(Order $order): JsonResponse
+    public function void(Request $request, Order $order): JsonResponse
     {
         if (! $order->isVoidable()) {
             return response()->json(['message' => 'This order cannot be voided.'], 422);
         }
 
-        $order->update(['status' => 'voided']);
+        $validated = $request->validate(['void_reason' => ['nullable', 'string', 'max:500']]);
+
+        $order->update([
+            'status' => 'voided',
+            'void_reason' => $validated['void_reason'] ?? null,
+            'voided_by' => $request->user()->id,
+        ]);
 
         broadcast(new OrderStatusUpdated(
             $order->fresh()->load(['table', 'items.menuItem', 'items.addons.addon'])
@@ -230,17 +240,26 @@ class PosController extends Controller
             'reference_no' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $payment = $order->payment()->firstOrCreate(
-            [],
-            [
-                'amount' => $validated['amount'],
-                'method' => $validated['method'],
-                'reference_no' => $validated['reference_no'] ?? null,
-                'paid_at' => now(),
-            ]
-        );
+        if (! $order->isVoidable()) {
+            return response()->json(['message' => 'This order is already closed and cannot be paid.'], 422);
+        }
 
-        $order->update(['status' => 'completed']);
+        if ($order->isPaid()) {
+            return response()->json(['message' => 'This order has already been paid.'], 422);
+        }
+
+        if (round((float) $validated['amount'], 2) < round((float) $order->total, 2)) {
+            return response()->json(['message' => 'The amount received is less than the order total.'], 422);
+        }
+
+        $payment = $order->payment()->create([
+            'amount' => $validated['amount'],
+            'method' => $validated['method'],
+            'reference_no' => $validated['reference_no'] ?? null,
+            'paid_at' => now(),
+        ]);
+
+        // Payment is only recorded here; the order keeps moving through its own steps (pending → preparing → ready → completed).
         broadcast(new OrderStatusUpdated(
             $order->fresh()->load(['table', 'items.menuItem', 'items.addons.addon'])
         ))->toOthers();

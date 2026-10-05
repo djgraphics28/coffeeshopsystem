@@ -1,8 +1,11 @@
 import { Head, Link } from '@inertiajs/react';
-import { BarChart2, ShoppingBag, TrendingDown, TrendingUp, Users } from 'lucide-react';
+import { BarChart2, ShoppingBag, TrendingDown, TrendingUp } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import AdminLayout from '@/layouts/admin-layout';
-import { adminOrdersShow } from '@/lib/routes';
+import { PageHeader } from '@/components/admin/page-header';
+import { Badge, type badgeVariants } from '@/components/ui/badge';
+import { TableCard, TableScroll, Table, TableHead, TableHeadCell, TableBody, TableRow, TableCell, TableEmpty } from '@/components/admin/data-table';
+import type { VariantProps } from 'class-variance-authority';
 
 interface Stats {
     revenue: number;
@@ -35,19 +38,19 @@ interface Props {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-    pending: '#F59E0B',
-    preparing: '#3B82F6',
-    ready: '#22C55E',
-    completed: '#8A9E7B',
-    cancelled: '#EF4444',
+    pending: 'var(--color-warning)',
+    preparing: 'var(--color-info)',
+    ready: 'var(--color-success)',
+    completed: 'var(--color-muted-foreground)',
+    cancelled: 'var(--color-error)',
 };
 
-const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
-    pending:   { bg: '#FEF3C7', text: '#92400E' },
-    preparing: { bg: '#DBEAFE', text: '#1E40AF' },
-    ready:     { bg: '#D1FAE5', text: '#065F46' },
-    completed: { bg: '#F3F4F6', text: '#6B7280' },
-    cancelled: { bg: '#FEE2E2', text: '#991B1B' },
+const STATUS_VARIANT: Record<string, NonNullable<VariantProps<typeof badgeVariants>['variant']>> = {
+    pending: 'warning',
+    preparing: 'info',
+    ready: 'success',
+    completed: 'neutral',
+    cancelled: 'error',
 };
 
 export default function Dashboard({ stats, orders_by_status, recent_orders, top_items }: Props) {
@@ -56,7 +59,7 @@ export default function Dashboard({ stats, orders_by_status, recent_orders, top_
         .map(([status, count]) => ({
             name: status,
             value: count,
-            color: STATUS_COLORS[status] ?? '#6B7280',
+            color: STATUS_COLORS[status] ?? 'var(--color-muted-foreground)',
         }));
 
     const barData = top_items.slice(0, 7).map((item) => ({
@@ -73,54 +76,24 @@ export default function Dashboard({ stats, orders_by_status, recent_orders, top_
         <AdminLayout>
             <Head title="Dashboard" />
 
-            {/* Page header */}
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>
-                    Dashboard
-                </h1>
-                <p className="mt-1 text-sm" style={{ color: 'var(--ap-muted)' }}>
-                    Welcome back! Here's what's happening today.
-                </p>
-            </div>
+            <PageHeader title="Dashboard" />
+            <p className="-mt-4 mb-6 text-sm text-muted-foreground">Welcome back! Here's what's happening today.</p>
 
             {/* ── Stat Cards ── */}
             <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                <StatCard
-                    icon={TrendingUp}
-                    label="Today's Revenue"
-                    value={totalRevenue}
-                    trend={+8.2}
-                    iconColor="#D4A843"
-                    iconBg="#D4A84322"
-                />
-                <StatCard
-                    icon={ShoppingBag}
-                    label="Total Orders"
-                    value={totalOrders.toString()}
-                    trend={totalOrders > 0 ? +5.1 : 0}
-                    iconColor="#3B82F6"
-                    iconBg="#3B82F622"
-                />
-                <StatCard
-                    icon={BarChart2}
-                    label="Avg. Order Value"
-                    value={avgOrder}
-                    trend={-1.4}
-                    iconColor="#8A9E7B"
-                    iconBg="#8A9E7B22"
-                />
+                <StatCard icon={TrendingUp} label="Today's Revenue" value={totalRevenue} trend={+8.2} tone="brand" />
+                <StatCard icon={ShoppingBag} label="Total Orders" value={totalOrders.toString()} trend={totalOrders > 0 ? +5.1 : 0} tone="info" />
+                <StatCard icon={BarChart2} label="Avg. Order Value" value={avgOrder} trend={-1.4} tone="success" />
             </div>
 
             {/* ── Charts row ── */}
             <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-5">
                 {/* Bar chart — top selling */}
-                <div className="xl:col-span-3 rounded-2xl p-5 shadow-sm" style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}>
+                <div className="rounded-2xl border border-border bg-card p-5 shadow-sm xl:col-span-3">
                     <div className="mb-4 flex items-center justify-between">
                         <div>
-                            <h2 className="font-semibold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>
-                                Top Selling Items
-                            </h2>
-                            <p className="text-xs mt-0.5" style={{ color: 'var(--ap-muted)' }}>Units sold today</p>
+                            <h2 className="font-semibold text-foreground">Top Selling Items</h2>
+                            <p className="mt-0.5 text-xs text-muted-foreground">Units sold today</p>
                         </div>
                     </div>
                     {barData.length > 0 ? (
@@ -133,7 +106,7 @@ export default function Dashboard({ stats, orders_by_status, recent_orders, top_
                                     contentStyle={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)', borderRadius: 12, fontSize: 12 }}
                                     cursor={{ fill: 'var(--ap-border)' }}
                                 />
-                                <Bar dataKey="sold" fill="#D4A843" radius={[6, 6, 0, 0]} name="Units Sold" />
+                                <Bar dataKey="sold" fill="var(--color-primary)" radius={[6, 6, 0, 0]} name="Units Sold" />
                             </BarChart>
                         </ResponsiveContainer>
                     ) : (
@@ -142,12 +115,10 @@ export default function Dashboard({ stats, orders_by_status, recent_orders, top_
                 </div>
 
                 {/* Pie chart — orders by status */}
-                <div className="xl:col-span-2 rounded-2xl p-5 shadow-sm" style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}>
+                <div className="rounded-2xl border border-border bg-card p-5 shadow-sm xl:col-span-2">
                     <div className="mb-4">
-                        <h2 className="font-semibold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>
-                            Orders by Status
-                        </h2>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--ap-muted)' }}>Today's breakdown</p>
+                        <h2 className="font-semibold text-foreground">Orders by Status</h2>
+                        <p className="mt-0.5 text-xs text-muted-foreground">Today's breakdown</p>
                     </div>
                     {pieData.length > 0 ? (
                         <ResponsiveContainer width="100%" height={220}>
@@ -181,79 +152,72 @@ export default function Dashboard({ stats, orders_by_status, recent_orders, top_
             {/* ── Bottom row ── */}
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
                 {/* Recent orders table */}
-                <div className="xl:col-span-3 rounded-2xl shadow-sm overflow-hidden" style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}>
-                    <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--ap-border)' }}>
-                        <h2 className="font-semibold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>
-                            Recent Orders
-                        </h2>
-                        <Link href="/admin/orders" className="text-xs font-medium px-3 py-1 rounded-full" style={{ background: '#D4A84320', color: '#D4A843' }}>
-                            View All →
-                        </Link>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr style={{ background: 'var(--ap-bg)' }}>
-                                    {['Order #', 'Table', 'Items', 'Total', 'Status', 'Time'].map((h) => (
-                                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold" style={{ color: 'var(--ap-muted)' }}>{h}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {recent_orders.map((order) => {
-                                    const s = STATUS_STYLES[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
-                                    return (
-                                        <tr key={order.id} className="border-t transition-colors" style={{ borderColor: 'var(--ap-border)' }}>
-                                            <td className="px-4 py-3 font-mono font-bold text-xs" style={{ color: '#D4A843' }}>{order.order_number}</td>
-                                            <td className="px-4 py-3 text-xs" style={{ color: 'var(--ap-muted)' }}>{order.table_name}</td>
-                                            <td className="px-4 py-3 text-xs" style={{ color: 'var(--ap-muted)' }}>{order.items_count}</td>
-                                            <td className="px-4 py-3 text-xs font-bold" style={{ color: 'var(--ap-input-text)' }}>₱{Number(order.total).toFixed(2)}</td>
-                                            <td className="px-4 py-3">
-                                                <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize" style={s}>
-                                                    {order.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-[11px]" style={{ color: 'var(--ap-muted)' }}>
-                                                {new Date(order.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                                {recent_orders.length === 0 && (
+                <div className="xl:col-span-3">
+                    <TableCard>
+                        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+                            <h2 className="font-semibold text-foreground">Recent Orders</h2>
+                            <Link href="/admin/orders" className="rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+                                View All →
+                            </Link>
+                        </div>
+                        <TableScroll>
+                            <Table>
+                                <TableHead>
                                     <tr>
-                                        <td colSpan={6} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--ap-muted)' }}>
-                                            No orders today
-                                        </td>
+                                        {['Order #', 'Table', 'Items', 'Total', 'Status', 'Time'].map((h) => (
+                                            <TableHeadCell key={h}>{h}</TableHeadCell>
+                                        ))}
                                     </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                </TableHead>
+                                <TableBody>
+                                    {recent_orders.map((order) => (
+                                        <TableRow key={order.id}>
+                                            <TableCell className="font-mono text-xs font-bold text-primary">{order.order_number}</TableCell>
+                                            <TableCell className="text-xs text-muted-foreground">{order.table_name}</TableCell>
+                                            <TableCell className="text-xs text-muted-foreground">{order.items_count}</TableCell>
+                                            <TableCell className="text-xs font-bold">₱{Number(order.total).toFixed(2)}</TableCell>
+                                            <TableCell>
+                                                <Badge variant={STATUS_VARIANT[order.status] ?? 'neutral'} className="capitalize">
+                                                    {order.status}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-[11px] text-muted-foreground">
+                                                {new Date(order.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {recent_orders.length === 0 && <TableEmpty colSpan={6}>No orders today</TableEmpty>}
+                                </TableBody>
+                            </Table>
+                        </TableScroll>
+                    </TableCard>
                 </div>
 
                 {/* Top items list */}
-                <div className="xl:col-span-2 rounded-2xl p-5 shadow-sm" style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}>
-                    <h2 className="mb-4 font-semibold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>
-                        Best Sellers
-                    </h2>
+                <div className="rounded-2xl border border-border bg-card p-5 shadow-sm xl:col-span-2">
+                    <h2 className="mb-4 font-semibold text-foreground">Best Sellers</h2>
                     {top_items.length > 0 ? (
                         <div className="space-y-3">
                             {top_items.slice(0, 6).map((item, i) => (
                                 <div key={i} className="flex items-center gap-3">
                                     <div
-                                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold"
-                                        style={{
-                                            background: i === 0 ? '#D4A84322' : i === 1 ? '#9CA3AF22' : i === 2 ? '#CD7F3222' : 'var(--ap-bg)',
-                                            color: i === 0 ? '#D4A843' : i === 1 ? '#9CA3AF' : i === 2 ? '#CD7F32' : 'var(--ap-muted)',
-                                        }}
+                                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
+                                            i === 0
+                                                ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300'
+                                                : i === 1
+                                                    ? 'bg-muted text-muted-foreground'
+                                                    : i === 2
+                                                        ? 'bg-warning/10 text-warning'
+                                                        : 'bg-muted text-muted-foreground'
+                                        }`}
                                     >
                                         {i + 1}
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="truncate text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>{item.name}</p>
-                                        <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>{item.total_sold} sold</p>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
+                                        <p className="text-xs text-muted-foreground">{item.total_sold} sold</p>
                                     </div>
-                                    <p className="text-sm font-bold shrink-0" style={{ color: '#D4A843' }}>
+                                    <p className="shrink-0 text-sm font-bold text-primary">
                                         ₱{Number(item.revenue).toFixed(0)}
                                     </p>
                                 </div>
@@ -269,37 +233,38 @@ export default function Dashboard({ stats, orders_by_status, recent_orders, top_
 }
 
 function StatCard({
-    icon: Icon, label, value, trend, iconColor, iconBg,
+    icon: Icon, label, value, trend, tone,
 }: {
     icon: React.ElementType;
     label: string;
     value: string;
     trend: number;
-    iconColor: string;
-    iconBg: string;
+    tone: 'brand' | 'info' | 'success';
 }) {
     const isUp = trend >= 0;
+    const toneClasses: Record<string, string> = {
+        brand: 'bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300',
+        info: 'bg-info/10 text-info',
+        success: 'bg-success/10 text-success',
+    };
     return (
-        <div className="rounded-2xl p-5 shadow-sm" style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
             <div className="flex items-start justify-between">
                 <div>
-                    <p className="text-xs font-medium" style={{ color: 'var(--ap-muted)' }}>{label}</p>
-                    <p className="mt-2 text-2xl font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>
-                        {value}
-                    </p>
+                    <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                    <p className="mt-2 text-2xl font-bold text-foreground">{value}</p>
                     {trend !== 0 && (
                         <div className="mt-2 flex items-center gap-1">
-                            <span className="flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                                style={{ background: isUp ? '#22C55E15' : '#EF444415', color: isUp ? '#16A34A' : '#DC2626' }}>
+                            <span className={`flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${isUp ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
                                 {isUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                                 {Math.abs(trend)}%
                             </span>
-                            <span className="text-[11px]" style={{ color: 'var(--ap-muted)' }}>vs yesterday</span>
+                            <span className="text-[11px] text-muted-foreground">vs yesterday</span>
                         </div>
                     )}
                 </div>
-                <div className="rounded-xl p-2.5" style={{ background: iconBg }}>
-                    <Icon className="h-5 w-5" style={{ color: iconColor }} />
+                <div className={`rounded-xl p-2.5 ${toneClasses[tone]}`}>
+                    <Icon className="h-5 w-5" />
                 </div>
             </div>
         </div>
@@ -308,7 +273,7 @@ function StatCard({
 
 function EmptyState({ label }: { label: string }) {
     return (
-        <div className="flex h-40 items-center justify-center text-sm" style={{ color: 'var(--ap-muted)' }}>
+        <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
             {label}
         </div>
     );

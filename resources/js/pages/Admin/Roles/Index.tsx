@@ -6,11 +6,15 @@ import {
     adminRolesTogglePermission,
     adminRolesUpdate,
 } from '@/lib/routes';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Copy, Edit2, Grid3x3, LayoutGrid, Lock, Plus, Shield, Trash2, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Check, Copy, Edit2, Grid3x3, LayoutGrid, Lock, Plus, Trash2 } from 'lucide-react';
+import { Fragment, useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import AdminLayout from '@/layouts/admin-layout';
+import { PageHeader } from '@/components/admin/page-header';
+import { CrudModal } from '@/components/admin/crud-modal';
+import { FormField, adminFieldClass } from '@/components/admin/form-field';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface Role {
     id: number;
@@ -41,7 +45,7 @@ function initials(name: string) {
 }
 
 export default function RolesIndex({ roles: initialRoles, permissions, permissionGroups }: Props) {
-    const { flash, errors: pageErrors } = usePage().props as { flash?: { success?: string; error?: string }; errors?: Record<string, string> };
+    const { flash } = usePage().props as { flash?: { success?: string; error?: string } };
 
     const [roles, setRoles] = useState(initialRoles);
     const [view, setView] = useState<ViewMode>('matrix');
@@ -163,435 +167,335 @@ export default function RolesIndex({ roles: initialRoles, permissions, permissio
             <Head title="Roles & Permissions — Admin" />
             <Toaster position="top-right" />
 
-            <div className="p-6">
-                {/* Header */}
-                <div className="mb-6 flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>
-                            Roles & Permissions
-                        </h1>
-                        <p className="mt-1 text-sm" style={{ color: 'var(--ap-muted)' }}>
-                            {roles.length} roles · {totalPermissions} permissions · {totalUsers} staff users
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
+            <PageHeader
+                title="Roles & Permissions"
+                breadcrumbs={[{ label: 'Roles' }]}
+                actions={
+                    <>
                         {/* View toggle */}
-                        <div className="flex rounded-xl border p-1" style={{ borderColor: 'var(--ap-border)', background: 'var(--ap-bg)' }}>
+                        <div className="flex rounded-xl border border-border bg-muted p-1">
                             <button
                                 onClick={() => setView('matrix')}
-                                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
-                                style={{ background: view === 'matrix' ? '#2C1A0E' : 'transparent', color: view === 'matrix' ? '#D4A843' : 'var(--ap-muted)' }}
+                                className={cn(
+                                    'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+                                    view === 'matrix' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
+                                )}
                             >
                                 <Grid3x3 className="h-3.5 w-3.5" /> Matrix
                             </button>
                             <button
                                 onClick={() => setView('cards')}
-                                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
-                                style={{ background: view === 'cards' ? '#2C1A0E' : 'transparent', color: view === 'cards' ? '#D4A843' : 'var(--ap-muted)' }}
+                                className={cn(
+                                    'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+                                    view === 'cards' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
+                                )}
                             >
                                 <LayoutGrid className="h-3.5 w-3.5" /> Cards
                             </button>
                         </div>
-                        <button
-                            onClick={openCreate}
-                            className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
-                            style={{ background: '#2C1A0E', color: '#D4A843' }}
-                        >
+                        <Button onClick={openCreate}>
                             <Plus className="h-4 w-4" /> Add Role
-                        </button>
-                    </div>
-                </div>
+                        </Button>
+                    </>
+                }
+            />
+            <p className="-mt-4 mb-6 text-sm text-muted-foreground">
+                {roles.length} roles · {totalPermissions} permissions · {totalUsers} staff users
+            </p>
 
-                {/* Matrix view */}
-                {view === 'matrix' && (
-                    <div className="overflow-x-auto rounded-2xl shadow-sm" style={{ border: '1px solid var(--ap-border)' }}>
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr style={{ background: 'var(--ap-bg)', borderBottom: '1px solid var(--ap-border)' }}>
-                                    <th className="w-48 px-4 py-3 text-left text-xs font-semibold" style={{ color: 'var(--ap-muted)' }}>
-                                        Permission
-                                    </th>
-                                    {roles.map((role, i) => (
-                                        <th key={role.id} className="px-3 py-3 text-center" style={{ minWidth: 110 }}>
-                                            <div className="flex flex-col items-center gap-1">
-                                                <div
-                                                    className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold text-white"
-                                                    style={{ background: roleColor(i) }}
-                                                >
-                                                    {initials(role.name)}
-                                                </div>
-                                                <span className="text-xs font-semibold capitalize" style={{ color: 'var(--ap-input-text)' }}>
-                                                    {role.name}
-                                                </span>
-                                                <span className="text-[10px]" style={{ color: 'var(--ap-muted)' }}>
-                                                    {role.users_count} user{role.users_count !== 1 ? 's' : ''}
-                                                </span>
+            {/* Matrix view */}
+            {view === 'matrix' && (
+                <div className="overflow-x-auto rounded-2xl border border-border shadow-sm">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b border-border bg-muted/60">
+                                <th className="w-48 px-4 py-3 text-left text-xs font-semibold text-muted-foreground">
+                                    Permission
+                                </th>
+                                {roles.map((role, i) => (
+                                    <th key={role.id} className="px-3 py-3 text-center" style={{ minWidth: 110 }}>
+                                        <div className="flex flex-col items-center gap-1">
+                                            <div
+                                                className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold text-white"
+                                                style={{ background: roleColor(i) }}
+                                            >
+                                                {initials(role.name)}
                                             </div>
-                                        </th>
-                                    ))}
-                                    <th className="w-24 px-3 py-3 text-center text-xs font-semibold" style={{ color: 'var(--ap-muted)' }}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {Object.entries(permissionGroups).map(([group, groupPerms]) => {
-                                    const available = groupPerms.filter((p) => permissionNames.includes(p));
-                                    if (available.length === 0) return null;
+                                            <span className="text-xs font-semibold text-foreground capitalize">
+                                                {role.name}
+                                            </span>
+                                            <span className="text-[10px] text-muted-foreground">
+                                                {role.users_count} user{role.users_count !== 1 ? 's' : ''}
+                                            </span>
+                                        </div>
+                                    </th>
+                                ))}
+                                <th className="w-24 px-3 py-3 text-center text-xs font-semibold text-muted-foreground">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Object.entries(permissionGroups).map(([group, groupPerms]) => {
+                                const available = groupPerms.filter((p) => permissionNames.includes(p));
+                                if (available.length === 0) return null;
 
-                                    return (
-                                        <>
-                                            <tr key={`group-${group}`} style={{ background: 'rgba(212,168,67,0.06)', borderTop: '1px solid var(--ap-border)' }}>
-                                                <td colSpan={roles.length + 2} className="px-4 py-2">
-                                                    <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: '#D4A843' }}>
-                                                        {group}
-                                                    </span>
+                                return (
+                                    <Fragment key={`group-${group}`}>
+                                        <tr className="border-t border-border bg-primary/5">
+                                            <td colSpan={roles.length + 2} className="px-4 py-2">
+                                                <span className="text-[11px] font-bold tracking-widest text-primary uppercase">
+                                                    {group}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        {available.map((perm) => (
+                                            <tr key={perm} className="border-t border-border transition-colors hover:bg-muted/40">
+                                                <td className="px-4 py-2.5">
+                                                    <span className="text-sm text-foreground">{perm}</span>
                                                 </td>
+                                                {roles.map((role) => {
+                                                    const has = role.permissions.includes(perm);
+                                                    const key = `${role.id}:${perm}`;
+                                                    return (
+                                                        <td key={role.id} className="px-3 py-2.5 text-center">
+                                                            <button
+                                                                onClick={() => matrixToggle(role, perm)}
+                                                                disabled={toggling === key}
+                                                                className={cn(
+                                                                    'inline-flex h-6 w-6 items-center justify-center rounded-md border-[1.5px] transition-all',
+                                                                    has ? 'border-primary bg-primary/15' : 'border-border bg-background',
+                                                                    toggling === key && 'opacity-50',
+                                                                )}
+                                                            >
+                                                                {has && <Check className="h-3.5 w-3.5 text-primary" />}
+                                                            </button>
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="px-3 py-2.5" />
                                             </tr>
-                                            {available.map((perm) => (
-                                                <tr
-                                                    key={perm}
-                                                    className="border-t transition-colors hover:bg-black/[0.02]"
-                                                    style={{ borderColor: 'var(--ap-border)' }}
-                                                >
-                                                    <td className="px-4 py-2.5">
-                                                        <span className="text-sm" style={{ color: 'var(--ap-input-text)' }}>{perm}</span>
-                                                    </td>
-                                                    {roles.map((role) => {
-                                                        const has = role.permissions.includes(perm);
-                                                        const key = `${role.id}:${perm}`;
-                                                        return (
-                                                            <td key={role.id} className="px-3 py-2.5 text-center">
-                                                                <button
-                                                                    onClick={() => matrixToggle(role, perm)}
-                                                                    disabled={toggling === key}
-                                                                    className="inline-flex h-6 w-6 items-center justify-center rounded-md transition-all"
-                                                                    style={{
-                                                                        background: has ? 'rgba(212,168,67,0.15)' : 'var(--ap-bg)',
-                                                                        border: `1.5px solid ${has ? '#D4A843' : 'var(--ap-border)'}`,
-                                                                        opacity: toggling === key ? 0.5 : 1,
-                                                                    }}
-                                                                >
-                                                                    {has && <Check className="h-3.5 w-3.5" style={{ color: '#D4A843' }} />}
-                                                                </button>
-                                                            </td>
-                                                        );
-                                                    })}
-                                                    <td className="px-3 py-2.5" />
-                                                </tr>
-                                            ))}
-                                        </>
+                                        ))}
+                                    </Fragment>
+                                );
+                            })}
+                        </tbody>
+                        {/* Footer — role actions */}
+                        <tfoot className="border-t-2 border-border bg-muted/60">
+                            <tr>
+                                <td className="px-4 py-3 text-xs font-semibold text-muted-foreground">
+                                    {permissions.length} permissions
+                                </td>
+                                {roles.map((role) => (
+                                    <td key={role.id} className="px-3 py-3 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                            <button onClick={() => openEdit(role)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary" title="Edit">
+                                                <Edit2 className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button onClick={() => { setDuplicateModal(role); setDupData('name', `${role.name} copy`); }} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary" title="Duplicate">
+                                                <Copy className="h-3.5 w-3.5" />
+                                            </button>
+                                            {!role.is_system && (
+                                                <button onClick={() => deleteRole(role)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-error/10 hover:text-error" title="Delete">
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </td>
+                                ))}
+                                <td />
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            )}
+
+            {/* Card view */}
+            {view === 'cards' && (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {roles.map((role, i) => (
+                        <div key={role.id} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                            <div className="mb-4 flex items-start justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        className="flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold text-white"
+                                        style={{ background: roleColor(i) }}
+                                    >
+                                        {initials(role.name)}
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="font-semibold text-foreground capitalize">{role.name}</p>
+                                            {role.is_system && <Lock className="h-3 w-3 text-muted-foreground" />}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            {role.users_count} user{role.users_count !== 1 ? 's' : ''} · {role.permissions.length} permission{role.permissions.length !== 1 ? 's' : ''}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-1">
+                                    <button onClick={() => openEdit(role)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary" title="Edit">
+                                        <Edit2 className="h-4 w-4" />
+                                    </button>
+                                    <button onClick={() => { setDuplicateModal(role); setDupData('name', `${role.name} copy`); }} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary" title="Duplicate">
+                                        <Copy className="h-4 w-4" />
+                                    </button>
+                                    {!role.is_system && (
+                                        <button onClick={() => deleteRole(role)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-error/10 hover:text-error" title="Delete">
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Permissions grouped */}
+                            <div className="space-y-2">
+                                {Object.entries(permissionGroups).map(([group, perms]) => {
+                                    const granted = perms.filter((p) => role.permissions.includes(p));
+                                    if (granted.length === 0) return null;
+                                    return (
+                                        <div key={group}>
+                                            <p className="mb-1 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">{group}</p>
+                                            <div className="flex flex-wrap gap-1">
+                                                {granted.map((perm) => (
+                                                    <span
+                                                        key={perm}
+                                                        className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                                                        style={{ background: `${roleColor(i)}15`, color: roleColor(i), border: `1px solid ${roleColor(i)}40` }}
+                                                    >
+                                                        {perm}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
                                     );
                                 })}
-                            </tbody>
-                            {/* Footer — role actions */}
-                            <tfoot style={{ borderTop: '2px solid var(--ap-border)', background: 'var(--ap-bg)' }}>
-                                <tr>
-                                    <td className="px-4 py-3 text-xs font-semibold" style={{ color: 'var(--ap-muted)' }}>
-                                        {permissions.length} permissions
-                                    </td>
-                                    {roles.map((role, i) => (
-                                        <td key={role.id} className="px-3 py-3 text-center">
-                                            <div className="flex items-center justify-center gap-1">
-                                                <button
-                                                    onClick={() => openEdit(role)}
-                                                    className="rounded-lg p-1.5 transition-colors hover:bg-black/5"
-                                                    title="Edit"
-                                                >
-                                                    <Edit2 className="h-3.5 w-3.5" style={{ color: 'var(--ap-muted)' }} />
-                                                </button>
-                                                <button
-                                                    onClick={() => { setDuplicateModal(role); setDupData('name', `${role.name} copy`); }}
-                                                    className="rounded-lg p-1.5 transition-colors hover:bg-black/5"
-                                                    title="Duplicate"
-                                                >
-                                                    <Copy className="h-3.5 w-3.5" style={{ color: 'var(--ap-muted)' }} />
-                                                </button>
-                                                {!role.is_system && (
-                                                    <button
-                                                        onClick={() => deleteRole(role)}
-                                                        className="rounded-lg p-1.5 transition-colors hover:bg-red-50"
-                                                        title="Delete"
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5 text-red-400" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    ))}
-                                    <td />
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                )}
-
-                {/* Card view */}
-                {view === 'cards' && (
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                        {roles.map((role, i) => (
-                            <div
-                                key={role.id}
-                                className="rounded-2xl p-5 shadow-sm"
-                                style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}
-                            >
-                                <div className="mb-4 flex items-start justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div
-                                            className="flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold text-white"
-                                            style={{ background: roleColor(i) }}
-                                        >
-                                            {initials(role.name)}
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-1.5">
-                                                <p className="font-semibold capitalize" style={{ color: 'var(--ap-input-text)' }}>{role.name}</p>
-                                                {role.is_system && (
-                                                    <Lock className="h-3 w-3" style={{ color: 'var(--ap-muted)' }} title="System role" />
-                                                )}
-                                            </div>
-                                            <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>
-                                                {role.users_count} user{role.users_count !== 1 ? 's' : ''} · {role.permissions.length} permission{role.permissions.length !== 1 ? 's' : ''}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-1">
-                                        <button
-                                            onClick={() => openEdit(role)}
-                                            className="rounded-lg p-1.5 hover:bg-black/5"
-                                            title="Edit"
-                                        >
-                                            <Edit2 className="h-4 w-4" style={{ color: 'var(--ap-muted)' }} />
-                                        </button>
-                                        <button
-                                            onClick={() => { setDuplicateModal(role); setDupData('name', `${role.name} copy`); }}
-                                            className="rounded-lg p-1.5 hover:bg-black/5"
-                                            title="Duplicate"
-                                        >
-                                            <Copy className="h-4 w-4" style={{ color: 'var(--ap-muted)' }} />
-                                        </button>
-                                        {!role.is_system && (
-                                            <button
-                                                onClick={() => deleteRole(role)}
-                                                className="rounded-lg p-1.5 hover:bg-red-50"
-                                                title="Delete"
-                                            >
-                                                <Trash2 className="h-4 w-4 text-red-400" />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Permissions grouped */}
-                                <div className="space-y-2">
-                                    {Object.entries(permissionGroups).map(([group, perms]) => {
-                                        const granted = perms.filter((p) => role.permissions.includes(p));
-                                        if (granted.length === 0) return null;
-                                        return (
-                                            <div key={group}>
-                                                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--ap-muted)' }}>{group}</p>
-                                                <div className="flex flex-wrap gap-1">
-                                                    {granted.map((perm) => (
-                                                        <span
-                                                            key={perm}
-                                                            className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                                                            style={{ background: `${roleColor(i)}15`, color: roleColor(i), border: `1px solid ${roleColor(i)}40` }}
-                                                        >
-                                                            {perm}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                    {role.permissions.length === 0 && (
-                                        <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>No permissions assigned</p>
-                                    )}
-                                </div>
+                                {role.permissions.length === 0 && (
+                                    <p className="text-xs text-muted-foreground">No permissions assigned</p>
+                                )}
                             </div>
-                        ))}
-                    </div>
-                )}
-            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Create / Edit modal */}
-            <AnimatePresence>
-                {modalOpen && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-black/40"
-                            style={{ zIndex: 50 }}
-                            onClick={() => setModalOpen(false)}
+            <CrudModal
+                open={modalOpen}
+                onOpenChange={setModalOpen}
+                title={editing ? `Edit "${editing.name}"` : 'New Role'}
+                footer={
+                    <Button type="submit" form="role-form" disabled={processing} className="w-full sm:w-auto">
+                        {processing ? 'Saving...' : editing ? 'Save Changes' : 'Create Role'}
+                    </Button>
+                }
+            >
+                <form id="role-form" onSubmit={submit} className="space-y-5">
+                    <FormField
+                        label="Role Name"
+                        required
+                        error={errors.name}
+                        hint={editing?.is_system ? 'System role name cannot be changed' : undefined}
+                    >
+                        <input
+                            value={data.name}
+                            onChange={(e) => setData('name', e.target.value)}
+                            disabled={editing?.is_system ?? false}
+                            placeholder="e.g. supervisor"
+                            className={adminFieldClass(!!errors.name) + ' disabled:opacity-50'}
                         />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                            className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-6 shadow-xl"
-                            style={{ background: 'var(--ap-card)' }}
-                        >
-                            <div className="mb-4 flex items-center justify-between">
-                                <h2 className="text-lg font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>
-                                    {editing ? `Edit "${editing.name}"` : 'New Role'}
-                                </h2>
-                                <button onClick={() => setModalOpen(false)}>
-                                    <X className="h-5 w-5" style={{ color: 'var(--ap-muted)' }} />
-                                </button>
-                            </div>
+                    </FormField>
 
-                            <form onSubmit={submit} className="space-y-5">
-                                <div>
-                                    <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Role Name *</label>
-                                    <input
-                                        value={data.name}
-                                        onChange={(e) => setData('name', e.target.value)}
-                                        disabled={editing?.is_system ?? false}
-                                        placeholder="e.g. supervisor"
-                                        className="mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none disabled:opacity-50"
-                                        style={{ background: 'var(--ap-bg)', borderColor: errors.name ? '#EF4444' : 'var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                    />
-                                    {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
-                                    {editing?.is_system && (
-                                        <p className="mt-1 flex items-center gap-1 text-xs" style={{ color: 'var(--ap-muted)' }}>
-                                            <Lock className="h-3 w-3" /> System role name cannot be changed
-                                        </p>
-                                    )}
-                                </div>
+                    <div>
+                        <div className="mb-3 flex items-center justify-between">
+                            <span className="text-sm font-medium text-foreground">Permissions</span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const all = permissions.map((p) => p.name);
+                                    const allChecked = all.every((p) => data.permissions.includes(p));
+                                    setData('permissions', allChecked ? [] : all);
+                                }}
+                                className="text-xs font-medium text-primary hover:underline"
+                            >
+                                {permissions.every((p) => data.permissions.includes(p.name)) ? 'Deselect all' : 'Select all'}
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            {Object.entries(permissionGroups).map(([group, perms]) => {
+                                const available = perms.filter((p) => permissionNames.includes(p));
+                                if (available.length === 0) return null;
+                                const allGroupChecked = available.every((p) => data.permissions.includes(p));
 
-                                <div>
-                                    <div className="mb-3 flex items-center justify-between">
-                                        <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Permissions</label>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const all = permissions.map((p) => p.name);
-                                                const allChecked = all.every((p) => data.permissions.includes(p));
-                                                setData('permissions', allChecked ? [] : all);
-                                            }}
-                                            className="text-xs font-medium"
-                                            style={{ color: '#D4A843' }}
-                                        >
-                                            {permissions.every((p) => data.permissions.includes(p.name)) ? 'Deselect all' : 'Select all'}
-                                        </button>
+                                return (
+                                    <div key={group} className="rounded-xl border border-border bg-muted/40 p-3">
+                                        <div className="mb-2 flex items-center justify-between">
+                                            <p className="text-xs font-bold tracking-wide text-foreground uppercase">{group}</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleGroup(group, perms)}
+                                                className="text-[10px] font-medium text-primary hover:underline"
+                                            >
+                                                {allGroupChecked ? 'Deselect' : 'Select all'}
+                                            </button>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {available.map((perm) => {
+                                                const checked = data.permissions.includes(perm);
+                                                return (
+                                                    <label
+                                                        key={perm}
+                                                        className={cn(
+                                                            'flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors',
+                                                            checked ? 'border-primary bg-primary/15 text-primary' : 'border-border bg-card text-muted-foreground',
+                                                        )}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={checked}
+                                                            onChange={() => togglePermission(perm)}
+                                                            className="sr-only"
+                                                        />
+                                                        {checked && <Check className="h-3 w-3" />}
+                                                        {perm}
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                    <div className="space-y-4">
-                                        {Object.entries(permissionGroups).map(([group, perms]) => {
-                                            const available = perms.filter((p) => permissionNames.includes(p));
-                                            if (available.length === 0) return null;
-                                            const allGroupChecked = available.every((p) => data.permissions.includes(p));
-
-                                            return (
-                                                <div key={group} className="rounded-xl p-3" style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)' }}>
-                                                    <div className="mb-2 flex items-center justify-between">
-                                                        <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--ap-input-text)' }}>{group}</p>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => toggleGroup(group, perms)}
-                                                            className="text-[10px] font-medium"
-                                                            style={{ color: '#D4A843' }}
-                                                        >
-                                                            {allGroupChecked ? 'Deselect' : 'Select all'}
-                                                        </button>
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {available.map((perm) => {
-                                                            const checked = data.permissions.includes(perm);
-                                                            return (
-                                                                <label
-                                                                    key={perm}
-                                                                    className="flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors"
-                                                                    style={{
-                                                                        background: checked ? 'rgba(212,168,67,0.15)' : 'var(--ap-card)',
-                                                                        border: `1px solid ${checked ? '#D4A843' : 'var(--ap-border)'}`,
-                                                                        color: checked ? '#D4A843' : 'var(--ap-muted)',
-                                                                    }}
-                                                                >
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={checked}
-                                                                        onChange={() => togglePermission(perm)}
-                                                                        className="sr-only"
-                                                                    />
-                                                                    {checked && <Check className="h-3 w-3" />}
-                                                                    {perm}
-                                                                </label>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                <button
-                                    type="submit"
-                                    disabled={processing}
-                                    className="w-full rounded-full py-2.5 text-sm font-bold disabled:opacity-50"
-                                    style={{ background: '#D4A843', color: '#2C1A0E' }}
-                                >
-                                    {processing ? 'Saving...' : editing ? 'Save Changes' : 'Create Role'}
-                                </button>
-                            </form>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </form>
+            </CrudModal>
 
             {/* Duplicate modal */}
-            <AnimatePresence>
-                {duplicateModal && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-black/40"
-                            style={{ zIndex: 50 }}
-                            onClick={() => setDuplicateModal(null)}
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                            className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6 shadow-xl"
-                            style={{ background: 'var(--ap-card)' }}
-                        >
-                            <div className="mb-4 flex items-center justify-between">
-                                <h2 className="text-lg font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>
-                                    Clone "{duplicateModal.name}"
-                                </h2>
-                                <button onClick={() => setDuplicateModal(null)}>
-                                    <X className="h-5 w-5" style={{ color: 'var(--ap-muted)' }} />
-                                </button>
-                            </div>
-                            <p className="mb-4 text-sm" style={{ color: 'var(--ap-muted)' }}>
-                                A new role will be created with the same {duplicateModal.permissions.length} permission{duplicateModal.permissions.length !== 1 ? 's' : ''}.
-                            </p>
-                            <form
-                                onSubmit={(e) => {
-                                    e.preventDefault();
-                                    postDup(adminRolesDuplicate(duplicateModal.id), {
-                                        onSuccess: () => { setDuplicateModal(null); resetDup(); },
-                                    });
-                                }}
-                                className="space-y-4"
-                            >
-                                <div>
-                                    <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>New Role Name *</label>
-                                    <input
-                                        value={dupData.name}
-                                        onChange={(e) => setDupData('name', e.target.value)}
-                                        className="mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none"
-                                        style={{ background: 'var(--ap-bg)', borderColor: 'var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                    />
-                                </div>
-                                <button
-                                    type="submit"
-                                    disabled={dupProcessing}
-                                    className="w-full rounded-full py-2.5 text-sm font-bold disabled:opacity-50"
-                                    style={{ background: '#D4A843', color: '#2C1A0E' }}
-                                >
-                                    {dupProcessing ? 'Cloning...' : 'Clone Role'}
-                                </button>
-                            </form>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+            <CrudModal
+                open={!!duplicateModal}
+                onOpenChange={(open) => !open && setDuplicateModal(null)}
+                title={duplicateModal ? `Clone "${duplicateModal.name}"` : 'Clone role'}
+                description={duplicateModal ? `A new role will be created with the same ${duplicateModal.permissions.length} permission${duplicateModal.permissions.length !== 1 ? 's' : ''}.` : undefined}
+                className="max-w-sm"
+                footer={
+                    <Button type="submit" form="duplicate-role-form" disabled={dupProcessing} className="w-full sm:w-auto">
+                        {dupProcessing ? 'Cloning...' : 'Clone Role'}
+                    </Button>
+                }
+            >
+                <form
+                    id="duplicate-role-form"
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!duplicateModal) return;
+                        postDup(adminRolesDuplicate(duplicateModal.id), {
+                            onSuccess: () => { setDuplicateModal(null); resetDup(); },
+                        });
+                    }}
+                >
+                    <FormField label="New Role Name" required>
+                        <input value={dupData.name} onChange={(e) => setDupData('name', e.target.value)} className={adminFieldClass()} />
+                    </FormField>
+                </form>
+            </CrudModal>
         </AdminLayout>
     );
 }

@@ -16,12 +16,14 @@ class OrderItem extends Model
         'unit_price',
         'subtotal',
         'notes',
+        'prepared_at',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
         'unit_price' => 'float',
         'subtotal' => 'float',
+        'prepared_at' => 'datetime',
     ];
 
     public function order(): BelongsTo

@@ -41,6 +41,7 @@ class MenuItemResource extends JsonResource
             'image_url' => $this->image_url,
             'is_available' => $this->is_available,
             'is_featured' => $this->is_featured,
+            'is_kitchen' => $this->is_kitchen,
             'sort_order' => $this->sort_order,
             'category_id' => $this->category_id,
             'category' => $this->whenLoaded('category', fn () => [

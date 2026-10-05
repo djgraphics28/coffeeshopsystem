@@ -89,14 +89,14 @@ interface Props {
 
 /* Retro-geometric palette (cream / navy / terracotta / caramel) */
 const P = {
-    cream: '#E4DACB',
-    creamLight: '#EFE8DC',
-    navy: '#232B4A',
-    navyDeep: '#1B2240',
-    terracotta: '#C05B2D',
-    caramel: '#B5824F',
-    espresso: '#3B2A1D',
-    sand: '#D8CBB8',
+    cream: '#F9FAFB',
+    creamLight: '#FFFFFF',
+    navy: '#465FFF',
+    navyDeep: '#2A31D8',
+    terracotta: '#7592FF',
+    caramel: '#F79009',
+    espresso: '#1D2939',
+    sand: '#DDE9FF',
 };
 
 export default function Storefront({ table, categories, featured_items, settings }: Props) {
@@ -976,7 +976,7 @@ export default function Storefront({ table, categories, featured_items, settings
                                             {/* Free delivery progress */}
                                             {fulfillment === 'delivery' && settings.free_delivery_minimum > 0 && settings.delivery_fee > 0 && (
                                                 qualifiesFreeDelivery ? (
-                                                    <div className="px-3 py-2 text-xs font-bold text-white" style={{ background: '#5B8A4E' }}>
+                                                    <div className="px-3 py-2 text-xs font-bold text-white" style={{ background: '#12B76A' }}>
                                                         🎉 You qualify for FREE delivery!
                                                     </div>
                                                 ) : (
@@ -1364,9 +1364,9 @@ function CafeLogo({ name }: { name: string }) {
     return (
         <div className="flex shrink-0 items-center gap-2">
             <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
-                <path d="M14 2C14 2 8 8 8 14C8 17.314 10.686 20 14 20C17.314 20 20 17.314 20 14C20 8 14 2 14 2Z" fill="#C05B2D" />
-                <path d="M14 20V26M11 26H17" stroke="#C05B2D" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M10 26C10 26 12 24 14 26C16 28 18 26 18 26" stroke="#E4DACB" strokeWidth="1" strokeLinecap="round" />
+                <path d="M14 2C14 2 8 8 8 14C8 17.314 10.686 20 14 20C17.314 20 20 17.314 20 14C20 8 14 2 14 2Z" fill="#7592FF" />
+                <path d="M14 20V26M11 26H17" stroke="#7592FF" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M10 26C10 26 12 24 14 26C16 28 18 26 18 26" stroke="#F9FAFB" strokeWidth="1" strokeLinecap="round" />
             </svg>
             <span className="hidden text-lg font-black uppercase tracking-tight text-white sm:inline">
                 {name}
@@ -1404,7 +1404,7 @@ function CoffeeCupIllustration() {
     return (
         <svg width="200" height="240" viewBox="0 0 200 240" fill="none" aria-hidden="true">
             {/* Cup body */}
-            <path d="M45 70 L60 220 C60 228 70 234 100 234 C130 234 140 228 140 220 L155 70 Z" fill="#F3EEE6" stroke="#D8CBB8" strokeWidth="2" />
+            <path d="M45 70 L60 220 C60 228 70 234 100 234 C130 234 140 228 140 220 L155 70 Z" fill="#F3EEE6" stroke="#DDE9FF" strokeWidth="2" />
             {/* Sleeve */}
             <path d="M50 115 L150 115 L146 160 L54 160 Z" fill="#6B4423" />
             <circle cx="100" cy="137" r="16" fill="#F3EEE6" />

@@ -1,10 +1,16 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { adminUsersDestroy, adminUsersStore, adminUsersUpdate } from '@/lib/routes';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Edit2, Eye, EyeOff, Plus, Search, Shield, Trash2, Users, X } from 'lucide-react';
+import { Edit2, Eye, EyeOff, Plus, Search, Shield, Trash2, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import AdminLayout from '@/layouts/admin-layout';
+import { PageHeader } from '@/components/admin/page-header';
+import { CrudModal } from '@/components/admin/crud-modal';
+import { FormField, adminFieldClass } from '@/components/admin/form-field';
+import { Button } from '@/components/ui/button';
+import { Badge, type badgeVariants } from '@/components/ui/badge';
+import { TableCard, TableScroll, Table, TableHead, TableHeadCell, TableBody, TableRow, TableCell, TableEmpty } from '@/components/admin/data-table';
+import type { VariantProps } from 'class-variance-authority';
 
 interface User {
     id: number;
@@ -24,10 +30,10 @@ interface Props {
     roles: Role[];
 }
 
-const ROLE_PALETTE: Record<string, { bg: string; text: string; border: string }> = {
-    admin:   { bg: '#FEF3C7', text: '#92400E', border: '#FDE68A' },
-    cashier: { bg: '#DBEAFE', text: '#1E40AF', border: '#BFDBFE' },
-    kitchen: { bg: '#D1FAE5', text: '#065F46', border: '#A7F3D0' },
+const ROLE_VARIANT: Record<string, NonNullable<VariantProps<typeof badgeVariants>['variant']>> = {
+    admin: 'warning',
+    cashier: 'info',
+    kitchen: 'success',
 };
 
 const AVATAR_COLORS = ['#7C3AED', '#0369A1', '#15803D', '#B45309', '#BE185D', '#0F766E', '#C2410C'];
@@ -107,92 +113,69 @@ export default function UsersIndex({ users, roles }: Props) {
         });
     }
 
-    const roleChip = (role: string) => {
-        const c = ROLE_PALETTE[role] ?? { bg: '#F3F4F6', text: '#6B7280', border: '#E5E7EB' };
-        return (
-            <span
-                key={role}
-                className="rounded-full px-2.5 py-0.5 text-xs font-medium capitalize"
-                style={{ background: c.bg, color: c.text, border: `1px solid ${c.border}` }}
-            >
-                {role}
-            </span>
-        );
-    };
+    const roleChip = (role: string) => (
+        <Badge key={role} variant={ROLE_VARIANT[role] ?? 'neutral'} className="capitalize">
+            {role}
+        </Badge>
+    );
 
     return (
         <AdminLayout>
             <Head title="Staff Users — Admin" />
             <Toaster position="top-right" />
 
-            <div className="p-6">
-                {/* Header */}
-                <div className="mb-6 flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>
-                            Staff Users
-                        </h1>
-                        <p className="mt-1 text-sm" style={{ color: 'var(--ap-muted)' }}>
-                            {users.length} total · {filtered.length} shown
-                        </p>
-                    </div>
-                    <button
-                        onClick={openCreate}
-                        className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
-                        style={{ background: '#2C1A0E', color: '#D4A843' }}
-                    >
+            <PageHeader
+                title="Staff Users"
+                breadcrumbs={[{ label: 'Users' }]}
+                actions={
+                    <Button onClick={openCreate}>
                         <Plus className="h-4 w-4" /> Add User
-                    </button>
-                </div>
+                    </Button>
+                }
+            />
+            <p className="-mt-4 mb-6 text-sm text-muted-foreground">{users.length} total · {filtered.length} shown</p>
 
-                {/* Filters */}
-                <div className="mb-4 flex gap-3">
-                    <div className="relative flex-1 max-w-xs">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--ap-muted)' }} />
-                        <input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search name or email…"
-                            className="w-full rounded-xl border py-2 pl-9 pr-3 text-sm focus:outline-none"
-                            style={{ background: 'var(--ap-card)', borderColor: 'var(--ap-border)', color: 'var(--ap-input-text)' }}
-                        />
-                    </div>
-                    <select
-                        value={roleFilter}
-                        onChange={(e) => setRoleFilter(e.target.value)}
-                        className="rounded-xl border px-3 py-2 text-sm focus:outline-none"
-                        style={{ background: 'var(--ap-card)', borderColor: 'var(--ap-border)', color: 'var(--ap-input-text)' }}
-                    >
-                        <option value="">All roles</option>
-                        {roles.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
-                    </select>
+            {/* Filters */}
+            <div className="mb-4 flex gap-3">
+                <div className="relative max-w-xs flex-1">
+                    <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search name or email…"
+                        className={adminFieldClass() + ' pl-9'}
+                    />
                 </div>
+                <select
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value)}
+                    className={adminFieldClass() + ' w-auto'}
+                >
+                    <option value="">All roles</option>
+                    {roles.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
+                </select>
+            </div>
 
-                {/* Table */}
-                <div className="overflow-hidden rounded-2xl shadow-sm" style={{ border: '1px solid var(--ap-border)' }}>
-                    <table className="w-full text-sm">
-                        <thead style={{ background: 'var(--ap-bg)', borderBottom: '1px solid var(--ap-border)' }}>
+            {/* Table */}
+            <TableCard>
+                <TableScroll>
+                    <Table>
+                        <TableHead>
                             <tr>
                                 {['User', 'Email', 'Role', 'Joined', ''].map((h) => (
-                                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold" style={{ color: 'var(--ap-muted)' }}>{h}</th>
+                                    <TableHeadCell key={h}>{h}</TableHeadCell>
                                 ))}
                             </tr>
-                        </thead>
-                        <tbody>
+                        </TableHead>
+                        <TableBody>
                             {filtered.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="px-4 py-12 text-center">
-                                        <Users className="mx-auto mb-2 h-8 w-8 opacity-20" style={{ color: 'var(--ap-muted)' }} />
-                                        <p className="text-sm" style={{ color: 'var(--ap-muted)' }}>No users found</p>
-                                    </td>
-                                </tr>
+                                <TableEmpty colSpan={5}>
+                                    <Users className="mx-auto mb-2 h-8 w-8 text-muted-foreground opacity-20" />
+                                    No users found
+                                </TableEmpty>
                             ) : filtered.map((user) => (
-                                <tr
-                                    key={user.id}
-                                    className="border-t transition-colors hover:bg-black/[0.015]"
-                                    style={{ borderColor: 'var(--ap-border)' }}
-                                >
-                                    <td className="px-4 py-3">
+                                <TableRow key={user.id}>
+                                    <TableCell>
                                         <div className="flex items-center gap-3">
                                             <div
                                                 className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
@@ -200,158 +183,116 @@ export default function UsersIndex({ users, roles }: Props) {
                                             >
                                                 {initials(user.name)}
                                             </div>
-                                            <span className="font-medium" style={{ color: 'var(--ap-input-text)' }}>{user.name}</span>
+                                            <span className="font-medium text-foreground">{user.name}</span>
                                         </div>
-                                    </td>
-                                    <td className="px-4 py-3" style={{ color: 'var(--ap-muted)' }}>{user.email}</td>
-                                    <td className="px-4 py-3">
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                                    <TableCell>
                                         <div className="flex flex-wrap gap-1">
                                             {user.roles.length > 0 ? user.roles.map(roleChip) : (
-                                                <span className="text-xs" style={{ color: 'var(--ap-muted)' }}>—</span>
+                                                <span className="text-xs text-muted-foreground">—</span>
                                             )}
                                         </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-xs" style={{ color: 'var(--ap-muted)' }}>
+                                    </TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">
                                         {new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                    </td>
-                                    <td className="px-4 py-3">
+                                    </TableCell>
+                                    <TableCell>
                                         <div className="flex items-center justify-end gap-1">
-                                            <button
-                                                onClick={() => openEdit(user)}
-                                                className="rounded-lg p-1.5 transition-colors hover:bg-black/5"
-                                            >
-                                                <Edit2 className="h-4 w-4" style={{ color: 'var(--ap-muted)' }} />
+                                            <button onClick={() => openEdit(user)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary">
+                                                <Edit2 className="h-4 w-4" />
                                             </button>
-                                            <button
-                                                onClick={() => deleteUser(user)}
-                                                className="rounded-lg p-1.5 transition-colors hover:bg-red-50"
-                                            >
-                                                <Trash2 className="h-4 w-4 text-red-400" />
+                                            <button onClick={() => deleteUser(user)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-error/10 hover:text-error">
+                                                <Trash2 className="h-4 w-4" />
                                             </button>
                                         </div>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ))}
-                        </tbody>
-                    </table>
-                </div>
+                        </TableBody>
+                    </Table>
+                </TableScroll>
+            </TableCard>
 
-                {/* Role legend */}
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <span className="text-xs" style={{ color: 'var(--ap-muted)' }}>Roles:</span>
-                    {roles.map((r) => roleChip(r.name))}
-                </div>
+            {/* Role legend */}
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">Roles:</span>
+                {roles.map((r) => roleChip(r.name))}
             </div>
 
             {/* Create / Edit modal */}
-            <AnimatePresence>
-                {modalOpen && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-black/40"
-                            style={{ zIndex: 50 }}
-                            onClick={() => setModalOpen(false)}
+            <CrudModal
+                open={modalOpen}
+                onOpenChange={setModalOpen}
+                title={
+                    <span className="flex items-center gap-2">
+                        <Shield className="h-5 w-5 text-primary" />
+                        {editing ? 'Edit User' : 'Add Staff User'}
+                    </span>
+                }
+                footer={
+                    <Button type="submit" form="user-form" disabled={processing} className="w-full sm:w-auto">
+                        {processing ? 'Saving...' : editing ? 'Save Changes' : 'Create User'}
+                    </Button>
+                }
+            >
+                <form id="user-form" onSubmit={submit} className="space-y-4">
+                    <FormField label="Full Name" required error={errors.name}>
+                        <input
+                            value={data.name}
+                            onChange={(e) => setData('name', e.target.value)}
+                            placeholder="Juan dela Cruz"
+                            className={adminFieldClass(!!errors.name)}
                         />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                            className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6 shadow-xl"
-                            style={{ background: 'var(--ap-card)', zIndex: 60 }}
+                    </FormField>
+
+                    <FormField label="Email" required error={errors.email}>
+                        <input
+                            type="email"
+                            value={data.email}
+                            onChange={(e) => setData('email', e.target.value)}
+                            placeholder="juan@example.com"
+                            className={adminFieldClass(!!errors.email)}
+                        />
+                    </FormField>
+
+                    <FormField label="Role" required error={errors.role}>
+                        <select
+                            value={data.role}
+                            onChange={(e) => setData('role', e.target.value)}
+                            className={adminFieldClass(!!errors.role)}
                         >
-                            <div className="mb-5 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Shield className="h-5 w-5" style={{ color: '#D4A843' }} />
-                                    <h2 className="text-lg font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>
-                                        {editing ? 'Edit User' : 'Add Staff User'}
-                                    </h2>
-                                </div>
-                                <button onClick={() => setModalOpen(false)}>
-                                    <X className="h-5 w-5" style={{ color: 'var(--ap-muted)' }} />
-                                </button>
-                            </div>
+                            {roles.map((r) => (
+                                <option key={r.id} value={r.name} className="capitalize">{r.name}</option>
+                            ))}
+                        </select>
+                    </FormField>
 
-                            <form onSubmit={submit} className="space-y-4">
-                                <div>
-                                    <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Full Name *</label>
-                                    <input
-                                        value={data.name}
-                                        onChange={(e) => setData('name', e.target.value)}
-                                        placeholder="Juan dela Cruz"
-                                        className="mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none"
-                                        style={{ background: 'var(--ap-bg)', borderColor: errors.name ? '#EF4444' : 'var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                    />
-                                    {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
-                                </div>
-
-                                <div>
-                                    <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Email *</label>
-                                    <input
-                                        type="email"
-                                        value={data.email}
-                                        onChange={(e) => setData('email', e.target.value)}
-                                        placeholder="juan@example.com"
-                                        className="mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none"
-                                        style={{ background: 'var(--ap-bg)', borderColor: errors.email ? '#EF4444' : 'var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                    />
-                                    {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}
-                                </div>
-
-                                <div>
-                                    <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Role *</label>
-                                    <select
-                                        value={data.role}
-                                        onChange={(e) => setData('role', e.target.value)}
-                                        className="mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none"
-                                        style={{ background: 'var(--ap-bg)', borderColor: errors.role ? '#EF4444' : 'var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                    >
-                                        {roles.map((r) => (
-                                            <option key={r.id} value={r.name} className="capitalize">{r.name}</option>
-                                        ))}
-                                    </select>
-                                    {errors.role && <p className="mt-1 text-xs text-red-500">{errors.role}</p>}
-                                </div>
-
-                                <div>
-                                    <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>
-                                        {editing ? 'New Password' : 'Password *'}
-                                        {editing && <span className="ml-1 text-xs font-normal" style={{ color: 'var(--ap-muted)' }}>(leave blank to keep current)</span>}
-                                    </label>
-                                    <div className="relative mt-1">
-                                        <input
-                                            type={showPassword ? 'text' : 'password'}
-                                            value={data.password}
-                                            onChange={(e) => setData('password', e.target.value)}
-                                            placeholder="••••••••"
-                                            className="w-full rounded-xl border py-2 pl-3 pr-10 text-sm focus:outline-none"
-                                            style={{ background: 'var(--ap-bg)', borderColor: errors.password ? '#EF4444' : 'var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2"
-                                        >
-                                            {showPassword
-                                                ? <EyeOff className="h-4 w-4" style={{ color: 'var(--ap-muted)' }} />
-                                                : <Eye className="h-4 w-4" style={{ color: 'var(--ap-muted)' }} />
-                                            }
-                                        </button>
-                                    </div>
-                                    {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password}</p>}
-                                </div>
-
-                                <button
-                                    type="submit"
-                                    disabled={processing}
-                                    className="w-full rounded-full py-2.5 text-sm font-bold disabled:opacity-50"
-                                    style={{ background: '#D4A843', color: '#2C1A0E' }}
-                                >
-                                    {processing ? 'Saving...' : editing ? 'Save Changes' : 'Create User'}
-                                </button>
-                            </form>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+                    <FormField
+                        label={editing ? 'New Password' : 'Password'}
+                        required={!editing}
+                        hint={editing ? 'Leave blank to keep current' : undefined}
+                        error={errors.password}
+                    >
+                        <div className="relative">
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                value={data.password}
+                                onChange={(e) => setData('password', e.target.value)}
+                                placeholder="••••••••"
+                                className={adminFieldClass(!!errors.password) + ' pr-10'}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground"
+                            >
+                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                        </div>
+                    </FormField>
+                </form>
+            </CrudModal>
         </AdminLayout>
     );
 }

@@ -40,4 +40,25 @@ describe('Order Void', function () {
 
         expect(Order::active()->count())->toBe(1);
     });
+
+    it('cannot reopen a closed order through the status endpoint', function () {
+        $order = Order::factory()->create(['status' => 'completed']);
+
+        actingAs($this->admin)
+            ->patch(route('admin.orders.update-status', $order), ['status' => 'pending'])
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'completed']);
+    });
+
+    it('cannot void an order by setting its status directly', function () {
+        $order = Order::factory()->create(['status' => 'pending']);
+
+        actingAs($this->admin)
+            ->patch(route('admin.orders.update-status', $order), ['status' => 'voided'])
+            ->assertSessionHasErrors('status');
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'pending']);
+    });
 });

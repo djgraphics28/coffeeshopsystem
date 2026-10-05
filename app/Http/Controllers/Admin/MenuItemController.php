@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\MenuItems\BuildMenuItemImportTemplate;
+use App\Actions\MenuItems\ImportMenuItems;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MenuItemResource;
 use App\Models\AddonGroup;
@@ -12,9 +14,12 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MenuItemController extends Controller
 {
@@ -34,6 +39,10 @@ class MenuItemController extends Controller
             $query->where('is_available', $request->input('availability') === '1');
         }
 
+        if ($request->filled('kitchen')) {
+            $query->where('is_kitchen', $request->input('kitchen') === '1');
+        }
+
         if ($request->boolean('featured')) {
             $query->where('is_featured', true);
         }
@@ -51,7 +60,7 @@ class MenuItemController extends Controller
             'items' => MenuItemResource::collection($items)->resolve(),
             'categories' => $categories,
             'addon_groups' => $addonGroups,
-            'filters' => $request->only(['search', 'category_id', 'availability', 'featured']),
+            'filters' => $request->only(['search', 'category_id', 'availability', 'featured', 'kitchen']),
             'stats' => [
                 'total' => $totalCount,
                 'available' => $availableCount,
@@ -69,7 +78,8 @@ class MenuItemController extends Controller
     {
         Gate::authorize('manage menu items');
 
-        $validated = $request->validate($this->rules());
+        $this->dropBlankVariationRows($request);
+        $validated = $request->validate($this->rules(), $this->messages());
 
         $addonGroupIds = $validated['addon_group_ids'] ?? [];
         $variations = $this->filledVariations($validated['variations'] ?? []);
@@ -96,7 +106,8 @@ class MenuItemController extends Controller
     {
         Gate::authorize('manage menu items');
 
-        $validated = $request->validate($this->rules());
+        $this->dropBlankVariationRows($request);
+        $validated = $request->validate($this->rules(), $this->messages());
 
         $addonGroupIds = $validated['addon_group_ids'] ?? [];
         $variations = $this->filledVariations($validated['variations'] ?? []);
@@ -115,6 +126,45 @@ class MenuItemController extends Controller
         $this->syncVariations($menuItem, $variations);
 
         return redirect()->back()->with('success', 'Menu item updated.');
+    }
+
+    public function importTemplate(BuildMenuItemImportTemplate $template): StreamedResponse
+    {
+        Gate::authorize('manage menu items');
+
+        return response()->streamDownload(function () use ($template) {
+            $spreadsheet = $template->handle();
+            IOFactory::createWriter($spreadsheet, 'Xlsx')->save('php://output');
+            $spreadsheet->disconnectWorksheets();
+        }, 'menu-items-import-template.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    /**
+     * Validates and imports a menu spreadsheet. With `dry_run` it only reports what would happen.
+     */
+    public function import(Request $request, ImportMenuItems $importer): JsonResponse
+    {
+        Gate::authorize('manage menu items');
+
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv,txt', 'max:5120'],
+            'duplicate_mode' => ['required', Rule::in([ImportMenuItems::MODE_SKIP, ImportMenuItems::MODE_UPDATE])],
+            'dry_run' => ['nullable', 'boolean'],
+        ], [
+            'file.required' => 'Please choose an Excel file to upload.',
+            'file.mimes' => 'The file must be an Excel (.xlsx, .xls) or .csv file.',
+            'file.max' => 'The file is too large (maximum 5 MB).',
+        ]);
+
+        $report = $importer->handle(
+            $request->file('file')->getRealPath(),
+            $validated['duplicate_mode'],
+            $request->boolean('dry_run'),
+        );
+
+        return response()->json($report);
     }
 
     public function destroy(MenuItem $menuItem): RedirectResponse
@@ -141,6 +191,7 @@ class MenuItemController extends Controller
         Gate::authorize('manage menu items');
 
         $type = $request->input('type');
+        $updatedCount = 0;
 
         if ($type === 'per_variation') {
             $validated = $request->validate([
@@ -161,6 +212,7 @@ class MenuItemController extends Controller
                 }
                 if ($item->variations->isNotEmpty()) {
                     $item->update(['price' => (float) $item->variations()->min('price')]);
+                    $updatedCount++;
                 }
             }
         } else {
@@ -169,23 +221,39 @@ class MenuItemController extends Controller
                 'ids.*' => ['integer', 'exists:menu_items,id'],
                 'type' => ['required', 'in:percent_increase,percent_decrease,fixed_increase,fixed_decrease'],
                 'value' => ['required', 'numeric', 'min:0'],
+                'sizes' => ['nullable', 'array'],
+                'sizes.*' => ['string', 'max:50'],
             ]);
 
+            // When sizes are chosen, only those sizes change; items without sizes are left alone.
+            $onlySizes = $validated['sizes'] ?? [];
             $items = MenuItem::with('variations')->whereIn('id', $validated['ids'])->get();
 
             foreach ($items as $item) {
                 if ($item->variations->isNotEmpty()) {
+                    $changed = false;
+
                     foreach ($item->variations as $variation) {
+                        if ($onlySizes !== [] && ! in_array($variation->name, $onlySizes, true)) {
+                            continue;
+                        }
+
                         $variation->update(['price' => $this->applyPriceAdjustment((float) $variation->price, $validated['type'], (float) $validated['value'])]);
+                        $changed = true;
                     }
-                    $item->update(['price' => (float) $item->variations()->min('price')]);
-                } else {
+
+                    if ($changed) {
+                        $updatedCount++;
+                        $item->update(['price' => (float) $item->variations()->min('price')]);
+                    }
+                } elseif ($onlySizes === []) {
                     $item->update(['price' => $this->applyPriceAdjustment((float) $item->price, $validated['type'], (float) $validated['value'])]);
+                    $updatedCount++;
                 }
             }
         }
 
-        return redirect()->back()->with('success', count($request->input('ids', [])).' item(s) prices updated.');
+        return redirect()->back()->with('success', $updatedCount.' item(s) prices updated.');
     }
 
     private function applyPriceAdjustment(float $price, string $type, float $value): float
@@ -196,6 +264,39 @@ class MenuItemController extends Controller
             'fixed_increase' => round($price + $value, 2),
             'fixed_decrease' => round(max(0, $price - $value), 2),
         };
+    }
+
+    /**
+     * Size rows the cashier added but never filled in (no name and no price) are ignored rather than rejected.
+     */
+    private function dropBlankVariationRows(Request $request): void
+    {
+        $rows = $request->input('variations');
+
+        if (! is_array($rows)) {
+            return;
+        }
+
+        $request->merge([
+            'variations' => array_values(array_filter(
+                $rows,
+                fn ($row) => is_array($row) && (filled($row['name'] ?? null) || filled($row['price'] ?? null)),
+            )),
+        ]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function messages(): array
+    {
+        return [
+            'variations.*.name.required_with' => 'Enter a name for this size (e.g. Small).',
+            'variations.*.name.required' => 'Enter a name for this size (e.g. Small).',
+            'variations.*.price.required_with' => 'Enter a price for this size.',
+            'variations.*.price.required' => 'Enter a price for this size.',
+            'variations.*.price.numeric' => 'The size price must be a number.',
+        ];
     }
 
     /**
@@ -210,13 +311,14 @@ class MenuItemController extends Controller
             'price' => ['nullable', 'numeric', 'min:0'],
             'is_available' => ['boolean'],
             'is_featured' => ['boolean'],
+            'is_kitchen' => ['boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
             'image' => ['nullable', 'image', 'max:2048'],
             'addon_group_ids' => ['nullable', 'array'],
             'addon_group_ids.*' => ['exists:addon_groups,id'],
             'variations' => ['nullable', 'array'],
-            'variations.*.name' => ['required_with:variations', 'string', 'max:50'],
-            'variations.*.price' => ['required_with:variations', 'numeric', 'min:0'],
+            'variations.*.name' => ['required', 'string', 'max:50'],
+            'variations.*.price' => ['required', 'numeric', 'min:0'],
             'variations.*.sort_order' => ['nullable', 'integer', 'min:0'],
         ];
     }

@@ -1,14 +1,22 @@
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import AdminLayout from '@/layouts/admin-layout';
-import { adminOrdersAssignDeliveryMan, adminOrdersIndex, adminOrdersMarkPaid, adminOrdersShow, adminOrdersUpdateStatus, adminOrdersVoid } from '@/lib/routes';
-import { printReceipt, ThermalReceipt, type ReceiptOrder } from '@/components/thermal-receipt';
-import { AnimatePresence, motion } from 'framer-motion';
+import { Head, Link, router, useForm, usePage, usePoll } from '@inertiajs/react';
 import {
-    Ban, BadgeCheck, Bike, ChevronLeft, ChevronRight, Eye, ImageIcon,
+    Ban, BadgeCheck, Bike, Eye, ImageIcon,
     PackageCheck, Printer, Search, ShoppingBag, TrendingUp, X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
+import { CrudModal } from '@/components/admin/crud-modal';
+import { TableCard, TableScroll, Table, TableHead, TableHeadCell, TableBody, TableRow, TableCell, TableEmpty } from '@/components/admin/data-table';
+import { FilterPanel, FilterToggleButton } from '@/components/admin/filter-panel';
+import { FormField, adminFieldClass } from '@/components/admin/form-field';
+import { PageHeader } from '@/components/admin/page-header';
+import { Pagination } from '@/components/admin/pagination';
+import { printReceipt, ThermalReceipt  } from '@/components/thermal-receipt';
+import type {ReceiptOrder} from '@/components/thermal-receipt';
+import { Button } from '@/components/ui/button';
+import AdminLayout from '@/layouts/admin-layout';
+import { adminOrdersAssignDeliveryMan, adminOrdersIndex, adminOrdersMarkPaid, adminOrdersShow, adminOrdersUpdateStatus, adminOrdersVoid } from '@/lib/routes';
+import { cn } from '@/lib/utils';
 
 interface Order {
     id: number;
@@ -67,19 +75,20 @@ interface Props {
     can: { manage_orders: boolean; void_orders: boolean };
 }
 
-const ONLINE_PAYMENT_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-    cod:   { bg: '#F3F4F6', text: '#374151', label: 'COD' },
-    gcash: { bg: '#DBEAFE', text: '#1D4ED8', label: 'GCash' },
-    maya:  { bg: '#D1FAE5', text: '#047857', label: 'Maya' },
+const ONLINE_PAYMENT_LABEL: Record<string, string> = { cod: 'COD', gcash: 'GCash', maya: 'Maya' };
+const ONLINE_PAYMENT_CLASS: Record<string, string> = {
+    cod: 'bg-muted text-muted-foreground',
+    gcash: 'bg-info/10 text-info',
+    maya: 'bg-success/10 text-success',
 };
 
-const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
-    pending:   { bg: '#FEF3C7', text: '#92400E' },
-    preparing: { bg: '#DBEAFE', text: '#1E40AF' },
-    ready:     { bg: '#D1FAE5', text: '#065F46' },
-    completed: { bg: '#F3F4F6', text: '#6B7280' },
-    cancelled: { bg: '#FEE2E2', text: '#991B1B' },
-    voided:    { bg: '#FCE7F3', text: '#9D174D' },
+const STATUS_CLASS: Record<string, string> = {
+    pending: 'bg-warning/10 text-warning',
+    preparing: 'bg-info/10 text-info',
+    ready: 'bg-success/10 text-success',
+    completed: 'bg-muted text-muted-foreground',
+    cancelled: 'bg-error/10 text-error',
+    voided: 'bg-error/10 text-error',
 };
 
 const TERMINAL = ['completed', 'cancelled', 'voided'];
@@ -119,25 +128,37 @@ export default function OrdersIndex({ orders, filters, stats, delivery_men, can 
         });
     }
 
+    // Keep the list and stat cards fresh without a manual reload (new POS / online orders).
+    usePoll(20000, { only: ['orders', 'stats'] });
+
     const { flash } = usePage().props as { flash?: { success?: string; error?: string } };
     const { data, setData } = useForm({ ...filters });
     const [printingOrder, setPrintingOrder] = useState<ReceiptOrder | null>(null);
     const [voidModal, setVoidModal] = useState<Order | null>(null);
     const [voidReason, setVoidReason] = useState('');
+    const activeFilterCount = Object.values(filters).filter(Boolean).length;
+    const [filtersOpen, setFiltersOpen] = useState(activeFilterCount > 0);
     const [voiding, setVoiding] = useState(false);
     const receiptRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
+        if (flash?.success) {
+toast.success(flash.success);
+}
+
+        if (flash?.error) {
+toast.error(flash.error);
+}
     }, [flash]);
 
     function applyFilters(e: React.FormEvent) {
         e.preventDefault();
-        router.get(adminOrdersIndex(), data as Record<string, string>, { preserveState: true, preserveScroll: true });
+        const params = Object.fromEntries(Object.entries(data).filter(([, value]) => value));
+        router.get(adminOrdersIndex(), params, { preserveState: true, preserveScroll: true });
     }
 
     function clearFilters() {
+        setData({ search: '', status: '', type: '', payment: '', date_from: '', date_to: '' });
         router.get(adminOrdersIndex());
     }
 
@@ -147,21 +168,32 @@ export default function OrdersIndex({ orders, filters, stats, delivery_men, can 
     }
 
     function confirmVoid() {
-        if (!voidModal) return;
+        if (!voidModal) {
+return;
+}
+
         setVoiding(true);
         router.post(adminOrdersVoid(voidModal.id), { void_reason: voidReason }, {
             preserveScroll: true,
-            onSuccess: () => { setVoidModal(null); setVoiding(false); },
+            onSuccess: () => {
+ setVoidModal(null); setVoiding(false); 
+},
             onError: () => setVoiding(false),
         });
     }
 
     const statCards = [
-        { label: "Today's Orders", value: stats.today_count, icon: ShoppingBag, color: '#2C1A0E' },
-        { label: "Today's Revenue", value: currency(stats.today_revenue), icon: TrendingUp, color: '#15803D' },
-        { label: 'Pending', value: stats.pending, icon: PackageCheck, color: '#B45309' },
-        { label: 'Active', value: stats.active, icon: PackageCheck, color: '#1E40AF' },
+        { label: "Today's Orders", value: stats.today_count, icon: ShoppingBag, tone: 'brand' as const },
+        { label: "Today's Revenue", value: currency(stats.today_revenue), icon: TrendingUp, tone: 'success' as const },
+        { label: 'Pending', value: stats.pending, icon: PackageCheck, tone: 'warning' as const },
+        { label: 'Active', value: stats.active, icon: PackageCheck, tone: 'info' as const },
     ];
+    const toneClasses: Record<string, string> = {
+        brand: 'bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300',
+        warning: 'bg-warning/10 text-warning',
+        success: 'bg-success/10 text-success',
+        info: 'bg-info/10 text-info',
+    };
 
     const hasFilters = Object.values(filters).some(Boolean);
 
@@ -170,186 +202,162 @@ export default function OrdersIndex({ orders, filters, stats, delivery_men, can 
             <Head title="Orders — Admin" />
             <Toaster position="top-right" />
 
-            <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>Orders</h1>
-                        <p className="mt-1 text-sm" style={{ color: 'var(--ap-muted)' }}>
-                            {orders.meta.total} total · page {orders.meta.current_page} of {orders.meta.last_page}
-                        </p>
-                    </div>
-                </div>
+            <PageHeader
+                title="Orders"
+                breadcrumbs={[{ label: 'Orders' }]}
+                actions={<FilterToggleButton open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)} activeCount={activeFilterCount} />}
+            />
+            <p className="-mt-4 mb-6 text-sm text-muted-foreground">
+                {orders.meta.total} total · page {orders.meta.current_page} of {orders.meta.last_page}
+            </p>
 
-                {/* Stat cards */}
-                <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                    {statCards.map((c) => (
-                        <div key={c.label} className="rounded-2xl p-4 shadow-sm" style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}>
-                            <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: `${c.color}18` }}>
-                                <c.icon className="h-4 w-4" style={{ color: c.color }} />
-                            </div>
-                            <p className="text-xl font-bold" style={{ color: 'var(--ap-input-text)' }}>{c.value}</p>
-                            <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>{c.label}</p>
+            {/* Stat cards */}
+            <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {statCards.map((c) => (
+                    <div key={c.label} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                        <div className={cn('mb-2 flex h-8 w-8 items-center justify-center rounded-lg', toneClasses[c.tone])}>
+                            <c.icon className="h-4 w-4" />
                         </div>
-                    ))}
-                </div>
-
-                {/* Filters */}
-                <form onSubmit={applyFilters} className="mb-4 flex flex-wrap items-end gap-2">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: 'var(--ap-muted)' }} />
-                        <input
-                            value={data.search ?? ''}
-                            onChange={(e) => setData('search', e.target.value)}
-                            placeholder="Order #, table, customer…"
-                            className="rounded-xl border py-1.5 pl-8 pr-3 text-sm focus:outline-none"
-                            style={{ background: 'var(--ap-card)', borderColor: 'var(--ap-border)', color: 'var(--ap-input-text)', width: 220 }}
-                        />
+                        <p className="text-xl font-bold text-foreground">{c.value}</p>
+                        <p className="text-xs text-muted-foreground">{c.label}</p>
                     </div>
-                    {(['status', 'type', 'payment'] as const).map((field) => (
-                        <select
-                            key={field}
-                            value={(data as Record<string, string>)[field] ?? ''}
-                            onChange={(e) => setData(field, e.target.value)}
-                            className="rounded-xl border px-3 py-1.5 text-sm focus:outline-none"
-                            style={{ background: 'var(--ap-card)', borderColor: 'var(--ap-border)', color: 'var(--ap-input-text)' }}
-                        >
-                            {field === 'status' && <>
-                                <option value="">All statuses</option>
-                                {['pending','preparing','ready','completed','cancelled','voided'].map((s) => <option key={s} value={s} className="capitalize">{s}</option>)}
-                            </>}
-                            {field === 'type' && <>
-                                <option value="">All types</option>
-                                {['dine-in','takeout','walkin','pickup','delivery'].map((t) => <option key={t} value={t}>{t.replace('-',' ')}</option>)}
-                            </>}
-                            {field === 'payment' && <>
-                                <option value="">All payments</option>
-                                <option value="paid">Paid</option>
-                                <option value="unpaid">Unpaid</option>
-                            </>}
-                        </select>
-                    ))}
-                    <input type="date" value={data.date_from ?? ''} onChange={(e) => setData('date_from', e.target.value)}
-                        className="rounded-xl border px-3 py-1.5 text-sm focus:outline-none"
-                        style={{ background: 'var(--ap-card)', borderColor: 'var(--ap-border)', color: 'var(--ap-input-text)' }} />
-                    <span className="text-xs" style={{ color: 'var(--ap-muted)' }}>to</span>
-                    <input type="date" value={data.date_to ?? ''} onChange={(e) => setData('date_to', e.target.value)}
-                        className="rounded-xl border px-3 py-1.5 text-sm focus:outline-none"
-                        style={{ background: 'var(--ap-card)', borderColor: 'var(--ap-border)', color: 'var(--ap-input-text)' }} />
-                    <button type="submit" className="rounded-xl px-4 py-1.5 text-sm font-semibold" style={{ background: '#2C1A0E', color: '#D4A843' }}>Filter</button>
-                    {hasFilters && (
-                        <button type="button" onClick={clearFilters} className="rounded-xl border px-4 py-1.5 text-sm" style={{ borderColor: 'var(--ap-border)', color: 'var(--ap-muted)', background: 'var(--ap-card)' }}>
-                            Clear
-                        </button>
-                    )}
-                </form>
+                ))}
+            </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto rounded-2xl shadow-sm" style={{ background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }}>
-                    <table className="w-full min-w-[1100px] text-sm">
-                        <thead style={{ background: 'var(--ap-bg)', borderBottom: '1px solid var(--ap-border)' }}>
+            {/* Filters */}
+            <FilterPanel open={filtersOpen} onSubmit={applyFilters}>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <FormField label="Search">
+                        <div className="relative">
+                            <Search className="absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                            <input
+                                type="search"
+                                value={data.search ?? ''}
+                                onChange={(e) => setData('search', e.target.value)}
+                                placeholder="Search orders…"
+                                className={adminFieldClass() + ' pl-8'}
+                            />
+                        </div>
+                    </FormField>
+                    <FormField label="Status">
+                        <select value={data.status ?? ''} onChange={(e) => setData('status', e.target.value)} className={adminFieldClass()}>
+                            <option value="">All statuses</option>
+                            {['pending', 'preparing', 'ready', 'completed', 'cancelled', 'voided'].map((st) => <option key={st} value={st}>{st.charAt(0).toUpperCase() + st.slice(1)}</option>)}
+                        </select>
+                    </FormField>
+                    <FormField label="Order type">
+                        <select value={data.type ?? ''} onChange={(e) => setData('type', e.target.value)} className={adminFieldClass()}>
+                            <option value="">All types</option>
+                            {['dine-in', 'takeout', 'walkin', 'pickup', 'delivery'].map((t) => <option key={t} value={t}>{t === 'walkin' ? 'Walk-in' : t.charAt(0).toUpperCase() + t.slice(1).replace('-', ' ')}</option>)}
+                        </select>
+                    </FormField>
+                    <FormField label="Payment">
+                        <select value={data.payment ?? ''} onChange={(e) => setData('payment', e.target.value)} className={adminFieldClass()}>
+                            <option value="">All payments</option>
+                            <option value="paid">Paid</option>
+                            <option value="unpaid">Unpaid</option>
+                        </select>
+                    </FormField>
+                    <FormField label="From date">
+                        <input type="date" value={data.date_from ?? ''} max={data.date_to || undefined} onChange={(e) => setData('date_from', e.target.value)} className={adminFieldClass()} />
+                    </FormField>
+                    <FormField label="To date">
+                        <input type="date" value={data.date_to ?? ''} min={data.date_from || undefined} onChange={(e) => setData('date_to', e.target.value)} className={adminFieldClass()} />
+                    </FormField>
+                    <div className="flex items-end gap-2 sm:col-span-2">
+                        <Button type="submit" className="flex-1 sm:flex-none"><Search className="h-4 w-4" /> Apply filters</Button>
+                        {hasFilters && <Button type="button" variant="outline" onClick={clearFilters}><X className="h-4 w-4" /> Clear</Button>}
+                    </div>
+                </div>
+            </FilterPanel>
+
+            {/* Table */}
+            <TableCard>
+                <TableScroll>
+                    <Table className="min-w-[1100px]">
+                        <TableHead>
                             <tr>
                                 {['Order #', 'Customer / Table', 'Items', 'Subtotal', 'Discount', 'Total', 'Payment', 'Delivery', 'Loyalty', 'Status', 'Date', ''].map((h) => (
-                                    <th key={h} className="px-3 py-3 text-left text-xs font-semibold" style={{ color: 'var(--ap-muted)' }}>{h}</th>
+                                    <TableHeadCell key={h}>{h}</TableHeadCell>
                                 ))}
                             </tr>
-                        </thead>
-                        <tbody>
+                        </TableHead>
+                        <TableBody>
                             {orders.data.length === 0 ? (
-                                <tr>
-                                    <td colSpan={12} className="px-4 py-12 text-center text-sm" style={{ color: 'var(--ap-muted)' }}>
-                                        No orders found
-                                    </td>
-                                </tr>
+                                <TableEmpty colSpan={12}>No orders found</TableEmpty>
                             ) : orders.data.map((order) => {
-                                const s = STATUS_STYLES[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
                                 const isTerminal = TERMINAL.includes(order.status);
+
                                 return (
-                                    <tr
-                                        key={order.id}
-                                        className="border-t transition-colors hover:bg-black/[0.015]"
-                                        style={{ borderColor: 'var(--ap-border)', opacity: order.status === 'voided' ? 0.6 : 1 }}
-                                    >
-                                        <td className="px-3 py-3">
-                                            <span className="font-mono text-xs font-bold" style={{ color: 'var(--ap-input-text)' }}>{order.order_number}</span>
-                                        </td>
-                                        <td className="px-3 py-3">
+                                    <TableRow key={order.id} className={order.status === 'voided' ? 'opacity-60' : undefined}>
+                                        <TableCell>
+                                            <span className="font-mono text-xs font-bold whitespace-nowrap">{order.order_number}</span>
+                                        </TableCell>
+                                        <TableCell>
                                             {order.customer ? (
                                                 <div>
-                                                    <p className="font-medium text-xs" style={{ color: 'var(--ap-input-text)' }}>{order.customer.name}</p>
-                                                    <p className="text-[10px]" style={{ color: 'var(--ap-muted)' }}>{order.table?.name ?? order.type}</p>
+                                                    <p className="text-xs font-medium">{order.customer.name}</p>
+                                                    <p className="text-[10px] text-muted-foreground">{order.table?.name ?? order.type}</p>
                                                 </div>
                                             ) : (
-                                                <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>{order.table?.name ?? 'Walk-in'}</p>
+                                                <p className="text-xs text-muted-foreground">{order.table?.name ?? 'Walk-in'}</p>
                                             )}
-                                        </td>
-                                        <td className="px-3 py-3">
+                                        </TableCell>
+                                        <TableCell>
                                             <div>
-                                                <p className="text-xs font-medium" style={{ color: 'var(--ap-input-text)' }}>{order.items.length} item{order.items.length !== 1 ? 's' : ''}</p>
-                                                <p className="max-w-[120px] truncate text-[10px]" style={{ color: 'var(--ap-muted)' }}>
+                                                <p className="text-xs font-medium">{order.items.length} item{order.items.length !== 1 ? 's' : ''}</p>
+                                                <p className="max-w-[120px] truncate text-[10px] text-muted-foreground">
                                                     {order.items.map((i) => `${i.quantity}× ${i.menu_item.name}`).join(', ')}
                                                 </p>
                                             </div>
-                                        </td>
-                                        <td className="px-3 py-3 text-xs" style={{ color: 'var(--ap-muted)' }}>{currency(order.subtotal)}</td>
-                                        <td className="px-3 py-3 text-xs">
+                                        </TableCell>
+                                        <TableCell className="text-xs whitespace-nowrap text-muted-foreground">{currency(order.subtotal)}</TableCell>
+                                        <TableCell className="text-xs">
                                             {Number(order.discount) > 0 ? (
-                                                <span className="text-red-500">-{currency(order.discount)}</span>
+                                                <span className="text-error">-{currency(order.discount)}</span>
                                             ) : (
-                                                <span style={{ color: 'var(--ap-muted)' }}>—</span>
+                                                <span className="text-muted-foreground">—</span>
                                             )}
-                                        </td>
-                                        <td className="px-3 py-3">
-                                            <span className="text-sm font-bold" style={{ color: '#D4A843' }}>{currency(order.total)}</span>
-                                        </td>
-                                        <td className="px-3 py-3">
+                                        </TableCell>
+                                        <TableCell>
+                                            <span className="text-sm font-bold whitespace-nowrap text-primary">{currency(order.total)}</span>
+                                        </TableCell>
+                                        <TableCell>
                                             <div className="flex items-center gap-1">
                                                 {order.payment ? (
-                                                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 capitalize">
+                                                    <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success capitalize">
                                                         {order.payment.method}
                                                     </span>
                                                 ) : order.payment_method ? (
-                                                    <span
-                                                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                                                        style={{ background: ONLINE_PAYMENT_STYLES[order.payment_method]?.bg, color: ONLINE_PAYMENT_STYLES[order.payment_method]?.text }}
-                                                    >
-                                                        {ONLINE_PAYMENT_STYLES[order.payment_method]?.label ?? order.payment_method}
+                                                    <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', ONLINE_PAYMENT_CLASS[order.payment_method])}>
+                                                        {ONLINE_PAYMENT_LABEL[order.payment_method] ?? order.payment_method}
                                                     </span>
                                                 ) : (
-                                                    <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-500">Unpaid</span>
+                                                    <span className="rounded-full bg-error/10 px-2 py-0.5 text-[10px] font-medium text-error">Unpaid</span>
                                                 )}
                                                 {order.payment_proof_url && (
-                                                    <button
-                                                        onClick={() => setProofPreview(order)}
-                                                        className="rounded-lg p-1 transition-colors hover:bg-black/5"
-                                                        title="View proof of payment"
-                                                    >
-                                                        <ImageIcon className="h-3.5 w-3.5" style={{ color: '#D4A843' }} />
+                                                    <button onClick={() => setProofPreview(order)} className="rounded-lg p-1 text-primary transition-colors hover:bg-muted" title="View proof of payment">
+                                                        <ImageIcon className="h-3.5 w-3.5" />
                                                     </button>
                                                 )}
                                                 {!order.payment && order.payment_method === 'cod' && can.manage_orders && !isTerminal && (
-                                                    <button
-                                                        onClick={() => setCodConfirm(order)}
-                                                        className="rounded-lg p-1 transition-colors hover:bg-green-50"
-                                                        title="Confirm cash collected"
-                                                    >
-                                                        <BadgeCheck className="h-3.5 w-3.5 text-green-600" />
+                                                    <button onClick={() => setCodConfirm(order)} className="rounded-lg p-1 text-success transition-colors hover:bg-success/10" title="Confirm cash collected">
+                                                        <BadgeCheck className="h-3.5 w-3.5" />
                                                     </button>
                                                 )}
                                             </div>
-                                        </td>
-                                        <td className="px-3 py-3">
+                                        </TableCell>
+                                        <TableCell>
                                             {order.type === 'delivery' ? (
                                                 can.manage_orders && !isTerminal ? (
                                                     <select
                                                         value={order.delivery_man ? String(order.delivery_man.id) : ''}
                                                         onChange={(e) => quickAssignRider(order, e.target.value)}
                                                         disabled={updatingId === order.id}
-                                                        className="max-w-[130px] rounded-lg border px-1.5 py-1 text-[11px] focus:outline-none disabled:opacity-50"
-                                                        style={{
-                                                            background: order.delivery_man ? 'var(--ap-bg)' : '#FEF3C7',
-                                                            borderColor: order.delivery_man ? 'var(--ap-border)' : '#F59E0B',
-                                                            color: 'var(--ap-input-text)',
-                                                        }}
+                                                        className={cn(
+                                                            'max-w-[130px] rounded-lg border px-1.5 py-1 text-[11px] focus:outline-none disabled:opacity-50',
+                                                            order.delivery_man ? 'border-[var(--ap-input-border)] bg-transparent' : 'border-warning bg-warning/10',
+                                                        )}
                                                         title={order.delivery_address ?? undefined}
                                                     >
                                                         <option value="">🛵 Assign…</option>
@@ -358,275 +366,191 @@ export default function OrdersIndex({ orders, filters, stats, delivery_men, can 
                                                         ))}
                                                     </select>
                                                 ) : (
-                                                    <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--ap-input-text)' }}>
-                                                        <Bike className="h-3 w-3" style={{ color: 'var(--ap-muted)' }} />
+                                                    <span className="flex items-center gap-1 text-[11px]">
+                                                        <Bike className="h-3 w-3 text-muted-foreground" />
                                                         {order.delivery_man?.name ?? '—'}
                                                     </span>
                                                 )
                                             ) : (
-                                                <span className="text-[10px]" style={{ color: 'var(--ap-muted)' }}>—</span>
+                                                <span className="text-[10px] text-muted-foreground">—</span>
                                             )}
-                                        </td>
-                                        <td className="px-3 py-3">
+                                        </TableCell>
+                                        <TableCell>
                                             <div className="flex flex-wrap gap-0.5">
                                                 {order.promo && (
-                                                    <span className="rounded-full px-1.5 py-0.5 text-[10px] font-mono" style={{ background: 'rgba(212,168,67,0.12)', color: '#D4A843' }}>
+                                                    <span className="rounded-full bg-brand-50 px-1.5 py-0.5 font-mono text-[10px] text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
                                                         {order.promo.code}
                                                     </span>
                                                 )}
                                                 {Number(order.points_earned) > 0 && (
-                                                    <span className="text-[10px]" style={{ color: '#D4A843' }}>⭐{order.points_earned}</span>
+                                                    <span className="text-[10px] text-warning">⭐{order.points_earned}</span>
                                                 )}
                                                 {order.free_drink_redeemed && (
                                                     <span className="text-[10px]">🎁</span>
                                                 )}
                                             </div>
-                                        </td>
-                                        <td className="px-3 py-3">
+                                        </TableCell>
+                                        <TableCell>
                                             {can.manage_orders && !isTerminal ? (
                                                 <select
                                                     value={order.status}
                                                     onChange={(e) => quickUpdateStatus(order, e.target.value)}
                                                     disabled={updatingId === order.id}
-                                                    className="cursor-pointer rounded-full border-0 py-0.5 pl-2 pr-6 text-[10px] font-semibold capitalize focus:outline-none disabled:opacity-50"
-                                                    style={{ background: s.bg, color: s.text }}
+                                                    className={cn('cursor-pointer rounded-full border-0 py-0.5 pr-6 pl-2 text-[10px] font-semibold capitalize focus:outline-none disabled:opacity-50', STATUS_CLASS[order.status])}
                                                 >
                                                     {['pending', 'preparing', 'ready', 'completed', 'cancelled'].map((st) => (
                                                         <option key={st} value={st} className="capitalize">{st}</option>
                                                     ))}
                                                 </select>
                                             ) : (
-                                                <span className="rounded-full px-2 py-0.5 text-[10px] font-medium capitalize" style={s}>{order.status}</span>
+                                                <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium capitalize', STATUS_CLASS[order.status])}>{order.status}</span>
                                             )}
-                                        </td>
-                                        <td className="px-3 py-3 text-[10px]" style={{ color: 'var(--ap-muted)' }}>
+                                        </TableCell>
+                                        <TableCell className="text-[10px] whitespace-nowrap text-muted-foreground">
                                             {new Date(order.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                        </td>
-                                        <td className="px-3 py-3">
+                                        </TableCell>
+                                        <TableCell>
                                             <div className="flex items-center gap-1">
-                                                <Link
-                                                    href={adminOrdersShow(order.id)}
-                                                    className="rounded-lg p-1.5 transition-colors hover:bg-black/5"
-                                                    title="View order"
-                                                >
-                                                    <Eye className="h-3.5 w-3.5" style={{ color: 'var(--ap-muted)' }} />
+                                                <Link href={adminOrdersShow(order.id)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary" title="View order">
+                                                    <Eye className="h-3.5 w-3.5" />
                                                 </Link>
                                                 {can.void_orders && !isTerminal && (
-                                                    <button
-                                                        onClick={() => openVoidModal(order)}
-                                                        className="rounded-lg p-1.5 transition-colors hover:bg-red-50"
-                                                        title="Void order"
-                                                    >
-                                                        <Ban className="h-3.5 w-3.5 text-red-400" />
+                                                    <button onClick={() => openVoidModal(order)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-error/10 hover:text-error" title="Void order">
+                                                        <Ban className="h-3.5 w-3.5" />
                                                     </button>
                                                 )}
-                                                <button
-                                                    onClick={() => setPrintingOrder(order)}
-                                                    className="rounded-lg p-1.5 transition-colors hover:bg-black/5"
-                                                    title="Print receipt"
-                                                >
-                                                    <Printer className="h-3.5 w-3.5" style={{ color: 'var(--ap-muted)' }} />
+                                                <button onClick={() => setPrintingOrder(order)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary" title="Print receipt">
+                                                    <Printer className="h-3.5 w-3.5" />
                                                 </button>
                                             </div>
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
                                 );
                             })}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Pagination */}
-                {orders.meta.last_page > 1 && (
-                    <div className="mt-4 flex items-center justify-between">
-                        <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>
-                            Showing {orders.meta.from}–{orders.meta.to} of {orders.meta.total}
-                        </p>
-                        <div className="flex gap-1">
-                            {orders.meta.links.map((link, i) => {
-                                const isPrev = link.label.includes('Previous');
-                                const isNext = link.label.includes('Next');
-                                return (
-                                    <button
-                                        key={i}
-                                        disabled={!link.url}
-                                        onClick={() => link.url && router.get(link.url)}
-                                        className="flex h-8 min-w-[32px] items-center justify-center rounded-lg px-2 text-xs transition-colors disabled:opacity-40"
-                                        style={link.active
-                                            ? { background: '#D4A843', color: '#2C1A0E', fontWeight: 700 }
-                                            : { color: 'var(--ap-muted)', background: 'var(--ap-card)', border: '1px solid var(--ap-border)' }
-                                        }
-                                    >
-                                        {isPrev ? <ChevronLeft className="h-3.5 w-3.5" /> : isNext ? <ChevronRight className="h-3.5 w-3.5" /> : <span dangerouslySetInnerHTML={{ __html: link.label }} />}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-            </div>
+                        </TableBody>
+                    </Table>
+                </TableScroll>
+                <Pagination meta={orders.meta} />
+            </TableCard>
 
             {/* Void modal */}
-            <AnimatePresence>
-                {voidModal && (
+            <CrudModal
+                open={!!voidModal}
+                onOpenChange={(open) => !open && setVoidModal(null)}
+                title="Void Order"
+                description={voidModal ? <><span className="font-mono font-bold">{voidModal.order_number}</span> · {currency(voidModal.total)}</> : undefined}
+                className="max-w-sm"
+                footer={
                     <>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50" style={{ zIndex: 50 }} onClick={() => setVoidModal(null)} />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                            className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6 shadow-xl"
-                            style={{ background: 'var(--ap-card)' }}
-                        >
-                            <div className="mb-4 flex items-start gap-3">
-                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-100">
-                                    <Ban className="h-5 w-5 text-red-500" />
-                                </div>
-                                <div>
-                                    <h2 className="font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>Void Order</h2>
-                                    <p className="text-sm" style={{ color: 'var(--ap-muted)' }}>
-                                        <span className="font-mono font-bold">{voidModal.order_number}</span> · {currency(voidModal.total)}
-                                    </p>
-                                </div>
-                                <button onClick={() => setVoidModal(null)} className="ml-auto"><X className="h-4 w-4" style={{ color: 'var(--ap-muted)' }} /></button>
-                            </div>
-                            <div className="mb-4">
-                                <label className="mb-1.5 block text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Reason (optional)</label>
-                                <textarea
-                                    value={voidReason}
-                                    onChange={(e) => setVoidReason(e.target.value)}
-                                    rows={2}
-                                    placeholder="e.g. Customer changed their mind, duplicate order…"
-                                    className="w-full resize-none rounded-xl border px-3 py-2 text-sm focus:outline-none"
-                                    style={{ background: 'var(--ap-bg)', borderColor: 'var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                />
-                            </div>
-                            <div className="flex gap-2">
-                                <button onClick={() => setVoidModal(null)} className="flex-1 rounded-full border py-2.5 text-sm font-medium" style={{ borderColor: 'var(--ap-border)', color: 'var(--ap-muted)' }}>
-                                    Cancel
-                                </button>
-                                <button onClick={confirmVoid} disabled={voiding} className="flex-1 rounded-full py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: '#EF4444', color: '#fff' }}>
-                                    {voiding ? 'Voiding…' : 'Void Order'}
-                                </button>
-                            </div>
-                        </motion.div>
+                        <Button variant="outline" className="flex-1" onClick={() => setVoidModal(null)}>Cancel</Button>
+                        <Button variant="destructive" className="flex-1" onClick={confirmVoid} disabled={voiding}>
+                            {voiding ? 'Voiding…' : 'Void Order'}
+                        </Button>
                     </>
-                )}
-            </AnimatePresence>
+                }
+            >
+                <div>
+                    <label className="mb-1.5 block text-sm font-medium text-foreground">Reason (optional)</label>
+                    <textarea
+                        value={voidReason}
+                        onChange={(e) => setVoidReason(e.target.value)}
+                        rows={2}
+                        placeholder="e.g. Customer changed their mind, duplicate order…"
+                        className={adminFieldClass() + ' resize-none'}
+                    />
+                </div>
+            </CrudModal>
 
             {/* Proof of payment modal */}
-            <AnimatePresence>
-                {proofPreview && (
+            <CrudModal
+                open={!!proofPreview}
+                onOpenChange={(open) => !open && setProofPreview(null)}
+                title="Proof of Payment"
+                description={proofPreview ? <><span className="font-mono">{proofPreview.order_number}</span> · {ONLINE_PAYMENT_LABEL[proofPreview.payment_method ?? ''] ?? proofPreview.payment_method} · {currency(proofPreview.total)}</> : undefined}
+                contentClassName="bg-muted/40 p-4"
+                footer={
                     <>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60" style={{ zIndex: 50 }} onClick={() => setProofPreview(null)} />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                            className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl shadow-2xl"
-                            style={{ background: 'var(--ap-card)' }}
+                        <Button variant="outline" className="flex-1" onClick={() => setProofPreview(null)}>Close</Button>
+                        <a
+                            href={proofPreview?.payment_proof_url ?? '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex flex-1 items-center justify-center rounded-md border border-input px-4 py-2 text-sm font-medium transition-colors hover:bg-accent"
                         >
-                            <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--ap-border)' }}>
-                                <div>
-                                    <p className="text-sm font-bold" style={{ color: 'var(--ap-input-text)' }}>Proof of Payment</p>
-                                    <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>
-                                        <span className="font-mono">{proofPreview.order_number}</span> · {ONLINE_PAYMENT_STYLES[proofPreview.payment_method ?? '']?.label ?? proofPreview.payment_method} · {currency(proofPreview.total)}
-                                    </p>
-                                </div>
-                                <button onClick={() => setProofPreview(null)}><X className="h-4 w-4" style={{ color: 'var(--ap-muted)' }} /></button>
-                            </div>
-                            <div className="max-h-[70vh] overflow-y-auto p-4" style={{ background: 'var(--ap-bg)' }}>
-                                <img src={proofPreview.payment_proof_url!} alt="Proof of payment" className="w-full rounded-xl object-contain" />
-                            </div>
-                            <div className="flex gap-2 border-t px-4 py-3" style={{ borderColor: 'var(--ap-border)' }}>
-                                <button onClick={() => setProofPreview(null)} className="flex-1 rounded-full border py-2.5 text-sm font-medium" style={{ borderColor: 'var(--ap-border)', color: 'var(--ap-muted)' }}>Close</button>
-                                <a
-                                    href={proofPreview.payment_proof_url!}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex flex-1 items-center justify-center rounded-full border py-2.5 text-sm font-medium"
-                                    style={{ borderColor: 'var(--ap-border)', color: 'var(--ap-input-text)' }}
-                                >
-                                    Full Size
-                                </a>
-                                {!proofPreview.payment && can.manage_orders && !TERMINAL.includes(proofPreview.status) && (
-                                    <button
-                                        onClick={() => markPaid(proofPreview, () => setProofPreview(null))}
-                                        disabled={markingPaid}
-                                        className="flex flex-1 items-center justify-center gap-1.5 rounded-full py-2.5 text-sm font-bold disabled:opacity-50"
-                                        style={{ background: '#16A34A', color: '#fff' }}
-                                    >
-                                        <BadgeCheck className="h-4 w-4" /> {markingPaid ? 'Saving…' : 'Approve & Mark Paid'}
-                                    </button>
-                                )}
-                                {proofPreview.payment && (
-                                    <span className="flex flex-1 items-center justify-center gap-1 rounded-full bg-green-100 py-2.5 text-sm font-bold text-green-700">
-                                        <BadgeCheck className="h-4 w-4" /> Verified & Paid
-                                    </span>
-                                )}
-                            </div>
-                        </motion.div>
+                            Full Size
+                        </a>
+                        {proofPreview && !proofPreview.payment && can.manage_orders && !TERMINAL.includes(proofPreview.status) && (
+                            <Button className="flex-1 bg-success text-success-foreground hover:bg-success/90" onClick={() => markPaid(proofPreview, () => setProofPreview(null))} disabled={markingPaid}>
+                                <BadgeCheck className="h-4 w-4" /> {markingPaid ? 'Saving…' : 'Approve & Mark Paid'}
+                            </Button>
+                        )}
+                        {proofPreview?.payment && (
+                            <span className="flex flex-1 items-center justify-center gap-1 rounded-md bg-success/10 py-2 text-sm font-bold text-success">
+                                <BadgeCheck className="h-4 w-4" /> Verified & Paid
+                            </span>
+                        )}
                     </>
-                )}
-            </AnimatePresence>
+                }
+            >
+                {proofPreview && <img src={proofPreview.payment_proof_url!} alt="Proof of payment" className="w-full rounded-xl object-contain" />}
+            </CrudModal>
 
             {/* COD confirmation modal */}
-            <AnimatePresence>
-                {codConfirm && (
+            <CrudModal
+                open={!!codConfirm}
+                onOpenChange={(open) => !open && setCodConfirm(null)}
+                title="Confirm Cash Payment"
+                className="max-w-sm"
+                footer={
                     <>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50" style={{ zIndex: 50 }} onClick={() => setCodConfirm(null)} />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                            className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6 text-center shadow-xl"
-                            style={{ background: 'var(--ap-card)' }}
+                        <Button variant="outline" className="flex-1" onClick={() => setCodConfirm(null)}>Cancel</Button>
+                        <Button
+                            className="flex-1 bg-success text-success-foreground hover:bg-success/90"
+                            onClick={() => codConfirm && markPaid(codConfirm, () => setCodConfirm(null))}
+                            disabled={markingPaid || (codConfirm?.type === 'delivery' && !codConfirm?.delivery_man)}
                         >
-                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-                                <BadgeCheck className="h-6 w-6 text-green-600" />
-                            </div>
-                            <h2 className="mt-3 font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>Confirm Cash Payment</h2>
-                            <p className="mt-1 text-sm" style={{ color: 'var(--ap-muted)' }}>
-                                <span className="font-mono font-bold">{codConfirm.order_number}</span> · {currency(codConfirm.total)}
-                            </p>
-                            <p className="mt-2 text-xs" style={{ color: 'var(--ap-muted)' }}>
-                                {codConfirm.type === 'delivery'
-                                    ? codConfirm.delivery_man
-                                        ? `Rider ${codConfirm.delivery_man.name} has verified and collected the cash on delivery.`
-                                        : '⚠️ No delivery man assigned yet. Assign a rider first — the rider verifies the cash payment on handoff.'
-                                    : 'Cash was collected from the customer at the counter.'}
-                            </p>
-                            <div className="mt-5 flex gap-2">
-                                <button onClick={() => setCodConfirm(null)} className="flex-1 rounded-full border py-2.5 text-sm font-medium" style={{ borderColor: 'var(--ap-border)', color: 'var(--ap-muted)' }}>Cancel</button>
-                                <button
-                                    onClick={() => markPaid(codConfirm, () => setCodConfirm(null))}
-                                    disabled={markingPaid || (codConfirm.type === 'delivery' && !codConfirm.delivery_man)}
-                                    className="flex-1 rounded-full py-2.5 text-sm font-bold text-white disabled:opacity-40"
-                                    style={{ background: '#16A34A' }}
-                                >
-                                    {markingPaid ? 'Saving…' : 'Mark as Paid'}
-                                </button>
-                            </div>
-                        </motion.div>
+                            {markingPaid ? 'Saving…' : 'Mark as Paid'}
+                        </Button>
                     </>
+                }
+            >
+                {codConfirm && (
+                    <div className="text-center">
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-success/10">
+                            <BadgeCheck className="h-6 w-6 text-success" />
+                        </div>
+                        <p className="mt-3 text-sm text-foreground">
+                            <span className="font-mono font-bold">{codConfirm.order_number}</span> · {currency(codConfirm.total)}
+                        </p>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                            {codConfirm.type === 'delivery'
+                                ? codConfirm.delivery_man
+                                    ? `Rider ${codConfirm.delivery_man.name} has verified and collected the cash on delivery.`
+                                    : '⚠️ No delivery man assigned yet. Assign a rider first — the rider verifies the cash payment on handoff.'
+                                : 'Cash was collected from the customer at the counter.'}
+                        </p>
+                    </div>
                 )}
-            </AnimatePresence>
+            </CrudModal>
 
             {/* Receipt modal */}
-            {printingOrder && (
-                <>
-                    <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setPrintingOrder(null)} />
-                    <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-xs -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl shadow-2xl" style={{ background: 'var(--ap-card)' }}>
-                        <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--ap-border)' }}>
-                            <span className="text-sm font-bold" style={{ color: 'var(--ap-input-text)' }}>Receipt — {printingOrder.order_number}</span>
-                            <button onClick={() => setPrintingOrder(null)}><X className="h-4 w-4" style={{ color: 'var(--ap-muted)' }} /></button>
-                        </div>
-                        <div className="max-h-96 overflow-y-auto p-4" style={{ background: 'var(--ap-bg)' }}>
-                            <div ref={receiptRef}><ThermalReceipt order={printingOrder} /></div>
-                        </div>
-                        <div className="flex gap-2 border-t px-4 py-3" style={{ borderColor: 'var(--ap-border)' }}>
-                            <button onClick={() => setPrintingOrder(null)} className="flex-1 rounded-full border py-2.5 text-sm font-medium" style={{ borderColor: 'var(--ap-border)', color: 'var(--ap-muted)' }}>Close</button>
-                            <button onClick={() => receiptRef.current && printReceipt(receiptRef.current)} className="flex flex-1 items-center justify-center gap-2 rounded-full py-2.5 text-sm font-bold" style={{ background: '#2C1A0E', color: '#D4A843' }}>
-                                <Printer className="h-4 w-4" /> Print
-                            </button>
-                        </div>
-                    </div>
-                </>
-            )}
+            <CrudModal
+                open={!!printingOrder}
+                onOpenChange={(open) => !open && setPrintingOrder(null)}
+                title={printingOrder ? `Receipt — ${printingOrder.order_number}` : 'Receipt'}
+                className="max-w-xs"
+                contentClassName="bg-muted/40 p-4"
+                footer={
+                    <>
+                        <Button variant="outline" className="flex-1" onClick={() => setPrintingOrder(null)}>Close</Button>
+                        <Button className="flex-1" onClick={() => receiptRef.current && printReceipt(receiptRef.current)}>
+                            <Printer className="h-4 w-4" /> Print
+                        </Button>
+                    </>
+                }
+            >
+                {printingOrder && <div ref={receiptRef}><ThermalReceipt order={printingOrder} /></div>}
+            </CrudModal>
         </AdminLayout>
     );
 }

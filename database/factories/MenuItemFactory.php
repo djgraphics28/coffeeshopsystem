@@ -3,10 +3,11 @@
 namespace Database\Factories;
 
 use App\Models\Category;
+use App\Models\MenuItem;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\MenuItem>
+ * @extends Factory<MenuItem>
  */
 class MenuItemFactory extends Factory
 {
@@ -19,6 +20,7 @@ class MenuItemFactory extends Factory
             'price' => $this->faker->randomFloat(2, 80, 350),
             'is_available' => true,
             'is_featured' => false,
+            'is_kitchen' => true,
             'sort_order' => $this->faker->numberBetween(1, 50),
         ];
     }

@@ -7,9 +7,9 @@ import toast from 'react-hot-toast';
 import DriverLayout, { DRIVER_PALETTE as P } from '@/layouts/driver-layout';
 
 const STATUS_LABELS: Record<string, { label: string; bg: string }> = {
-    pending: { label: 'Waiting for kitchen', bg: '#B5824F' },
-    preparing: { label: 'Being prepared', bg: '#C05B2D' },
-    ready: { label: 'Ready — deliver now!', bg: '#5B8A4E' },
+    pending: { label: 'Waiting for kitchen', bg: P.caramel },
+    preparing: { label: 'Being prepared', bg: P.navy },
+    ready: { label: 'Ready — deliver now!', bg: P.green },
 };
 
 interface OrderItem {

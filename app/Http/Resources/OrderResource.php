@@ -9,10 +9,17 @@ class OrderResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        // Every order screen needs the chosen size and add-on groups, so guarantee they are loaded.
+        if ($this->resource->relationLoaded('items')) {
+            $this->resource->items->loadMissing(['variation', 'addons.addon.addonGroup']);
+        }
+
         return [
             'id' => $this->id,
             'order_number' => $this->order_number,
             'status' => $this->status,
+            'kitchen_status' => $this->whenLoaded('items', fn () => $this->stationStatus('kitchen')),
+            'barista_status' => $this->whenLoaded('items', fn () => $this->stationStatus('barista')),
             'type' => $this->type,
             'subtotal' => $this->subtotal,
             'tax' => $this->tax,
@@ -67,11 +74,19 @@ class OrderResource extends JsonResource
                     'id' => $item->menuItem?->id,
                     'name' => $item->menuItem?->name,
                     'image_url' => $item->menuItem?->image_url,
+                    'is_kitchen' => (bool) ($item->menuItem?->is_kitchen ?? true),
                 ],
+                'variation' => $item->variation ? [
+                    'id' => $item->variation->id,
+                    'name' => $item->variation->name,
+                    'price' => $item->variation->price,
+                ] : null,
                 'quantity' => $item->quantity,
                 'unit_price' => $item->unit_price,
                 'subtotal' => $item->subtotal,
                 'notes' => $item->notes,
+                'is_done' => $item->prepared_at !== null,
+                'prepared_at' => $item->prepared_at,
                 'addons' => $item->relationLoaded('addons')
                     ? $item->addons->map(fn ($a) => [
                         'id' => $a->id,

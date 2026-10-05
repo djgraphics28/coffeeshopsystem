@@ -23,7 +23,7 @@ use App\Http\Controllers\Customer\StorefrontController;
 use App\Http\Controllers\Driver\DriverAuthController;
 use App\Http\Controllers\Driver\DriverController;
 use App\Http\Controllers\HomeController;
-use App\Http\Controllers\Kitchen\KitchenController;
+use App\Http\Controllers\Kitchen\StationController;
 use App\Http\Controllers\POS\PosController;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
@@ -78,11 +78,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/home', HomeController::class)->name('home');
     Route::redirect('/dashboard', '/home');
 
-    // Kitchen Display Screen
-    Route::middleware('role:kitchen,admin')->prefix('kitchen')->name('kitchen.')->group(function () {
-        Route::get('/', [KitchenController::class, 'index'])->name('index');
-        Route::patch('/orders/{order}/status', [KitchenController::class, 'updateStatus'])->name('orders.update-status');
-    });
+    // Preparation stations: the kitchen cooks `is_kitchen` items, the barista makes everything else.
+    foreach (['kitchen' => 'kitchen,admin', 'barista' => 'barista,admin'] as $station => $roles) {
+        Route::middleware("role:{$roles}")->prefix($station)->name("{$station}.")->group(function () use ($station) {
+            Route::get('/', [StationController::class, 'index'])->name('index')->defaults('station', $station);
+            Route::patch('/orders/{order}/status', [StationController::class, 'updateStatus'])->name('orders.update-status')->defaults('station', $station);
+            Route::patch('/order-items/{orderItem}', [StationController::class, 'toggleItem'])->name('order-items.toggle')->defaults('station', $station);
+            Route::post('/orders/{order}/check-all', [StationController::class, 'checkAll'])->name('orders.check-all')->defaults('station', $station);
+        });
+    }
 
     // Counter POS
     // Driver app — delivery riders manage their assigned orders
@@ -108,6 +112,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('account', [AccountController::class, 'index'])->name('account');
 
         Route::resource('categories', CategoryController::class)->except(['show', 'edit', 'create']);
+        Route::get('menu-items/import/template', [MenuItemController::class, 'importTemplate'])->name('menu-items.import.template');
+        Route::post('menu-items/import', [MenuItemController::class, 'import'])->name('menu-items.import');
         Route::post('menu-items/bulk-price-update', [MenuItemController::class, 'bulkUpdatePrices'])->name('menu-items.bulk-price-update');
         Route::resource('menu-items', MenuItemController::class)->except(['show', 'edit', 'create']);
         Route::patch('menu-items/{menuItem}/toggle-availability', [MenuItemController::class, 'toggleAvailability'])->name('menu-items.toggle-availability');
@@ -130,7 +136,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('orders/{order}/mark-paid', [AdminOrderController::class, 'markPaid'])->name('orders.mark-paid');
         Route::resource('delivery-men', DeliveryManController::class)->except(['show', 'edit', 'create'])->parameters(['delivery-men' => 'deliveryMan']);
         Route::put('delivery-men/{deliveryMan}/account', [DeliveryManController::class, 'saveAccount'])->name('delivery-men.account');
-        Route::resource('expense-categories', ExpenseCategoryController::class)->except(['show', 'edit', 'create']);
+        Route::resource('expense-categories', ExpenseCategoryController::class)->only(['store', 'update', 'destroy']);
         Route::resource('expenses', ExpenseController::class)->except(['show', 'edit', 'create']);
 
         Route::get('settings', [SettingsController::class, 'index'])->name('settings');

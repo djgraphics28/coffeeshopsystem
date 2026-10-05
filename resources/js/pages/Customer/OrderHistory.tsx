@@ -5,20 +5,20 @@ import CustomerNav from '@/components/CustomerNav';
 
 /* Retro-geometric palette shared with the storefront */
 const P = {
-    cream: '#E4DACB',
-    creamLight: '#EFE8DC',
-    navy: '#232B4A',
-    terracotta: '#C05B2D',
-    caramel: '#B5824F',
-    espresso: '#3B2A1D',
-    sand: '#D8CBB8',
+    cream: '#F9FAFB',
+    creamLight: '#FFFFFF',
+    navy: '#465FFF',
+    terracotta: '#7592FF',
+    caramel: '#F79009',
+    espresso: '#1D2939',
+    sand: '#DDE9FF',
 };
 
 const STATUS_STYLES: Record<string, { label: string; bg: string }> = {
-    pending: { label: 'Pending', bg: '#B5824F' },
-    preparing: { label: 'Preparing', bg: '#C05B2D' },
-    ready: { label: 'Ready', bg: '#5B8A4E' },
-    completed: { label: 'Completed', bg: '#232B4A' },
+    pending: { label: 'Pending', bg: '#F79009' },
+    preparing: { label: 'Preparing', bg: '#7592FF' },
+    ready: { label: 'Ready', bg: '#12B76A' },
+    completed: { label: 'Completed', bg: '#465FFF' },
     cancelled: { label: 'Cancelled', bg: '#9CA3AF' },
     voided: { label: 'Voided', bg: '#9CA3AF' },
 };

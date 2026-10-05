@@ -22,6 +22,7 @@ class RoleController extends Controller
         'Orders' => ['view orders', 'create orders', 'manage orders', 'void orders'],
         'POS' => ['access pos', 'process payments', 'apply discounts'],
         'Kitchen' => ['access kitchen', 'update order status'],
+        'Barista' => ['access barista'],
         'Customers' => ['view customers', 'manage customers', 'adjust loyalty'],
         'Promos' => ['view promos', 'manage promos'],
         'Tables' => ['view tables', 'manage tables'],
@@ -41,7 +42,7 @@ class RoleController extends Controller
                 'name' => $role->name,
                 'permissions' => $role->permissions->pluck('name')->values(),
                 'users_count' => $role->users_count,
-                'is_system' => in_array($role->name, ['admin', 'cashier', 'kitchen'], true),
+                'is_system' => in_array($role->name, ['admin', 'cashier', 'kitchen', 'barista'], true),
             ]);
 
         $permissions = Permission::orderBy('name')->get(['id', 'name']);
@@ -69,7 +70,7 @@ class RoleController extends Controller
 
     public function update(Request $request, Role $role): RedirectResponse
     {
-        $isSystem = in_array($role->name, ['admin', 'cashier', 'kitchen'], true);
+        $isSystem = in_array($role->name, ['admin', 'cashier', 'kitchen', 'barista'], true);
 
         $validated = $request->validate([
             'name' => $isSystem ? ['sometimes'] : ['required', 'string', 'max:50', 'unique:roles,name,'.$role->id],
@@ -90,7 +91,7 @@ class RoleController extends Controller
 
     public function destroy(Role $role): RedirectResponse
     {
-        if (in_array($role->name, ['admin', 'cashier', 'kitchen'], true)) {
+        if (in_array($role->name, ['admin', 'cashier', 'kitchen', 'barista'], true)) {
             return redirect()->back()->with('error', 'System roles cannot be deleted.');
         }
 

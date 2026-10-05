@@ -23,9 +23,13 @@ export const customerMyOrders = () => `/order/my/orders`;
 export const customerMyProfile = () => `/order/my/profile`;
 export const customerMyProfileUpdate = () => `/order/my/profile`;
 
-// ─── Kitchen ─────────────────────────────────────────────────────────────────
+// ─── Preparation stations (kitchen / barista) ────────────────────────────────
+export type Station = 'kitchen' | 'barista';
 export const kitchenIndex = () => `/kitchen`;
-export const kitchenOrdersUpdateStatus = (orderId: number) => `/kitchen/orders/${orderId}/status`;
+export const baristaIndex = () => `/barista`;
+export const stationOrderItemsToggle = (station: Station, orderItemId: number) => `/${station}/order-items/${orderItemId}`;
+export const stationOrdersCheckAll = (station: Station, orderId: number) => `/${station}/orders/${orderId}/check-all`;
+export const stationOrdersUpdateStatus = (station: Station, orderId: number) => `/${station}/orders/${orderId}/status`;
 
 // ─── POS ─────────────────────────────────────────────────────────────────────
 export const posIndex = () => `/pos`;
@@ -48,6 +52,8 @@ export const adminMenuItemsUpdate = (id: number) => `/admin/menu-items/${id}`;
 export const adminMenuItemsDestroy = (id: number) => `/admin/menu-items/${id}`;
 export const adminMenuItemsToggleAvailability = (id: number) => `/admin/menu-items/${id}/toggle-availability`;
 export const adminMenuItemsBulkPriceUpdate = () => `/admin/menu-items/bulk-price-update`;
+export const adminMenuItemsImport = () => `/admin/menu-items/import`;
+export const adminMenuItemsImportTemplate = () => `/admin/menu-items/import/template`;
 
 export const adminAddonGroupsIndex = () => `/admin/addon-groups`;
 export const adminAddonGroupsStore = () => `/admin/addon-groups`;
@@ -105,7 +111,6 @@ export const adminUsersStore = () => `/admin/users`;
 export const adminUsersUpdate = (id: number) => `/admin/users/${id}`;
 export const adminUsersDestroy = (id: number) => `/admin/users/${id}`;
 
-export const adminExpenseCategoriesIndex = () => `/admin/expense-categories`;
 export const adminExpenseCategoriesStore = () => `/admin/expense-categories`;
 export const adminExpenseCategoriesUpdate = (id: number) => `/admin/expense-categories/${id}`;
 export const adminExpenseCategoriesDestroy = (id: number) => `/admin/expense-categories/${id}`;

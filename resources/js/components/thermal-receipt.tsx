@@ -8,6 +8,7 @@ export interface ReceiptOrder {
     table?: { name: string } | null;
     items: Array<{
         menu_item: { name: string };
+        variation?: { name: string } | null;
         quantity: number;
         subtotal: number;
         addons?: Array<{ name: string }>;
@@ -22,7 +23,11 @@ export interface ReceiptOrder {
 
 export function printReceipt(el: HTMLElement) {
     const win = window.open('', '_blank', 'width=420,height=720');
-    if (!win) return;
+
+    if (!win) {
+return;
+}
+
     win.document.write(`<!DOCTYPE html><html><head>
         <meta charset="utf-8">
         <title>Receipt</title>
@@ -89,7 +94,7 @@ export function ThermalReceipt({ order, currency = '₱' }: { order: ReceiptOrde
                 <div key={i}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 26px 68px', fontSize: 11 }}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 128 }}>
-                            {item.menu_item.name}
+                            {item.menu_item.name}{item.variation ? ` (${item.variation.name})` : ''}
                         </span>
                         <span>{item.quantity}</span>
                         <span style={{ textAlign: 'right' }}>{currency}{Number(item.subtotal).toFixed(2)}</span>

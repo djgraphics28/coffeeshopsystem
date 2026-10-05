@@ -7,13 +7,13 @@ import CustomerNav from '@/components/CustomerNav';
 
 /* Retro-geometric palette shared with the storefront */
 const P = {
-    cream: '#E4DACB',
-    creamLight: '#EFE8DC',
-    navy: '#232B4A',
-    terracotta: '#C05B2D',
-    caramel: '#B5824F',
-    espresso: '#3B2A1D',
-    sand: '#D8CBB8',
+    cream: '#F9FAFB',
+    creamLight: '#FFFFFF',
+    navy: '#465FFF',
+    terracotta: '#7592FF',
+    caramel: '#F79009',
+    espresso: '#1D2939',
+    sand: '#DDE9FF',
 };
 
 interface Customer {

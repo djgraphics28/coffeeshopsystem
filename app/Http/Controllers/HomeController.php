@@ -23,6 +23,10 @@ class HomeController extends Controller
             return redirect()->route('kitchen.index');
         }
 
+        if ($user->hasRole('barista') || $user->can('access barista')) {
+            return redirect()->route('barista.index');
+        }
+
         if ($user->hasRole('driver')) {
             return redirect()->route('driver.index');
         }

@@ -14,6 +14,7 @@ class RolePermissionSeeder extends Seeder
         'access admin',
         'access pos',
         'access kitchen',
+        'access barista',
         'view dashboard',
         'view orders',
         'create orders',
@@ -65,6 +66,12 @@ class RolePermissionSeeder extends Seeder
         Role::firstOrCreate(['name' => 'driver', 'guard_name' => 'web']);
         $kitchen->syncPermissions([
             'access kitchen',
+            'view orders',
+        ]);
+
+        $barista = Role::firstOrCreate(['name' => 'barista', 'guard_name' => 'web']);
+        $barista->syncPermissions([
+            'access barista',
             'view orders',
         ]);
     }

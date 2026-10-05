@@ -3,16 +3,18 @@ import { LogOut, RefreshCw } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import { logout } from '@/lib/routes';
 
-/* Retro-geometric palette shared with the customer pages */
+/* TailAdmin-aligned palette shared with the customer pages.
+   navy = primary brand blue, terracotta = secondary accent blue,
+   caramel = warning/attention tone (cash-pending states), green = success. */
 export const DRIVER_PALETTE = {
-    cream: '#E4DACB',
-    creamLight: '#EFE8DC',
-    navy: '#232B4A',
-    terracotta: '#C05B2D',
-    caramel: '#B5824F',
-    espresso: '#3B2A1D',
-    sand: '#D8CBB8',
-    green: '#5B8A4E',
+    cream: '#F9FAFB',
+    creamLight: '#FFFFFF',
+    navy: '#465FFF',
+    terracotta: '#7592FF',
+    caramel: '#F79009',
+    espresso: '#1D2939',
+    sand: '#DDE9FF',
+    green: '#12B76A',
 };
 
 const P = DRIVER_PALETTE;

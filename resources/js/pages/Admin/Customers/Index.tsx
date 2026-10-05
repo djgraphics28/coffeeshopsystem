@@ -1,10 +1,16 @@
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { adminCustomersDestroy, adminCustomersShow, adminCustomersStore, adminCustomersUpdate, adminCustomersVerifyEmail } from '@/lib/routes';
-import { AnimatePresence, motion } from 'framer-motion';
-import { BadgeCheck, Coffee, Edit2, Gift, Plus, ShieldAlert, Star, Trash2, Users, X } from 'lucide-react';
+import { BadgeCheck, Coffee, Edit2, Gift, Plus, Star, Trash2, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import AdminLayout from '@/layouts/admin-layout';
+import { PageHeader } from '@/components/admin/page-header';
+import { CrudModal } from '@/components/admin/crud-modal';
+import { ConfirmDialog } from '@/components/admin/confirm-dialog';
+import { FormField, adminFieldClass } from '@/components/admin/form-field';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { TableCard, TableScroll, Table, TableHead, TableHeadCell, TableBody, TableRow, TableCell, TableEmpty } from '@/components/admin/data-table';
 
 interface Customer {
     id: number;
@@ -38,6 +44,8 @@ export default function CustomersIndex({ customers, stats }: Props) {
     const { flash } = usePage().props as { flash?: { success?: string } };
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<Customer | null>(null);
+    const [deleting, setDeleting] = useState<Customer | null>(null);
+    const [deleteLoading, setDeleteLoading] = useState(false);
 
     useEffect(() => { if (flash?.success) toast.success(flash.success); }, [flash]);
 
@@ -61,213 +69,199 @@ export default function CustomersIndex({ customers, stats }: Props) {
 
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
+    function confirmDelete() {
+        if (!deleting) return;
+        setDeleteLoading(true);
+        fetch(adminCustomersDestroy(deleting.id), { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrf() } })
+            .then(() => window.location.reload());
+    }
+
     function fmtDate(iso: string | null) {
         if (!iso) return '—';
         return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
     }
 
     const statCards = [
-        { label: 'Total Customers', value: stats.total, icon: Users, color: '#3B82F6', bg: '#EFF6FF' },
-        { label: 'Points Outstanding', value: stats.total_points_outstanding.toLocaleString(), icon: Star, color: '#D97706', bg: '#FEF3C7' },
-        { label: 'Loyalty Members', value: stats.loyalty_members, icon: Coffee, color: '#10B981', bg: '#D1FAE5' },
-        { label: 'Free Drinks Available', value: stats.free_drinks_available, icon: Gift, color: '#EF4444', bg: '#FEF2F2' },
+        { label: 'Total Customers', value: stats.total, icon: Users, tone: 'brand' as const },
+        { label: 'Points Outstanding', value: stats.total_points_outstanding.toLocaleString(), icon: Star, tone: 'warning' as const },
+        { label: 'Loyalty Members', value: stats.loyalty_members, icon: Coffee, tone: 'success' as const },
+        { label: 'Free Drinks Available', value: stats.free_drinks_available, icon: Gift, tone: 'error' as const },
     ];
+
+    const toneClasses: Record<string, string> = {
+        brand: 'bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300',
+        warning: 'bg-warning/10 text-warning',
+        success: 'bg-success/10 text-success',
+        error: 'bg-error/10 text-error',
+    };
 
     return (
         <AdminLayout>
             <Head title="Customers — Admin" />
             <Toaster position="top-right" />
-            <div className="p-6 space-y-6">
 
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>Customers</h1>
-                        <p className="mt-0.5 text-sm" style={{ color: 'var(--ap-muted)' }}>{stats.total} registered customers</p>
-                    </div>
-                    <button onClick={openCreate} className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold" style={{ background: '#2C1A0E', color: '#D4A843' }}>
+            <PageHeader
+                title="Customers"
+                breadcrumbs={[{ label: 'Customers' }]}
+                actions={
+                    <Button onClick={openCreate}>
                         <Plus className="h-4 w-4" /> Add Customer
-                    </button>
-                </div>
+                    </Button>
+                }
+            />
+            <p className="-mt-4 mb-6 text-sm text-muted-foreground">{stats.total} registered customers</p>
 
-                {/* Stats cards */}
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                    {statCards.map(({ label, value, icon: Icon, color, bg }) => (
-                        <div key={label} className="rounded-2xl bg-white p-4 shadow-sm" style={{ border: '1px solid var(--ap-border)' }}>
-                            <div className="flex items-center justify-between">
-                                <p className="text-xs font-medium" style={{ color: 'var(--ap-muted)' }}>{label}</p>
-                                <div className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ background: bg }}>
-                                    <Icon className="h-4 w-4" style={{ color }} />
-                                </div>
+            {/* Stats cards */}
+            <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                {statCards.map(({ label, value, icon: Icon, tone }) => (
+                    <div key={label} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                        <div className="flex items-center justify-between">
+                            <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                            <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${toneClasses[tone]}`}>
+                                <Icon className="h-4 w-4" />
                             </div>
-                            <p className="mt-2 text-2xl font-bold" style={{ color: 'var(--ap-input-text)' }}>{value}</p>
                         </div>
-                    ))}
-                </div>
+                        <p className="mt-2 text-2xl font-bold text-foreground">{value}</p>
+                    </div>
+                ))}
+            </div>
 
-                {/* Table */}
-                <div className="overflow-hidden rounded-2xl bg-white shadow-sm" style={{ border: '1px solid var(--ap-border)' }}>
-                    <table className="w-full text-sm">
-                        <thead style={{ background: 'var(--ap-bg)', borderBottom: '1px solid var(--ap-border)' }}>
+            {/* Table */}
+            <TableCard>
+                <TableScroll>
+                    <Table>
+                        <TableHead>
                             <tr>
                                 {['Customer', 'Contact', 'Orders', 'Total Spent', 'Points', 'Cups', 'Free Drinks', 'Last Order', ''].map((h) => (
-                                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold" style={{ color: 'var(--ap-muted)' }}>{h}</th>
+                                    <TableHeadCell key={h}>{h}</TableHeadCell>
                                 ))}
                             </tr>
-                        </thead>
-                        <tbody>
-                            {customers.length === 0 && (
-                                <tr><td colSpan={9} className="px-4 py-16 text-center text-sm" style={{ color: 'var(--ap-muted)' }}>No customers yet.</td></tr>
-                            )}
+                        </TableHead>
+                        <TableBody>
+                            {customers.length === 0 && <TableEmpty colSpan={9}>No customers yet.</TableEmpty>}
                             {customers.map((customer) => (
-                                <tr
+                                <TableRow
                                     key={customer.id}
-                                    className="group border-t transition-colors hover:bg-amber-50/40 cursor-pointer"
-                                    style={{ borderColor: 'var(--ap-border)' }}
+                                    className="cursor-pointer"
                                     onClick={() => window.location.href = adminCustomersShow(customer.id)}
                                 >
                                     {/* Customer */}
-                                    <td className="px-4 py-3">
+                                    <TableCell>
                                         <div className="flex items-center gap-2.5">
-                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: '#2C1A0E' }}>
+                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                                                 {customer.name.charAt(0).toUpperCase()}
                                             </div>
                                             <div>
-                                                <p className="font-semibold text-xs" style={{ color: 'var(--ap-input-text)' }}>{customer.name}</p>
-                                                {customer.notes && <p className="text-[10px] truncate max-w-[120px]" style={{ color: 'var(--ap-muted)' }}>{customer.notes}</p>}
+                                                <p className="text-xs font-semibold text-foreground">{customer.name}</p>
+                                                {customer.notes && <p className="max-w-[120px] truncate text-[10px] text-muted-foreground">{customer.notes}</p>}
                                             </div>
                                         </div>
-                                    </td>
+                                    </TableCell>
                                     {/* Contact */}
-                                    <td className="px-4 py-3">
+                                    <TableCell>
                                         <div className="flex items-center gap-1.5">
-                                            <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>{customer.email ?? '—'}</p>
+                                            <p className="text-xs text-muted-foreground">{customer.email ?? '—'}</p>
                                             {customer.email && customer.email_verified_at && (
-                                                <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-green-500" title="Email verified" />
+                                                <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-success" />
                                             )}
                                         </div>
-                                        <p className="text-xs" style={{ color: 'var(--ap-muted)' }}>{customer.phone ?? ''}</p>
-                                    </td>
+                                        <p className="text-xs text-muted-foreground">{customer.phone ?? ''}</p>
+                                    </TableCell>
                                     {/* Orders */}
-                                    <td className="px-4 py-3">
-                                        <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ background: '#FEF3C7', color: '#92400E' }}>
-                                            {customer.orders_count}
-                                        </span>
-                                    </td>
+                                    <TableCell><Badge variant="warning">{customer.orders_count}</Badge></TableCell>
                                     {/* Total spent */}
-                                    <td className="px-4 py-3 text-xs font-semibold" style={{ color: 'var(--ap-input-text)' }}>
+                                    <TableCell className="text-xs font-semibold">
                                         {customer.orders_sum_total != null ? `₱${Number(customer.orders_sum_total).toFixed(2)}` : '—'}
-                                    </td>
+                                    </TableCell>
                                     {/* Points */}
-                                    <td className="px-4 py-3">
-                                        <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: '#D97706' }}>
+                                    <TableCell>
+                                        <span className="flex items-center gap-1 text-xs font-semibold text-warning">
                                             <Star className="h-3 w-3" />
                                             {customer.points.toLocaleString()}
                                         </span>
-                                    </td>
+                                    </TableCell>
                                     {/* Cups */}
-                                    <td className="px-4 py-3 text-xs" style={{ color: 'var(--ap-muted)' }}>
+                                    <TableCell className="text-xs text-muted-foreground">
                                         {customer.cup_count > 0
-                                            ? <span className="font-medium" style={{ color: '#2C1A0E' }}>☕ {customer.cup_count}</span>
+                                            ? <span className="font-medium text-foreground">☕ {customer.cup_count}</span>
                                             : '—'
                                         }
-                                    </td>
+                                    </TableCell>
                                     {/* Free drinks */}
-                                    <td className="px-4 py-3">
+                                    <TableCell>
                                         {customer.free_drinks_available > 0
-                                            ? <span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: '#D1FAE5', color: '#065F46' }}>🎁 {customer.free_drinks_available}</span>
-                                            : <span className="text-xs text-gray-300">—</span>
+                                            ? <Badge variant="success">🎁 {customer.free_drinks_available}</Badge>
+                                            : <span className="text-xs text-muted-foreground">—</span>
                                         }
-                                    </td>
+                                    </TableCell>
                                     {/* Last order */}
-                                    <td className="px-4 py-3 text-xs" style={{ color: 'var(--ap-muted)' }}>
+                                    <TableCell className="text-xs text-muted-foreground">
                                         {fmtDate(customer.last_order_at)}
-                                    </td>
+                                    </TableCell>
                                     {/* Actions */}
-                                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                    <TableCell onClick={(e) => e.stopPropagation()}>
                                         <div className="flex items-center gap-1">
                                             {customer.email && !customer.email_verified_at && (
                                                 <button
                                                     onClick={() => { if (confirm(`Manually verify ${customer.name}'s email?`)) router.post(adminCustomersVerifyEmail(customer.id)); }}
-                                                    title="Verify email"
-                                                    className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors hover:bg-amber-50"
-                                                    style={{ color: '#D97706', border: '1px solid #FDE68A' }}
+                                                    className="flex items-center gap-1 rounded-lg border border-warning/30 px-2 py-1.5 text-xs font-semibold text-warning transition-colors hover:bg-warning/10"
                                                 >
                                                     <BadgeCheck className="h-3.5 w-3.5" />
                                                     Verify Email
                                                 </button>
                                             )}
-                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={(e) => openEdit(e, customer)} className="rounded-lg p-1.5 hover:bg-gray-100">
-                                                    <Edit2 className="h-3.5 w-3.5" style={{ color: 'var(--ap-muted)' }} />
+                                            <div className="flex gap-1">
+                                                <button onClick={(e) => openEdit(e, customer)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary">
+                                                    <Edit2 className="h-3.5 w-3.5" />
                                                 </button>
-                                                <button
-                                                    onClick={() => {
-                                                        if (confirm(`Delete ${customer.name}?`)) {
-                                                            fetch(adminCustomersDestroy(customer.id), { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrf() } })
-                                                                .then(() => window.location.reload());
-                                                        }
-                                                    }}
-                                                    className="rounded-lg p-1.5 hover:bg-red-50"
-                                                >
-                                                    <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                                                <button onClick={() => setDeleting(customer)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-error/10 hover:text-error">
+                                                    <Trash2 className="h-3.5 w-3.5" />
                                                 </button>
                                             </div>
                                         </div>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                        </TableBody>
+                    </Table>
+                </TableScroll>
+            </TableCard>
 
             {/* Create / Edit modal */}
-            <AnimatePresence>
-                {modalOpen && (
-                    <>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/40" style={{ zIndex: 50 }} onClick={() => setModalOpen(false)} />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="fixed left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-xl"
-                            style={{ zIndex: 60 }}
-                        >
-                            <div className="mb-4 flex items-center justify-between">
-                                <h2 className="text-lg font-bold" style={{ color: 'var(--ap-input-text)', fontFamily: "'Playfair Display', serif" }}>
-                                    {editing ? 'Edit Customer' : 'New Customer'}
-                                </h2>
-                                <button onClick={() => setModalOpen(false)}><X className="h-5 w-5" style={{ color: 'var(--ap-muted)' }} /></button>
-                            </div>
-                            <form onSubmit={submit} className="space-y-4">
-                                <div>
-                                    <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Full Name *</label>
-                                    <input value={data.name} onChange={(e) => setData('name', e.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none" />
-                                    {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Phone</label>
-                                    <input value={data.phone} onChange={(e) => setData('phone', e.target.value)} placeholder="e.g. 09171234567" className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none" />
-                                    {errors.phone && <p className="mt-1 text-xs text-red-500">{errors.phone}</p>}
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Email</label>
-                                    <input type="email" value={data.email} onChange={(e) => setData('email', e.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none" />
-                                    {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium" style={{ color: 'var(--ap-input-text)' }}>Notes</label>
-                                    <textarea value={data.notes} onChange={(e) => setData('notes', e.target.value)} rows={2} placeholder="Allergies, preferences..." className="mt-1 w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none" />
-                                </div>
-                                <button type="submit" disabled={processing} className="w-full rounded-full py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: '#D4A843', color: '#2C1A0E' }}>
-                                    {processing ? 'Saving...' : editing ? 'Save Changes' : 'Create Customer'}
-                                </button>
-                            </form>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+            <CrudModal
+                open={modalOpen}
+                onOpenChange={setModalOpen}
+                title={editing ? 'Edit Customer' : 'New Customer'}
+                footer={
+                    <Button type="submit" form="customer-form" disabled={processing} className="w-full sm:w-auto">
+                        {processing ? 'Saving...' : editing ? 'Save Changes' : 'Create Customer'}
+                    </Button>
+                }
+            >
+                <form id="customer-form" onSubmit={submit} className="space-y-4">
+                    <FormField label="Full Name" required error={errors.name}>
+                        <input value={data.name} onChange={(e) => setData('name', e.target.value)} className={adminFieldClass(!!errors.name)} />
+                    </FormField>
+                    <FormField label="Phone" error={errors.phone}>
+                        <input value={data.phone} onChange={(e) => setData('phone', e.target.value)} placeholder="e.g. 09171234567" className={adminFieldClass(!!errors.phone)} />
+                    </FormField>
+                    <FormField label="Email" error={errors.email}>
+                        <input type="email" value={data.email} onChange={(e) => setData('email', e.target.value)} className={adminFieldClass(!!errors.email)} />
+                    </FormField>
+                    <FormField label="Notes">
+                        <textarea value={data.notes} onChange={(e) => setData('notes', e.target.value)} rows={2} placeholder="Allergies, preferences..." className={adminFieldClass() + ' resize-none'} />
+                    </FormField>
+                </form>
+            </CrudModal>
+
+            <ConfirmDialog
+                open={!!deleting}
+                onOpenChange={(open) => !open && setDeleting(null)}
+                onConfirm={confirmDelete}
+                loading={deleteLoading}
+                title={deleting ? `Delete ${deleting.name}?` : 'Delete customer?'}
+                confirmLabel="Delete"
+            />
         </AdminLayout>
     );
 }

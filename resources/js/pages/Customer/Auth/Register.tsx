@@ -16,13 +16,13 @@ declare global {
 
 /* Retro-geometric palette shared with the storefront */
 const P = {
-    cream: '#E4DACB',
-    creamLight: '#EFE8DC',
-    navy: '#232B4A',
-    terracotta: '#C05B2D',
-    caramel: '#B5824F',
-    espresso: '#3B2A1D',
-    sand: '#D8CBB8',
+    cream: '#F9FAFB',
+    creamLight: '#FFFFFF',
+    navy: '#465FFF',
+    terracotta: '#7592FF',
+    caramel: '#F79009',
+    espresso: '#1D2939',
+    sand: '#DDE9FF',
 };
 
 export default function CustomerRegister({ qrToken, recaptchaSiteKey }: Props) {
@@ -182,8 +182,8 @@ function CafeLogo() {
     return (
         <div className="flex items-center gap-2">
             <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <path d="M14 2C14 2 8 8 8 14C8 17.314 10.686 20 14 20C17.314 20 20 17.314 20 14C20 8 14 2 14 2Z" fill="#C05B2D" />
-                <path d="M14 20V26M11 26H17" stroke="#C05B2D" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M14 2C14 2 8 8 8 14C8 17.314 10.686 20 14 20C17.314 20 20 17.314 20 14C20 8 14 2 14 2Z" fill="#7592FF" />
+                <path d="M14 20V26M11 26H17" stroke="#7592FF" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
             <span className="text-xl font-black uppercase tracking-tight text-white">
                 Milk&Honey

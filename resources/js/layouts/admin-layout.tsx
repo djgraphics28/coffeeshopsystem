@@ -1,47 +1,54 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     BarChart2, Bell, Bike, ChefHat, Coffee, Home, LogOut,
-    Menu, Moon, Receipt, Search, Settings, Shield, ShoppingBag,
-    Sun, Table2, Tag, UserCircle, Users, X,
+    Menu, Moon, Receipt, Search, Settings, Shield, ShoppingBag, Store,
+    Sun, Table2, Tag, UserCircle, Users,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useAppearance } from '@/hooks/use-appearance';
 import { adminAccount, adminAddonGroupsIndex, adminCategoriesIndex, adminCustomersIndex, adminDashboard,
-    adminExpenseCategoriesIndex, adminExpensesIndex,
+    adminExpensesIndex,
     adminMenuItemsIndex, adminOrdersIndex, adminPromosIndex, adminRolesIndex, adminSettings,
-    adminDeliveryMenIndex, adminTablesIndex, adminUsersIndex, kitchenIndex, logout, posIndex,
+    adminDeliveryMenIndex, adminTablesIndex, adminUsersIndex, baristaIndex, kitchenIndex, logout, posIndex,
 } from '@/lib/routes';
 
 const NAV_GROUPS = [
     {
         label: 'MAIN MENU',
         items: [
-            { href: adminDashboard(),       label: 'Dashboard',   icon: Home,      color: '#D4A843' },
-            { href: adminOrdersIndex(),     label: 'Orders',      icon: ShoppingBag, color: '#3B82F6' },
-            { href: adminCategoriesIndex(), label: 'Categories',  icon: Coffee,    color: '#8A9E7B' },
-            { href: adminMenuItemsIndex(),  label: 'Menu Items',  icon: ChefHat,   color: '#F59E0B' },
-            { href: adminAddonGroupsIndex(),label: 'Add-ons',     icon: BarChart2, color: '#A78BFA' },
-            { href: adminTablesIndex(),     label: 'Tables & QR', icon: Table2,    color: '#10B981' },
-            { href: adminDeliveryMenIndex(), label: 'Delivery Men', icon: Bike,     color: '#06B6D4' },
-            { href: adminCustomersIndex(), label: 'Customers',   icon: UserCircle, color: '#F97316' },
-            { href: adminPromosIndex(),          label: 'Promos',       icon: Tag,        color: '#EF4444' },
-            { href: adminExpensesIndex(),        label: 'Expenses',     icon: Receipt,    color: '#F43F5E' },
-            { href: adminExpenseCategoriesIndex(), label: 'Exp. Categories', icon: BarChart2, color: '#8B5CF6' },
+            { href: adminDashboard(),       label: 'Dashboard',   icon: Home },
+            { href: adminOrdersIndex(),     label: 'Orders',      icon: ShoppingBag },
+            { href: adminCategoriesIndex(), label: 'Categories',  icon: Coffee },
+            { href: adminMenuItemsIndex(),  label: 'Menu Items',  icon: ChefHat },
+            { href: adminAddonGroupsIndex(),label: 'Add-ons',     icon: BarChart2 },
+            { href: adminTablesIndex(),     label: 'Tables & QR', icon: Table2 },
+            { href: adminDeliveryMenIndex(), label: 'Delivery Men', icon: Bike },
+            { href: adminCustomersIndex(), label: 'Customers',   icon: UserCircle },
+            { href: adminPromosIndex(),          label: 'Promos',       icon: Tag },
+            { href: adminExpensesIndex(),        label: 'Expenses',     icon: Receipt },
         ],
     },
     {
         label: 'SETTINGS',
         items: [
-            { href: adminUsersIndex(), label: 'Users',    icon: Users,    color: '#EC4899' },
-            { href: adminRolesIndex(), label: 'Roles',    icon: Shield,   color: '#6366F1' },
-            { href: adminSettings(),   label: 'Settings', icon: Settings, color: '#6B7280' },
+            { href: adminUsersIndex(), label: 'Users',    icon: Users },
+            { href: adminRolesIndex(), label: 'Roles',    icon: Shield },
+            { href: adminSettings(),   label: 'Settings', icon: Settings },
         ],
     },
+];
+
+/** Icon shortcuts shown in the top bar for jumping straight to the working screens. */
+const TOP_SHORTCUTS = [
+    { href: posIndex(), label: 'POS Terminal', icon: Store },
+    { href: kitchenIndex(), label: 'Kitchen', icon: ChefHat },
+    { href: baristaIndex(), label: 'Barista', icon: Coffee },
 ];
 
 const QUICK_LINKS = [
     { href: posIndex(),     label: 'POS Terminal', icon: ShoppingBag },
     { href: kitchenIndex(), label: 'Kitchen',       icon: ChefHat },
+    { href: baristaIndex(), label: 'Barista',       icon: Coffee },
 ];
 
 type Auth = { user: { name: string; email: string } };
@@ -54,7 +61,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const { resolvedAppearance, updateAppearance } = useAppearance();
     const [mounted, setMounted] = useState(false);
     const sidebarRef = useRef<HTMLDivElement>(null);
+    // Appearance is only known client-side; avoids a hydration mismatch on the theme icon.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => setMounted(true), []);
+
+    // The mobile drawer is always shown expanded; the collapsed rail only applies to desktop.
+    const expanded = sidebarOpen || mobileSidebarOpen;
 
     const isDark = mounted && resolvedAppearance === 'dark';
 
@@ -74,23 +86,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {/* ── Sidebar ──────────────────────────────────────── */}
             <aside
                 ref={sidebarRef}
-                className={`fixed left-0 top-0 z-30 flex h-full flex-col transition-all duration-300 ease-in-out
-                    ${sidebarOpen ? 'w-64' : 'w-[70px]'}
+                className={`fixed left-0 top-0 z-30 flex h-full flex-col border-r transition-all duration-300 ease-in-out
+                    ${expanded ? 'w-64' : 'w-[70px]'}
                     ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
                 `}
-                style={{ background: '#1C1008' }}
+                style={{ background: 'var(--ap-sidebar-bg)', borderColor: 'var(--ap-sidebar-border)' }}
             >
                 {/* Logo */}
-                <div className="flex h-16 items-center gap-3 border-b border-white/10 px-4">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: '#D4A843' }}>
-                        <span className="text-base font-bold text-white">☕</span>
+                <div className="flex h-16 items-center gap-3 border-b px-4" style={{ borderColor: 'var(--ap-sidebar-border)' }}>
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary">
+                        <span className="text-base font-bold text-primary-foreground">☕</span>
                     </div>
-                    {sidebarOpen && (
+                    {expanded && (
                         <div className="overflow-hidden">
-                            <p className="truncate text-sm font-bold text-white" style={{ fontFamily: "'Playfair Display', serif" }}>
+                            <p className="truncate text-sm font-bold" style={{ fontFamily: "'Playfair Display', serif", color: 'var(--ap-input-text)' }}>
                                 Milk&Honey
                             </p>
-                            <p className="text-[10px] text-amber-400/70">Admin Panel</p>
+                            <p className="text-[10px] font-medium text-primary">Admin Panel</p>
                         </div>
                     )}
                 </div>
@@ -99,37 +111,43 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <nav className="flex-1 overflow-y-auto py-4">
                     {NAV_GROUPS.map((group) => (
                         <div key={group.label} className="mb-4">
-                            {sidebarOpen && (
-                                <p className="mb-2 px-4 text-[10px] font-semibold tracking-widest text-gray-500">
+                            {expanded && (
+                                <p className="mb-2 px-4 text-[10px] font-semibold tracking-widest" style={{ color: 'var(--ap-sidebar-heading)' }}>
                                     {group.label}
                                 </p>
                             )}
                             <ul className="space-y-0.5 px-2">
-                                {group.items.map(({ href, label, icon: Icon, color }) => {
+                                {group.items.map(({ href, label, icon: Icon }) => {
                                     const isActive = url === href || (href !== adminDashboard() && url.startsWith(href));
+
                                     return (
                                         <li key={href}>
                                             <Link
                                                 href={href}
-                                                className={`group flex items-center gap-3 rounded-xl px-2.5 py-2.5 text-sm font-medium transition-all duration-150
-                                                    ${isActive
-                                                        ? 'text-white'
-                                                        : 'text-gray-400 hover:text-white'
-                                                    }`}
-                                                style={isActive
-                                                    ? { background: 'rgba(212,168,67,0.12)', borderLeft: '3px solid #D4A843', paddingLeft: '9px' }
-                                                    : {}}
+                                                onClick={() => setMobileSidebarOpen(false)}
+                                                className="group flex items-center gap-3 rounded-xl px-2.5 py-2.5 text-sm font-medium transition-all duration-150"
+                                                style={{ color: isActive ? 'var(--ap-sidebar-text-active)' : 'var(--ap-sidebar-text)' }}
+                                                onMouseEnter={(e) => {
+ if (!isActive) {
+e.currentTarget.style.color = 'var(--ap-sidebar-text-active)';
+} 
+}}
+                                                onMouseLeave={(e) => {
+ if (!isActive) {
+e.currentTarget.style.color = 'var(--ap-sidebar-text)';
+} 
+}}
                                             >
                                                 <span
                                                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all"
                                                     style={{
-                                                        background: isActive ? `${color}22` : 'rgba(255,255,255,0.05)',
-                                                        color: isActive ? color : '#9CA3AF',
+                                                        background: isActive ? 'var(--ap-primary)' : 'transparent',
+                                                        color: isActive ? 'var(--ap-primary-fg)' : 'inherit',
                                                     }}
                                                 >
                                                     <Icon className="h-4 w-4" />
                                                 </span>
-                                                {sidebarOpen && <span className="truncate">{label}</span>}
+                                                {expanded && <span className="truncate">{label}</span>}
                                             </Link>
                                         </li>
                                     );
@@ -139,9 +157,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     ))}
 
                     {/* Quick access */}
-                    {sidebarOpen && (
+                    {expanded && (
                         <div className="mb-2 px-4">
-                            <p className="mb-2 text-[10px] font-semibold tracking-widest text-gray-500">QUICK ACCESS</p>
+                            <p className="mb-2 text-[10px] font-semibold tracking-widest" style={{ color: 'var(--ap-sidebar-heading)' }}>QUICK ACCESS</p>
                         </div>
                     )}
                     <ul className="space-y-0.5 px-2">
@@ -149,12 +167,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             <li key={href}>
                                 <Link
                                     href={href}
-                                    className="flex items-center gap-3 rounded-xl px-2.5 py-2 text-xs font-medium text-gray-500 hover:text-gray-300"
+                                    onClick={() => setMobileSidebarOpen(false)}
+                                    className="flex items-center gap-3 rounded-xl px-2.5 py-2 text-xs font-medium transition-colors"
+                                    style={{ color: 'var(--ap-sidebar-text)' }}
+                                    onMouseEnter={(e) => {
+ e.currentTarget.style.color = 'var(--ap-sidebar-text-active)'; 
+}}
+                                    onMouseLeave={(e) => {
+ e.currentTarget.style.color = 'var(--ap-sidebar-text)'; 
+}}
                                 >
-                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: 'var(--ap-bg)' }}>
                                         <Icon className="h-3.5 w-3.5" />
                                     </span>
-                                    {sidebarOpen && <span>{label}</span>}
+                                    {expanded && <span>{label}</span>}
                                 </Link>
                             </li>
                         ))}
@@ -162,26 +188,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </nav>
 
                 {/* User + Logout */}
-                <div className="border-t border-white/10 p-3">
-                    {sidebarOpen ? (
+                <div className="border-t p-3" style={{ borderColor: 'var(--ap-sidebar-border)' }}>
+                    {expanded ? (
                         <div className="flex items-center gap-2">
-                            <Link href={adminAccount()} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white transition-opacity hover:opacity-80" style={{ background: '#D4A843' }} title="Account settings">
+                            <Link href={adminAccount()} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground transition-opacity hover:opacity-80" title="Account settings">
                                 {auth?.user?.name?.charAt(0).toUpperCase() ?? 'A'}
                             </Link>
                             <div className="min-w-0 flex-1">
-                                <Link href={adminAccount()} className="truncate text-xs font-semibold text-white hover:text-amber-300 block transition-colors">{auth?.user?.name ?? 'Admin'}</Link>
-                                <p className="truncate text-[10px] text-gray-500">{auth?.user?.email ?? ''}</p>
+                                <Link href={adminAccount()} className="block truncate text-xs font-semibold transition-colors hover:text-primary" style={{ color: 'var(--ap-input-text)' }}>{auth?.user?.name ?? 'Admin'}</Link>
+                                <p className="truncate text-[10px]" style={{ color: 'var(--ap-sidebar-heading)' }}>{auth?.user?.email ?? ''}</p>
                             </div>
-                            <Link href={logout()} method="post" as="button" className="rounded-lg p-1.5 text-gray-500 hover:text-red-400" title="Logout">
+                            <Link href={logout()} method="post" as="button" className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:text-error" title="Logout">
                                 <LogOut className="h-4 w-4" />
                             </Link>
                         </div>
                     ) : (
                         <div className="flex flex-col items-center gap-2">
-                            <Link href={adminAccount()} className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white transition-opacity hover:opacity-80" style={{ background: '#D4A843' }} title="Account settings">
+                            <Link href={adminAccount()} className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground transition-opacity hover:opacity-80" title="Account settings">
                                 {auth?.user?.name?.charAt(0).toUpperCase() ?? 'A'}
                             </Link>
-                            <Link href={logout()} method="post" as="button" className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:text-red-400" title="Logout">
+                            <Link href={logout()} method="post" as="button" className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-error" title="Logout">
                                 <LogOut className="h-4 w-4" />
                             </Link>
                         </div>
@@ -191,38 +217,56 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             {/* ── Main area ────────────────────────────────────── */}
             <div
-                className="flex min-w-0 flex-1 flex-col transition-all duration-300"
-                style={{ marginLeft: sidebarOpen ? '256px' : '70px' }}
+                className={`flex min-w-0 flex-1 flex-col transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-[70px]'}`}
             >
                 {/* Topbar */}
                 <header
-                    className="sticky top-0 z-10 flex h-16 items-center gap-3 px-4 lg:px-6"
+                    className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b px-4 lg:px-6"
                     style={{
                         background: 'var(--ap-card)',
-                        borderBottom: '1px solid var(--ap-border)',
+                        borderColor: 'var(--ap-border)',
                     }}
                 >
                     {/* Sidebar toggle */}
                     <button
                         onClick={() => setSidebarOpen(!sidebarOpen)}
-                        className="hidden lg:flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-black/5"
-                        style={{ color: 'var(--ap-muted)' }}
+                        className="hidden h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted lg:flex"
                     >
                         <Menu className="h-5 w-5" />
                     </button>
                     <button
                         onClick={() => setMobileSidebarOpen(true)}
-                        className="flex lg:hidden h-9 w-9 items-center justify-center rounded-xl"
-                        style={{ color: 'var(--ap-muted)' }}
+                        aria-label="Open menu"
+                        className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground lg:hidden"
                     >
                         <Menu className="h-5 w-5" />
                     </button>
 
                     {/* Search */}
-                    <div className="flex flex-1 items-center gap-2 rounded-xl px-3 py-2 text-sm" style={{ background: 'var(--ap-bg)', border: '1px solid var(--ap-border)' }}>
-                        <Search className="h-4 w-4 shrink-0" style={{ color: 'var(--ap-muted)' }} />
-                        <span style={{ color: 'var(--ap-muted)' }} className="text-sm">Search or type command...</span>
+                    <div className="hidden min-w-0 flex-1 items-center gap-2 rounded-xl border px-3 py-2 text-sm sm:flex" style={{ background: 'var(--ap-bg)', borderColor: 'var(--ap-border)' }}>
+                        <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate text-sm text-muted-foreground">Search or type command...</span>
                     </div>
+
+                    {/* Quick navigation to POS / Kitchen / Barista */}
+                    <nav aria-label="Quick navigation" className="ml-auto flex shrink-0 items-center gap-1 rounded-xl border p-1 sm:ml-0" style={{ background: 'var(--ap-bg)', borderColor: 'var(--ap-border)' }}>
+                        {TOP_SHORTCUTS.map(({ href, label, icon: Icon }) => {
+                            const active = url === href || url.startsWith(`${href}/`);
+
+                            return (
+                                <Link
+                                    key={href}
+                                    href={href}
+                                    title={label}
+                                    aria-label={label}
+                                    className={`group relative flex h-9 items-center gap-2 rounded-lg px-2.5 text-sm font-medium transition-colors ${active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                                >
+                                    <Icon className="h-[18px] w-[18px]" />
+                                    <span className="hidden xl:inline">{label}</span>
+                                </Link>
+                            );
+                        })}
+                    </nav>
 
                     {/* Right actions */}
                     <div className="flex items-center gap-1">
@@ -230,24 +274,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         {mounted && (
                             <button
                                 onClick={() => updateAppearance(isDark ? 'light' : 'dark')}
-                                className="flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-black/5"
+                                className="flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-muted"
                                 title="Toggle dark mode"
                             >
                                 {isDark
-                                    ? <Sun className="h-5 w-5" style={{ color: '#D4A843' }} />
-                                    : <Moon className="h-5 w-5" style={{ color: 'var(--ap-muted)' }} />
+                                    ? <Sun className="h-5 w-5 text-primary" />
+                                    : <Moon className="h-5 w-5 text-muted-foreground" />
                                 }
                             </button>
                         )}
 
                         {/* Notifications */}
-                        <button className="relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-black/5">
-                            <Bell className="h-5 w-5" style={{ color: 'var(--ap-muted)' }} />
-                            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+                        <button className="relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-muted">
+                            <Bell className="h-5 w-5 text-muted-foreground" />
+                            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-error ring-2" style={{ boxShadow: '0 0 0 2px var(--ap-card)' }} />
                         </button>
 
                         {/* User avatar */}
-                        <div className="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white" style={{ background: '#D4A843' }}>
+                        <div className="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
                             {auth?.user?.name?.charAt(0).toUpperCase() ?? 'A'}
                         </div>
                         {mounted && (

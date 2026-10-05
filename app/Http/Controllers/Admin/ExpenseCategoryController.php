@@ -7,24 +7,9 @@ use App\Models\ExpenseCategory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class ExpenseCategoryController extends Controller
 {
-    public function index(): Response
-    {
-        Gate::authorize('manage expense categories');
-
-        $categories = ExpenseCategory::withCount('expenses')
-            ->orderBy('name')
-            ->get();
-
-        return Inertia::render('Admin/ExpenseCategories/Index', [
-            'categories' => $categories,
-        ]);
-    }
-
     public function store(Request $request): RedirectResponse
     {
         Gate::authorize('manage expense categories');

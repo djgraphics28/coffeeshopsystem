@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Collection;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
@@ -33,12 +34,24 @@ class Order extends Model implements HasMedia
         'voided',
     ];
 
+    /**
+     * Preparation stations. Items flagged `is_kitchen` are cooked in the kitchen; every other item is made by the barista.
+     *
+     * @var list<string>
+     */
+    public const STATIONS = ['kitchen', 'barista'];
+
+    /** @var list<string> */
+    public const STATION_STATUSES = ['pending', 'preparing', 'ready', 'completed'];
+
     protected $fillable = [
         'table_id',
         'customer_id',
         'promo_id',
         'order_number',
         'status',
+        'kitchen_status',
+        'barista_status',
         'type',
         'subtotal',
         'tax',
@@ -127,6 +140,95 @@ class Order extends Model implements HasMedia
     public function isPaid(): bool
     {
         return $this->payment()->exists();
+    }
+
+    /**
+     * Orders containing at least one item that is prepared in the kitchen.
+     */
+    public function scopeHasKitchenItems($query): void
+    {
+        $query->whereHas('items.menuItem', fn ($menuItem) => $menuItem->where('is_kitchen', true));
+    }
+
+    /**
+     * The order's items that belong to the given station ('kitchen' or 'barista').
+     *
+     * @return Collection<int, OrderItem>
+     */
+    public function stationItems(string $station): Collection
+    {
+        $this->loadMissing('items.menuItem');
+
+        return $this->items->filter(
+            fn (OrderItem $item) => (bool) ($item->menuItem?->is_kitchen ?? true) === ($station === 'kitchen'),
+        )->values();
+    }
+
+    /**
+     * Progress of a station on this order, or null when the order has nothing for that station.
+     */
+    public function stationStatus(string $station): ?string
+    {
+        if ($this->stationItems($station)->isEmpty()) {
+            return null;
+        }
+
+        if (in_array($this->status, self::TERMINAL_STATUSES, true)) {
+            return 'completed';
+        }
+
+        return $this->getAttribute($station.'_status') ?? $this->status;
+    }
+
+    /**
+     * Records a station's progress and re-derives the order's overall status from all stations.
+     */
+    public function setStationStatus(string $station, string $status): void
+    {
+        // Pin every other station's current progress first, otherwise it would later follow the combined status.
+        $attributes = [];
+
+        foreach (self::STATIONS as $other) {
+            if ($this->getAttribute($other.'_status') === null && $this->stationItems($other)->isNotEmpty()) {
+                $attributes[$other.'_status'] = $this->stationStatus($other);
+            }
+        }
+
+        $this->update([...$attributes, $station.'_status' => $status]);
+        $this->syncOverallStatus();
+    }
+
+    /**
+     * Manual overrides (admin / POS) set the overall status directly, so station progress is reset to follow it.
+     */
+    public function setStatusManually(string $status): void
+    {
+        $this->update(['status' => $status, 'kitchen_status' => null, 'barista_status' => null]);
+    }
+
+    /**
+     * Overall status: "ready" once every station involved is ready, "preparing" once any has started.
+     * Completing the order is always a separate, explicit step.
+     */
+    public function syncOverallStatus(): void
+    {
+        if (in_array($this->status, self::TERMINAL_STATUSES, true)) {
+            return;
+        }
+
+        $statuses = collect(self::STATIONS)->map(fn (string $station) => $this->stationStatus($station))->filter()->values();
+
+        if ($statuses->isEmpty()) {
+            return;
+        }
+
+        $overall = match (true) {
+            $statuses->every(fn (string $s) => in_array($s, ['ready', 'completed'], true)) => 'ready',
+            $statuses->contains(fn (string $s) => $s !== 'pending') => 'preparing',
+            default => 'pending',
+        };
+
+        $this->update(['status' => $overall]);
     }
 
     public function scopeActive($query): void
