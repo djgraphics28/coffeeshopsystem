@@ -99,11 +99,17 @@ export default function SettingsPage({ settings, gcash_qr_url, maya_qr_url }: Pr
         pusher_app_cluster: settings.pusher_app_cluster ?? 'ap1',
     });
 
-    const [tab, setTab] = useState<TabKey>(() => {
-        const saved = typeof window !== 'undefined' ? window.location.hash.slice(1) : '';
+    const [tab, setTab] = useState<TabKey>('general');
 
-        return TABS.some((t) => t.key === saved) ? (saved as TabKey) : 'general';
-    });
+    // Restore the tab from the URL hash after hydration (the server render can't see it).
+    useEffect(() => {
+        const saved = window.location.hash.slice(1);
+
+        if (TABS.some((t) => t.key === saved)) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setTab(saved as TabKey);
+        }
+    }, []);
 
     function selectTab(key: TabKey) {
         setTab(key);

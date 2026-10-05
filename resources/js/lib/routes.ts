@@ -153,3 +153,5 @@ export const adminSettingsUpdate = () => `/admin/settings`;
 // ─── Auth ────────────────────────────────────────────────────────────────────
 export const logout = () => `/logout`;
 export const home = () => `/home`;
+export const attendanceFace = () => `/attendance/face`;
+export const adminHrEmployeeFace = (id: number) => `/admin/hr/employees/${id}/face`;

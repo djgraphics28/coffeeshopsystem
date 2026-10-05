@@ -40,6 +40,7 @@ Route::redirect('/welcome', '/login');
 // Attendance screen: employees clock in / out by scanning their QR code or typing their employee ID (no sign-in needed).
 Route::get('attendance', [AttendanceKioskController::class, 'show'])->name('attendance.kiosk');
 Route::post('attendance/punch', [AttendanceKioskController::class, 'punch'])->middleware('throttle:attendance-punch')->name('attendance.punch');
+Route::post('attendance/face', [AttendanceKioskController::class, 'punchByFace'])->middleware('throttle:attendance-punch')->name('attendance.face');
 
 // Driver login (separate, rider-friendly sign-in page)
 Route::get('driver/login', [DriverAuthController::class, 'showLogin'])->name('driver.login');
@@ -156,6 +157,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('employees', [EmployeeController::class, 'store'])->name('employees.store');
             Route::put('employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
             Route::delete('employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
+            Route::post('employees/{employee}/face', [EmployeeController::class, 'enrollFace'])->name('employees.face.store');
+            Route::delete('employees/{employee}/face', [EmployeeController::class, 'removeFace'])->name('employees.face.destroy');
 
             Route::post('positions', [PositionController::class, 'store'])->name('positions.store');
             Route::post('positions/defaults', [PositionController::class, 'defaults'])->name('positions.defaults');

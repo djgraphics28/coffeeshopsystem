@@ -1,5 +1,5 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { Bike, BriefcaseBusiness, Edit2, IdCard, KeyRound, Plus, QrCode, Search, Trash2, UserCheck, Users, X } from 'lucide-react';
+import { Bike, BriefcaseBusiness, Edit2, IdCard, KeyRound, Plus, QrCode, ScanFace, Search, Trash2, UserCheck, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
@@ -8,6 +8,7 @@ import { FilterPanel, FilterToggleButton } from '@/components/admin/filter-panel
 import { FormField, adminFieldClass } from '@/components/admin/form-field';
 import { PageHeader } from '@/components/admin/page-header';
 import { EmployeeFormDialog } from '@/components/hr/employee-form-dialog';
+import { FaceEnrollDialog } from '@/components/hr/face-enroll-dialog';
 import { IdCardDialog } from '@/components/hr/id-card-dialog';
 import { PositionsDialog } from '@/components/hr/positions-dialog';
 import { FREQUENCY_SHORT, money    } from '@/components/hr/types';
@@ -38,6 +39,7 @@ export default function EmployeesIndex({ employees, positions, roles, filters, s
     const [editing, setEditing] = useState<Employee | null>(null);
     const [positionsOpen, setPositionsOpen] = useState(false);
     const [cardFor, setCardFor] = useState<Employee | null>(null);
+    const [faceFor, setFaceFor] = useState<Employee | null>(null);
     const [deleting, setDeleting] = useState<Employee | null>(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
 
@@ -158,6 +160,7 @@ export default function EmployeesIndex({ employees, positions, roles, filters, s
                                     <TableCell><Badge variant={e.status === 'active' ? 'success' : 'neutral'} className="capitalize">{e.status}</Badge></TableCell>
                                     <TableCell className="text-xs text-muted-foreground">
                                         {e.user ? <span className="flex items-center gap-1" title={e.user.email}><KeyRound className="h-3.5 w-3.5 text-warning" /> Sign-in</span> : '—'}
+                                        {e.face_enrolled && <span className="mt-0.5 flex items-center gap-1"><ScanFace className="h-3.5 w-3.5 text-success" /> Face ID</span>}
                                         {e.has_driver_record && <span className="mt-0.5 flex items-center gap-1"><Bike className="h-3.5 w-3.5 text-info" /> In delivery list</span>}
                                     </TableCell>
                                     <TableCell>
@@ -165,6 +168,7 @@ export default function EmployeesIndex({ employees, positions, roles, filters, s
                                             <button onClick={() => setCardFor(e)} title="ID card & QR code" aria-label={`ID card for ${e.full_name}`} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"><QrCode className="h-4 w-4" /></button>
                                             {can.manage && (
                                                 <>
+                                                    <button onClick={() => setFaceFor(e)} title={e.face_enrolled ? 'Face registered — update' : 'Register face'} aria-label={`Face attendance for ${e.full_name}`} className={cn('rounded-lg p-1.5 transition-colors hover:bg-muted hover:text-primary', e.face_enrolled ? 'text-success' : 'text-muted-foreground')}><ScanFace className="h-4 w-4" /></button>
                                                     <button onClick={() => {
  setEditing(e); setFormOpen(true); 
 }} aria-label={`Edit ${e.full_name}`} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"><Edit2 className="h-4 w-4" /></button>
@@ -182,6 +186,7 @@ export default function EmployeesIndex({ employees, positions, roles, filters, s
 
             <EmployeeFormDialog open={formOpen} onOpenChange={setFormOpen} employee={editing} positions={positions} roles={roles} defaults={defaults} currency={currency} />
             <PositionsDialog open={positionsOpen} onOpenChange={setPositionsOpen} positions={positions} roles={roles} canManage={can.manage} />
+            <FaceEnrollDialog key={faceFor?.id ?? 'none'} employee={faceFor ? { id: faceFor.id, full_name: faceFor.full_name, face_enrolled: faceFor.face_enrolled } : null} onClose={() => setFaceFor(null)} />
             <IdCardDialog employee={cardFor ? { employee_code: cardFor.employee_code, full_name: cardFor.full_name, position: cardFor.position?.name ?? null } : null} onClose={() => setCardFor(null)} />
             <ConfirmDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)} onConfirm={confirmDelete} loading={deleteLoading} title={deleting ? `Delete ${deleting.full_name}?` : 'Delete employee?'} description="Employees with attendance or payroll history can't be deleted. Set them to Inactive instead." confirmLabel="Delete" />
         </AdminLayout>

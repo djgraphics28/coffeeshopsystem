@@ -18,13 +18,18 @@ class Employee extends Model
     protected $fillable = [
         'employee_code', 'first_name', 'last_name', 'email', 'phone', 'address', 'birth_date', 'hire_date',
         'position_id', 'status', 'pay_frequency', 'salary_type', 'base_salary', 'shift_start', 'shift_end',
-        'vehicle', 'emergency_contact', 'notes', 'user_id',
+        'vehicle', 'emergency_contact', 'notes', 'user_id', 'face_descriptors', 'face_enrolled_at',
     ];
+
+    /** Biometric data never leaves the server. */
+    protected $hidden = ['face_descriptors'];
 
     protected $casts = [
         'birth_date' => 'date',
         'hire_date' => 'date',
         'base_salary' => 'float',
+        'face_descriptors' => 'array',
+        'face_enrolled_at' => 'datetime',
     ];
 
     protected $appends = ['full_name'];

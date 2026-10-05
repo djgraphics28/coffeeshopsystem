@@ -35,6 +35,7 @@ export interface Employee {
     notes: string | null;
     user: { id: number; email: string } | null;
     has_driver_record: boolean;
+    face_enrolled: boolean;
 }
 
 export const FREQUENCY_LABEL: Record<PayFrequency, string> = {

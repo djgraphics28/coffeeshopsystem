@@ -1,8 +1,10 @@
 import { Head } from '@inertiajs/react';
 import jsQR from 'jsqr';
-import { AlertTriangle, Camera, CameraOff, CheckCircle2, Clock, LogIn, LogOut, Loader2, ScanLine, SwitchCamera } from 'lucide-react';
+import { AlertTriangle, Camera, CameraOff, CheckCircle2, Clock, LogIn, LogOut, Loader2, ScanFace, ScanLine, SwitchCamera } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { attendancePunch } from '@/lib/routes';
+import { useCameraStream } from '@/hooks/use-camera-stream';
+import { EYES_CLOSED_BELOW, EYES_OPEN_ABOVE, loadFaceApi, readFace } from '@/lib/face';
+import { attendanceFace, attendancePunch } from '@/lib/routes';
 import { cn } from '@/lib/utils';
 
 interface RecentPunch { name: string; type: 'in' | 'out'; time: string }
@@ -19,6 +21,7 @@ interface PunchResult {
 interface Props {
     enabled: boolean;
     cafe_name: string;
+    face_enabled: boolean;
     recent: RecentPunch[];
 }
 
@@ -33,7 +36,7 @@ const SUCCESS_COOLDOWN_MS = 15000;
 const duration = (minutes: number) => `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`;
 const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
 
-export default function Kiosk({ enabled, cafe_name, recent: initialRecent }: Props) {
+export default function Kiosk({ enabled, cafe_name, face_enabled, recent: initialRecent }: Props) {
     const [now, setNow] = useState(() => new Date());
     const [code, setCode] = useState('');
     const [busy, setBusy] = useState(false);
@@ -42,6 +45,7 @@ export default function Kiosk({ enabled, cafe_name, recent: initialRecent }: Pro
     const [cameraOn, setCameraOn] = useState(false);
     const [cameraError, setCameraError] = useState<string | null>(null);
     const [facing, setFacing] = useState<'user' | 'environment'>('user');
+    const [mode, setMode] = useState<'qr' | 'face'>(face_enabled ? 'face' : 'qr');
 
     const inputRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -60,34 +64,36 @@ export default function Kiosk({ enabled, cafe_name, recent: initialRecent }: Pro
  inputRef.current?.focus(); 
 }, [enabled]);
 
-    const submit = useCallback(async (value: string) => {
-        const trimmed = value.trim();
-
-        if (!trimmed || busyRef.current) {
- return; 
-}
+    /** Sends a punch (by ID/QR code or by face) and shows the outcome. Resolves true when the punch was recorded. */
+    const punch = useCallback(async (url: string, body: Record<string, unknown>, cooldownKey: string): Promise<boolean> => {
+        if (busyRef.current) {
+            return false;
+        }
 
         busyRef.current = true;
         setBusy(true);
 
         if (dismissTimer.current) {
- clearTimeout(dismissTimer.current); 
-}
+            clearTimeout(dismissTimer.current);
+        }
+
+        let recorded = false;
 
         try {
-            const res = await fetch(attendancePunch(), {
+            const res = await fetch(url, {
                 method: 'POST',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
-                body: JSON.stringify({ code: trimmed }),
+                body: JSON.stringify(body),
             });
             const data = await res.json().catch(() => null);
 
             if (res.ok) {
-                lastScan.current = { code: trimmed, until: Date.now() + SUCCESS_COOLDOWN_MS };
+                recorded = true;
+                lastScan.current = { code: cooldownKey, until: Date.now() + SUCCESS_COOLDOWN_MS };
                 setOutcome({ kind: 'success', result: data });
                 setRecent(data.recent ?? []);
             } else {
-                const message = data?.errors?.code?.[0] ?? data?.message ?? (res.status === 429 ? 'Too many tries. Please wait a moment.' : 'Something went wrong. Please try again.');
+                const message = data?.errors?.code?.[0] ?? data?.errors?.descriptor?.[0] ?? data?.message ?? (res.status === 429 ? 'Too many tries. Please wait a moment.' : 'Something went wrong. Please try again.');
                 setOutcome({ kind: 'error', message });
             }
         } catch {
@@ -99,11 +105,112 @@ export default function Kiosk({ enabled, cafe_name, recent: initialRecent }: Pro
             inputRef.current?.focus();
             dismissTimer.current = setTimeout(() => setOutcome(null), RESULT_SECONDS * 1000);
         }
+
+        return recorded;
     }, []);
+
+    const submit = useCallback((value: string) => {
+        const trimmed = value.trim();
+
+        return trimmed ? punch(attendancePunch(), { code: trimmed }, trimmed) : Promise.resolve(false);
+    }, [punch]);
+
+    // ── Face recognition ──
+    const faceActive = cameraOn && mode === 'face' && enabled;
+    const { error: faceCameraError, ready: faceCameraReady } = useCameraStream(videoRef, faceActive);
+    const [faceStatus, setFaceStatus] = useState('Loading face recognition…');
+    const [faceModelsReady, setFaceModelsReady] = useState(false);
+
+    useEffect(() => {
+        if (!faceActive || faceModelsReady) {
+            return;
+        }
+
+        loadFaceApi().then(() => setFaceModelsReady(true)).catch(() => setFaceStatus('Could not load face recognition. Use your employee ID instead.'));
+    }, [faceActive, faceModelsReady]);
+
+    useEffect(() => {
+        if (!faceActive || !faceCameraReady || !faceModelsReady) {
+            return;
+        }
+
+        let stopped = false;
+        let timer = 0;
+        let closedSeen = false;
+        let lastFaceAt = Date.now();
+        let armed = true;
+        let rearmAt = 0;
+
+        async function loop() {
+            const video = videoRef.current;
+
+            try {
+                if (video && video.readyState === video.HAVE_ENOUGH_DATA && !busyRef.current) {
+                    const api = await loadFaceApi();
+                    const reading = await readFace(api, video, false);
+                    const nowMs = Date.now();
+
+                    if (!reading) {
+                        closedSeen = false;
+
+                        if (nowMs - lastFaceAt > 3000) {
+                            armed = true; // the previous person has walked away
+                        }
+
+                        setFaceStatus(armed ? 'Looking for a face…' : 'Thanks! Step away to clock the next person.');
+                    } else {
+                        lastFaceAt = nowMs;
+
+                        if (!armed || nowMs < rearmAt) {
+                            setFaceStatus('Thanks! Step away to clock the next person.');
+                        } else if (reading.size < 0.22) {
+                            setFaceStatus('Move a little closer.');
+                        } else {
+                            // Liveness: the person has to blink once, so a photo held up to the camera is not enough.
+                            if (reading.eyeRatio < EYES_CLOSED_BELOW) {
+                                closedSeen = true;
+                            }
+
+                            if (closedSeen && reading.eyeRatio > EYES_OPEN_ABOVE) {
+                                closedSeen = false;
+                                setFaceStatus('Recognising…');
+                                const full = await readFace(api, video, true);
+
+                                if (full && full.descriptor.length === 128) {
+                                    const recorded = await punch(attendanceFace(), { descriptor: full.descriptor }, 'face');
+
+                                    if (recorded) {
+                                        armed = false;
+                                    } else {
+                                        rearmAt = Date.now() + 4000;
+                                    }
+                                }
+                            } else {
+                                setFaceStatus('Face found — blink once to clock in / out.');
+                            }
+                        }
+                    }
+                }
+            } catch {
+                // a dropped frame is fine; try again on the next tick
+            }
+
+            if (!stopped) {
+                timer = window.setTimeout(loop, 220);
+            }
+        }
+
+        loop();
+
+        return () => {
+            stopped = true;
+            clearTimeout(timer);
+        };
+    }, [faceActive, faceCameraReady, faceModelsReady, punch]);
 
     // ── Camera QR scanning ──
     useEffect(() => {
-        if (!cameraOn || !enabled) {
+        if (!cameraOn || !enabled || mode !== 'qr') {
  return; 
 }
 
@@ -170,7 +277,7 @@ export default function Kiosk({ enabled, cafe_name, recent: initialRecent }: Pro
             clearTimeout(frame);
             stream?.getTracks().forEach((t) => t.stop());
         };
-    }, [cameraOn, facing, enabled, submit]);
+    }, [cameraOn, facing, enabled, mode, submit]);
 
     const success = outcome?.kind === 'success' ? outcome.result : null;
 
@@ -224,7 +331,7 @@ export default function Kiosk({ enabled, cafe_name, recent: initialRecent }: Pro
                                     <ScanLine className="h-12 w-12 shrink-0 opacity-50" />
                                     <div>
                                         <p className="text-lg font-semibold text-foreground">Ready</p>
-                                        <p className="text-sm">Scan your QR code or type your employee ID, then press Enter.</p>
+                                        <p className="text-sm">Scan your QR code, show your face to the camera, or type your employee ID.</p>
                                     </div>
                                 </div>
                             )}
@@ -250,9 +357,19 @@ export default function Kiosk({ enabled, cafe_name, recent: initialRecent }: Pro
 
                         <div className="mt-4 rounded-2xl border border-[var(--ap-border)] bg-card p-5 shadow-sm">
                             <div className="flex items-center justify-between gap-2">
-                                <p className="flex items-center gap-2 text-sm font-semibold"><Camera className="h-4 w-4 text-primary" /> Scan with camera</p>
+                                {face_enabled ? (
+                                    <div role="tablist" className="flex rounded-lg bg-muted p-1 text-xs font-semibold">
+                                        {([['face', 'Face', ScanFace], ['qr', 'QR code', Camera]] as const).map(([key, label, Icon]) => (
+                                            <button key={key} type="button" role="tab" aria-selected={mode === key} onClick={() => setMode(key)} className={cn('flex items-center gap-1.5 rounded-md px-3 py-1.5', mode === key ? 'bg-card shadow-sm' : 'text-muted-foreground')}>
+                                                <Icon className="h-3.5 w-3.5" /> {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="flex items-center gap-2 text-sm font-semibold"><Camera className="h-4 w-4 text-primary" /> Scan with camera</p>
+                                )}
                                 <div className="flex gap-2">
-                                    {cameraOn && (
+                                    {cameraOn && mode === 'qr' && (
                                         <button type="button" onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))} className="flex h-9 items-center gap-1.5 rounded-lg border border-[var(--ap-border)] px-3 text-xs font-medium hover:bg-muted" aria-label="Switch camera">
                                             <SwitchCamera className="h-4 w-4" /> Flip
                                         </button>
@@ -264,14 +381,14 @@ export default function Kiosk({ enabled, cafe_name, recent: initialRecent }: Pro
                                     </button>
                                 </div>
                             </div>
-                            {cameraError && <p role="alert" className="mt-3 rounded-lg bg-warning/10 px-3 py-2 text-xs text-foreground">{cameraError}</p>}
+                            {(cameraError || (mode === 'face' && faceCameraError)) && <p role="alert" className="mt-3 rounded-lg bg-warning/10 px-3 py-2 text-xs text-foreground">{mode === 'face' ? faceCameraError ?? cameraError : cameraError}</p>}
                             {cameraOn && (
                                 <div className="relative mt-3 overflow-hidden rounded-xl bg-black">
-                                    <video ref={videoRef} playsInline muted className={cn('aspect-video w-full object-cover', facing === 'user' && '-scale-x-100')} />
+                                    <video ref={videoRef} playsInline muted className={cn('aspect-video w-full object-cover', (mode === 'face' || facing === 'user') && '-scale-x-100')} />
                                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                                        <div className="h-48 w-48 rounded-2xl border-4 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+                                        <div className={cn('border-4 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]', mode === 'face' ? 'h-56 w-44 rounded-[50%]' : 'h-48 w-48 rounded-2xl')} />
                                     </div>
-                                    <p className="absolute bottom-2 left-0 w-full text-center text-xs font-medium text-white">Hold your QR code inside the square</p>
+                                    <p className="absolute bottom-2 left-0 w-full text-center text-xs font-medium text-white">{mode === 'face' ? faceStatus : 'Hold your QR code inside the square'}</p>
                                     <canvas ref={canvasRef} className="hidden" />
                                 </div>
                             )}

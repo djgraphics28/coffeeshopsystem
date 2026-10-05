@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Hr;
 
 use App\Actions\Hr\HrSettings;
+use App\Actions\Hr\MatchFace;
 use App\Actions\Hr\SaveEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
@@ -112,6 +113,34 @@ class EmployeeController extends Controller
         return redirect()->back()->with('success', 'Employee deleted.');
     }
 
+    /** Saves the face samples (128-number descriptors computed in the browser) used for face attendance. */
+    public function enrollFace(Request $request, Employee $employee): RedirectResponse
+    {
+        Gate::authorize('manage employees');
+
+        $validated = $request->validate([
+            'descriptors' => ['required', 'array', 'min:3', 'max:10'],
+            'descriptors.*' => ['required', 'array', 'size:'.MatchFace::DESCRIPTOR_SIZE],
+            'descriptors.*.*' => ['required', 'numeric', 'between:-5,5'],
+        ]);
+
+        $employee->update([
+            'face_descriptors' => array_map(fn (array $d) => array_map('floatval', $d), array_values($validated['descriptors'])),
+            'face_enrolled_at' => now(),
+        ]);
+
+        return redirect()->back()->with('success', "Face registered for {$employee->full_name}.");
+    }
+
+    public function removeFace(Employee $employee): RedirectResponse
+    {
+        Gate::authorize('manage employees');
+
+        $employee->update(['face_descriptors' => null, 'face_enrolled_at' => null]);
+
+        return redirect()->back()->with('success', "Face data removed for {$employee->full_name}.");
+    }
+
     /**
      * @return array{0: array<string, mixed>, 1: array<string, mixed>}
      */
@@ -182,6 +211,7 @@ class EmployeeController extends Controller
             'notes' => $e->notes,
             'user' => $e->user ? ['id' => $e->user->id, 'email' => $e->user->email] : null,
             'has_driver_record' => $e->deliveryMan !== null,
+            'face_enrolled' => $e->face_enrolled_at !== null,
         ];
     }
 }

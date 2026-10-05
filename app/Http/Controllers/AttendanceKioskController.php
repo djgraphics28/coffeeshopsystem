@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Actions\Hr\AttendanceException;
 use App\Actions\Hr\HrSettings;
+use App\Actions\Hr\MatchFace;
 use App\Actions\Hr\RecordAttendance;
 use App\Models\Attendance;
+use App\Models\Employee;
 use App\Models\Setting;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +26,7 @@ class AttendanceKioskController extends Controller
         return Inertia::render('Attendance/Kiosk', [
             'enabled' => HrSettings::flag('hr_attendance_enabled'),
             'cafe_name' => Setting::get('cafe_name', config('app.name')),
+            'face_enabled' => Employee::where('status', 'active')->whereNotNull('face_descriptors')->exists(),
             'recent' => $this->recent(),
         ]);
     }
@@ -38,6 +41,30 @@ class AttendanceKioskController extends Controller
 
         try {
             $result = $attendance->punch($validated['code'], $request->ip());
+        } catch (AttendanceException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json($result + ['recent' => $this->recent()]);
+    }
+
+    /**
+     * Clock in / out by face: the browser sends a 128-number descriptor and the server finds the matching employee.
+     */
+    public function punchByFace(Request $request, MatchFace $match, RecordAttendance $attendance): JsonResponse
+    {
+        if (! HrSettings::flag('hr_attendance_enabled')) {
+            return response()->json(['message' => 'Attendance is switched off right now. Please see your manager.'], 403);
+        }
+
+        $validated = $request->validate([
+            'descriptor' => ['required', 'array', 'size:'.MatchFace::DESCRIPTOR_SIZE],
+            'descriptor.*' => ['required', 'numeric', 'between:-5,5'],
+        ]);
+
+        try {
+            $employee = $match->handle(array_map('floatval', $validated['descriptor']));
+            $result = $attendance->punch($employee->employee_code, $request->ip(), source: 'face');
         } catch (AttendanceException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
