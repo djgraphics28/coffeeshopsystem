@@ -1,8 +1,8 @@
 import { Head, useForm } from '@inertiajs/react';
-import { customerAuthLoginStore, customerAuthRegister } from '@/lib/routes';
 import { Link } from '@inertiajs/react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
+import { customerAuthLoginStore, customerAuthRegister } from '@/lib/routes';
 
 interface Props { qrToken: string | null }
 
@@ -33,7 +33,7 @@ export default function CustomerLogin({ qrToken }: Props) {
 
     return (
         <div className="customer-page relative flex min-h-screen flex-col overflow-hidden sm:items-center sm:justify-center sm:py-12" style={{ background: P.cream, fontFamily: "'DM Sans', sans-serif", color: P.espresso }}>
-            <Head title="Login — Milk&Honey" />
+            <Head title="Login" />
             <GeometricBackdrop />
 
             <div className="relative flex w-full flex-1 flex-col sm:max-w-md sm:flex-none sm:shadow-xl" style={{ background: P.creamLight }}>

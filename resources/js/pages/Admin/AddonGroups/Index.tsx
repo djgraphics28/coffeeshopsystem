@@ -1,15 +1,15 @@
 import { Head, useForm } from '@inertiajs/react';
-import { adminAddonGroupsDestroy, adminAddonGroupsStore, adminAddonGroupsUpdate } from '@/lib/routes';
 import { Edit2, Plus, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import AdminLayout from '@/layouts/admin-layout';
-import { PageHeader } from '@/components/admin/page-header';
-import { CrudModal } from '@/components/admin/crud-modal';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
+import { CrudModal } from '@/components/admin/crud-modal';
 import { FormField, adminFieldClass } from '@/components/admin/form-field';
-import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/admin/page-header';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import AdminLayout from '@/layouts/admin-layout';
+import { adminAddonGroupsDestroy, adminAddonGroupsStore, adminAddonGroupsUpdate } from '@/lib/routes';
 
 interface Addon { id?: number; name: string; additional_price: number; sort_order: number }
 interface AddonGroup { id: number; name: string; is_required: boolean; max_selections: number; sort_order: number; addons: Addon[] }
@@ -26,15 +26,21 @@ export default function AddonGroupsIndex({ groups }: Props) {
         addons: Addon[]; _method?: string;
     }>({ name: '', is_required: false, max_selections: 1, sort_order: 0, addons: [{ name: '', additional_price: 0, sort_order: 1 }] });
 
-    function openCreate() { reset(); setData('addons', [{ name: '', additional_price: 0, sort_order: 1 }]); setEditing(null); setModalOpen(true); }
+    function openCreate() {
+ reset(); setData('addons', [{ name: '', additional_price: 0, sort_order: 1 }]); setEditing(null); setModalOpen(true); 
+}
     function openEdit(g: AddonGroup) {
         setEditing(g);
         setData({ name: g.name, is_required: g.is_required, max_selections: g.max_selections, sort_order: g.sort_order, addons: g.addons, _method: 'PUT' });
         setModalOpen(true);
     }
 
-    function addAddon() { setData('addons', [...data.addons, { name: '', additional_price: 0, sort_order: data.addons.length + 1 }]); }
-    function removeAddon(i: number) { setData('addons', data.addons.filter((_, idx) => idx !== i)); }
+    function addAddon() {
+ setData('addons', [...data.addons, { name: '', additional_price: 0, sort_order: data.addons.length + 1 }]); 
+}
+    function removeAddon(i: number) {
+ setData('addons', data.addons.filter((_, idx) => idx !== i)); 
+}
     function updateAddon(i: number, field: keyof Addon, value: string | number) {
         const updated = [...data.addons];
         (updated[i] as unknown as Record<string, unknown>)[field] = value;
@@ -44,20 +50,25 @@ export default function AddonGroupsIndex({ groups }: Props) {
     function submit(e: React.FormEvent) {
         e.preventDefault();
         const url = editing ? adminAddonGroupsUpdate(editing.id) : adminAddonGroupsStore();
-        post(url, { onSuccess: () => { setModalOpen(false); toast.success(editing ? 'Updated!' : 'Created!'); } });
+        post(url, { onSuccess: () => {
+ setModalOpen(false); toast.success(editing ? 'Updated!' : 'Created!'); 
+} });
     }
 
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
     function confirmDelete() {
-        if (!deleting) return;
+        if (!deleting) {
+return;
+}
+
         setDeleteLoading(true);
         fetch(adminAddonGroupsDestroy(deleting.id), { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrf() } }).then(() => window.location.reload());
     }
 
     return (
         <AdminLayout>
-            <Head title="Add-on Groups — Admin" />
+            <Head title="Add-on Groups" />
             <Toaster position="top-right" />
 
             <PageHeader

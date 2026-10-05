@@ -572,7 +572,7 @@ playChime('ready');
     return (
         <ThemeContext.Provider value={theme}>
         <div className="h-screen overflow-hidden" style={{ ...THEME_VARS[theme], background: 'var(--k-bg)', color: 'var(--k-text)', fontFamily: "'DM Sans', sans-serif" }}>
-            <Head title={`${stationLabel} Display — Milk&Honey Cafe`} />
+            <Head title={stationLabel} />
 
             {errorMessage && (
                 <div role="alert" className="fixed top-16 left-1/2 z-50 -translate-x-1/2 rounded-xl px-5 py-3 text-sm font-semibold shadow-lg" style={{ background: '#7F1D1D', color: '#FEE2E2' }}>

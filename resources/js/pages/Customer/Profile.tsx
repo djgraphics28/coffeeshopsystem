@@ -1,9 +1,9 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
-import { customerAuthLogout, customerMyProfileUpdate } from '@/lib/routes';
 import { LogOut } from 'lucide-react';
 import { useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import CustomerNav from '@/components/CustomerNav';
+import { customerAuthLogout, customerMyProfileUpdate } from '@/lib/routes';
 
 /* Retro-geometric palette shared with the storefront */
 const P = {
@@ -44,7 +44,9 @@ export default function Profile({ stats, phone, settings }: Props) {
     });
 
     useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
+        if (flash?.success) {
+toast.success(flash.success);
+}
     }, [flash]);
 
     function submit(e: React.FormEvent) {
@@ -54,7 +56,7 @@ export default function Profile({ stats, phone, settings }: Props) {
 
     return (
         <div className="customer-page min-h-screen pb-24" style={{ background: P.cream, fontFamily: "'DM Sans', sans-serif", color: P.espresso }}>
-            <Head title={`My Profile — ${settings.cafe_name}`} />
+            <Head title="My Profile" />
             <Toaster position="top-center" />
 
             {/* Header */}

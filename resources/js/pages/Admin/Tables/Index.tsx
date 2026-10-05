@@ -1,16 +1,16 @@
 import { Head, useForm } from '@inertiajs/react';
-import { adminTablesDestroy, adminTablesRegenerateQr, adminTablesStore, adminTablesUpdate } from '@/lib/routes';
 import { Download, Edit2, Plus, Printer, RefreshCw, Trash2 } from 'lucide-react';
-import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import AdminLayout from '@/layouts/admin-layout';
-import { PageHeader } from '@/components/admin/page-header';
-import { CrudModal } from '@/components/admin/crud-modal';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
+import { CrudModal } from '@/components/admin/crud-modal';
 import { FormField, adminFieldClass } from '@/components/admin/form-field';
-import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/admin/page-header';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import AdminLayout from '@/layouts/admin-layout';
+import { adminTablesDestroy, adminTablesRegenerateQr, adminTablesStore, adminTablesUpdate } from '@/lib/routes';
 import { cn } from '@/lib/utils';
 
 interface Table {
@@ -39,11 +39,13 @@ export default function TablesIndex({ tables, base_url }: Props) {
     function toggleSelect(id: number) {
         setSelectedIds((prev) => {
             const next = new Set(prev);
+
             if (next.has(id)) {
                 next.delete(id);
             } else {
                 next.add(id);
             }
+
             return next;
         });
     }
@@ -59,8 +61,10 @@ export default function TablesIndex({ tables, base_url }: Props) {
     function printSelected() {
         if (selectedIds.size === 0) {
             toast.error('Select at least one table to print.');
+
             return;
         }
+
         window.print();
     }
 
@@ -76,7 +80,11 @@ export default function TablesIndex({ tables, base_url }: Props) {
 
     function downloadQr(table: Table) {
         const svg = document.getElementById(`qr-${table.id}`) as unknown as SVGSVGElement;
-        if (!svg) return;
+
+        if (!svg) {
+return;
+}
+
         const serializer = new XMLSerializer();
         const svgStr = serializer.serializeToString(svg);
         const canvas = document.createElement('canvas');
@@ -108,23 +116,34 @@ export default function TablesIndex({ tables, base_url }: Props) {
 
     function submit(e: React.FormEvent) {
         e.preventDefault();
+
         if (editing) {
-            put(adminTablesUpdate(editing.id), { onSuccess: () => { setModalOpen(false); toast.success('Table updated!'); } });
+            put(adminTablesUpdate(editing.id), { onSuccess: () => {
+ setModalOpen(false); toast.success('Table updated!'); 
+} });
         } else {
-            post(adminTablesStore(), { onSuccess: () => { setModalOpen(false); toast.success('Table created!'); } });
+            post(adminTablesStore(), { onSuccess: () => {
+ setModalOpen(false); toast.success('Table created!'); 
+} });
         }
     }
 
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
     function confirmDelete() {
-        if (!deleting) return;
+        if (!deleting) {
+return;
+}
+
         setDeleteLoading(true);
         fetch(adminTablesDestroy(deleting.id), { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrf() } }).then(() => window.location.reload());
     }
 
     function confirmRegenerate() {
-        if (!regenTarget) return;
+        if (!regenTarget) {
+return;
+}
+
         setRegenLoading(true);
         fetch(adminTablesRegenerateQr(regenTarget.id), { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf() } }).then(() => {
             toast.success('QR regenerated!');
@@ -134,7 +153,7 @@ export default function TablesIndex({ tables, base_url }: Props) {
 
     return (
         <AdminLayout>
-            <Head title="Tables & QR — Admin" />
+            <Head title="Tables & QR" />
             <Toaster position="top-right" />
 
             {/* Screen-only content */}
@@ -162,6 +181,7 @@ export default function TablesIndex({ tables, base_url }: Props) {
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {tables.map((table) => {
                         const isSelected = selectedIds.has(table.id);
+
                         return (
                             <div
                                 key={table.id}

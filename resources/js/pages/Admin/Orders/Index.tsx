@@ -199,7 +199,7 @@ return;
 
     return (
         <AdminLayout>
-            <Head title="Orders — Admin" />
+            <Head title="Orders" />
             <Toaster position="top-right" />
 
             <PageHeader

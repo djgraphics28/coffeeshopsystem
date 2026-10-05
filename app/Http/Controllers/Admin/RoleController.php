@@ -18,7 +18,7 @@ class RoleController extends Controller
     /** @var array<string, string[]> */
     private array $permissionGroups = [
         'Dashboard' => ['view dashboard'],
-        'Menu' => ['view menu', 'manage categories', 'manage menu items', 'manage addon groups'],
+        'Menu' => ['view menu', 'manage categories', 'manage menu items', 'import menu items', 'manage addon groups'],
         'Orders' => ['view orders', 'create orders', 'manage orders', 'void orders'],
         'POS' => ['access pos', 'process payments', 'apply discounts'],
         'Kitchen' => ['access kitchen', 'update order status'],
@@ -29,6 +29,8 @@ class RoleController extends Controller
         'Expenses' => ['view expenses', 'manage expenses', 'manage expense categories'],
         'Staff' => ['manage users', 'manage roles'],
         'Settings' => ['manage settings'],
+        'Human Resource' => ['view employees', 'manage employees', 'view attendance', 'manage attendance', 'view payroll', 'manage payroll'],
+        'System' => ['view system', 'manage backups', 'restore database', 'reset database'],
     ];
 
     public function index(): Response

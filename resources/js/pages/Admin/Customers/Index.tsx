@@ -1,16 +1,16 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { adminCustomersDestroy, adminCustomersShow, adminCustomersStore, adminCustomersUpdate, adminCustomersVerifyEmail } from '@/lib/routes';
 import { BadgeCheck, Coffee, Edit2, Gift, Plus, Star, Trash2, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import AdminLayout from '@/layouts/admin-layout';
-import { PageHeader } from '@/components/admin/page-header';
-import { CrudModal } from '@/components/admin/crud-modal';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
-import { FormField, adminFieldClass } from '@/components/admin/form-field';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { CrudModal } from '@/components/admin/crud-modal';
 import { TableCard, TableScroll, Table, TableHead, TableHeadCell, TableBody, TableRow, TableCell, TableEmpty } from '@/components/admin/data-table';
+import { FormField, adminFieldClass } from '@/components/admin/form-field';
+import { PageHeader } from '@/components/admin/page-header';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import AdminLayout from '@/layouts/admin-layout';
+import { adminCustomersDestroy, adminCustomersShow, adminCustomersStore, adminCustomersUpdate, adminCustomersVerifyEmail } from '@/lib/routes';
 
 interface Customer {
     id: number;
@@ -47,13 +47,19 @@ export default function CustomersIndex({ customers, stats }: Props) {
     const [deleting, setDeleting] = useState<Customer | null>(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
 
-    useEffect(() => { if (flash?.success) toast.success(flash.success); }, [flash]);
+    useEffect(() => {
+ if (flash?.success) {
+toast.success(flash.success);
+} 
+}, [flash]);
 
     const { data, setData, post, processing, errors, reset } = useForm<{
         name: string; phone: string; email: string; notes: string; _method?: string;
     }>({ name: '', phone: '', email: '', notes: '' });
 
-    function openCreate() { reset(); setEditing(null); setModalOpen(true); }
+    function openCreate() {
+ reset(); setEditing(null); setModalOpen(true); 
+}
     function openEdit(e: React.MouseEvent, customer: Customer) {
         e.preventDefault(); e.stopPropagation();
         setEditing(customer);
@@ -64,20 +70,28 @@ export default function CustomersIndex({ customers, stats }: Props) {
     function submit(e: React.FormEvent) {
         e.preventDefault();
         const url = editing ? adminCustomersUpdate(editing.id) : adminCustomersStore();
-        post(url, { onSuccess: () => { setModalOpen(false); toast.success(editing ? 'Customer updated!' : 'Customer created!'); } });
+        post(url, { onSuccess: () => {
+ setModalOpen(false); toast.success(editing ? 'Customer updated!' : 'Customer created!'); 
+} });
     }
 
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
     function confirmDelete() {
-        if (!deleting) return;
+        if (!deleting) {
+return;
+}
+
         setDeleteLoading(true);
         fetch(adminCustomersDestroy(deleting.id), { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrf() } })
             .then(() => window.location.reload());
     }
 
     function fmtDate(iso: string | null) {
-        if (!iso) return '—';
+        if (!iso) {
+return '—';
+}
+
         return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
     }
 
@@ -97,7 +111,7 @@ export default function CustomersIndex({ customers, stats }: Props) {
 
     return (
         <AdminLayout>
-            <Head title="Customers — Admin" />
+            <Head title="Customers" />
             <Toaster position="top-right" />
 
             <PageHeader
@@ -203,7 +217,11 @@ export default function CustomersIndex({ customers, stats }: Props) {
                                         <div className="flex items-center gap-1">
                                             {customer.email && !customer.email_verified_at && (
                                                 <button
-                                                    onClick={() => { if (confirm(`Manually verify ${customer.name}'s email?`)) router.post(adminCustomersVerifyEmail(customer.id)); }}
+                                                    onClick={() => {
+ if (confirm(`Manually verify ${customer.name}'s email?`)) {
+router.post(adminCustomersVerifyEmail(customer.id));
+} 
+}}
                                                     className="flex items-center gap-1 rounded-lg border border-warning/30 px-2 py-1.5 text-xs font-semibold text-warning transition-colors hover:bg-warning/10"
                                                 >
                                                     <BadgeCheck className="h-3.5 w-3.5" />

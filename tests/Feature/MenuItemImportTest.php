@@ -7,6 +7,8 @@ use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\get;
@@ -238,5 +240,16 @@ describe('Menu item Excel import', function () {
         actingAs($kitchen);
         get(route('admin.menu-items.import.template'))->assertForbidden();
         importMenu(menuSpreadsheet([row(['Category' => 'A', 'Item Name' => 'B', 'Price' => 1])]))->assertForbidden();
+    });
+
+    it('needs the import menu items permission, separate from managing items', function () {
+        Role::findByName('admin')->revokePermissionTo('import menu items');
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        get(route('admin.menu-items.import.template'))->assertForbidden();
+        importMenu(menuSpreadsheet([row(['Category' => 'A', 'Item Name' => 'B', 'Price' => 1])]))->assertForbidden();
+
+        get(route('admin.menu-items.index'))->assertInertia(fn ($page) => $page
+            ->where('can.manage_menu_items', true)->where('can.import_menu_items', false));
     });
 });

@@ -1,9 +1,9 @@
 import { Head, Link } from '@inertiajs/react';
 import { storefrontOrdersCancel, storefrontShow } from '@/lib/routes';
-import toast, { Toaster } from 'react-hot-toast';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle, ChefHat, Clock, Heart, Phone, ShoppingBag, Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import toast, { Toaster } from 'react-hot-toast';
 import '../../echo';
 import CustomerNav from '@/components/CustomerNav';
 
@@ -86,6 +86,7 @@ export default function OrderTracker({ order: initialOrder, settings }: Props) {
     async function cancelOrder() {
         setCancelConfirmOpen(false);
         setIsCancelling(true);
+
         try {
             const response = await fetch(storefrontOrdersCancel(order.id), {
                 method: 'POST',
@@ -95,10 +96,13 @@ export default function OrderTracker({ order: initialOrder, settings }: Props) {
                 },
             });
             const data = await response.json().catch(() => null);
+
             if (!response.ok) {
                 toast.error(data?.message ?? 'Unable to cancel this order.');
+
                 return;
             }
+
             setOrder(data.order);
             toast.success('Your order has been cancelled.');
         } catch {
@@ -109,7 +113,9 @@ export default function OrderTracker({ order: initialOrder, settings }: Props) {
     }
 
     useEffect(() => {
-        if (!window.Echo) return;
+        if (!window.Echo) {
+return;
+}
 
         const channel = window.Echo.channel(`order.${order.id}`);
         channel.listen('.status.updated', (e: { order: Order }) => {
@@ -128,7 +134,7 @@ export default function OrderTracker({ order: initialOrder, settings }: Props) {
 
     return (
         <div className="customer-page min-h-screen pb-20" style={{ background: P.cream, fontFamily: "'DM Sans', sans-serif", color: P.espresso }}>
-            <Head title={isCompleted ? `Thank You! — ${settings.cafe_name}` : `Order ${order.order_number} — ${settings.cafe_name}`} />
+            <Head title={isCompleted ? `Thank You!` : `Order ${order.order_number}`} />
             <Toaster position="top-center" />
 
             <AnimatePresence mode="wait">

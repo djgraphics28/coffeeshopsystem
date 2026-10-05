@@ -1,4 +1,12 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Check, Copy, Edit2, Grid3x3, LayoutGrid, Lock, Plus, Trash2 } from 'lucide-react';
+import { Fragment, useEffect, useState } from 'react';
+import toast, { Toaster } from 'react-hot-toast';
+import { CrudModal } from '@/components/admin/crud-modal';
+import { FormField, adminFieldClass } from '@/components/admin/form-field';
+import { PageHeader } from '@/components/admin/page-header';
+import { Button } from '@/components/ui/button';
+import AdminLayout from '@/layouts/admin-layout';
 import {
     adminRolesDuplicate,
     adminRolesDestroy,
@@ -6,14 +14,6 @@ import {
     adminRolesTogglePermission,
     adminRolesUpdate,
 } from '@/lib/routes';
-import { Check, Copy, Edit2, Grid3x3, LayoutGrid, Lock, Plus, Trash2 } from 'lucide-react';
-import { Fragment, useEffect, useState } from 'react';
-import toast, { Toaster } from 'react-hot-toast';
-import AdminLayout from '@/layouts/admin-layout';
-import { PageHeader } from '@/components/admin/page-header';
-import { CrudModal } from '@/components/admin/crud-modal';
-import { FormField, adminFieldClass } from '@/components/admin/form-field';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface Role {
@@ -65,12 +65,19 @@ export default function RolesIndex({ roles: initialRoles, permissions, permissio
     const permissionNames = permissions.map((p) => p.name);
 
     useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
+        if (flash?.success) {
+toast.success(flash.success);
+}
+
+        if (flash?.error) {
+toast.error(flash.error);
+}
     }, [flash]);
 
     // Keep local roles in sync after Inertia reload
-    useEffect(() => { setRoles(initialRoles); }, [initialRoles]);
+    useEffect(() => {
+ setRoles(initialRoles); 
+}, [initialRoles]);
 
     function openCreate() {
         reset();
@@ -93,6 +100,7 @@ export default function RolesIndex({ roles: initialRoles, permissions, permissio
     function toggleGroup(group: string, groupPerms: string[]) {
         const available = groupPerms.filter((p) => permissionNames.includes(p));
         const allChecked = available.every((p) => data.permissions.includes(p));
+
         if (allChecked) {
             setData('permissions', data.permissions.filter((p) => !available.includes(p)));
         } else {
@@ -103,11 +111,16 @@ export default function RolesIndex({ roles: initialRoles, permissions, permissio
     function submit(e: React.FormEvent) {
         e.preventDefault();
         const url = editing ? adminRolesUpdate(editing.id) : adminRolesStore();
-        post(url, { onSuccess: () => { setModalOpen(false); reset(); } });
+        post(url, { onSuccess: () => {
+ setModalOpen(false); reset(); 
+} });
     }
 
     function deleteRole(role: Role) {
-        if (!confirm(`Delete role "${role.name}"? This cannot be undone.`)) return;
+        if (!confirm(`Delete role "${role.name}"? This cannot be undone.`)) {
+return;
+}
+
         router.delete(adminRolesDestroy(role.id), {
             onError: (e) => toast.error(Object.values(e)[0] ?? 'Could not delete role.'),
         });
@@ -116,7 +129,11 @@ export default function RolesIndex({ roles: initialRoles, permissions, permissio
     // Matrix inline toggle — optimistic UI
     async function matrixToggle(role: Role, permission: string) {
         const key = `${role.id}:${permission}`;
-        if (toggling === key) return;
+
+        if (toggling === key) {
+return;
+}
+
         setToggling(key);
 
         const hasIt = role.permissions.includes(permission);
@@ -164,7 +181,7 @@ export default function RolesIndex({ roles: initialRoles, permissions, permissio
 
     return (
         <AdminLayout>
-            <Head title="Roles & Permissions — Admin" />
+            <Head title="Roles & Permissions" />
             <Toaster position="top-right" />
 
             <PageHeader
@@ -236,7 +253,10 @@ export default function RolesIndex({ roles: initialRoles, permissions, permissio
                         <tbody>
                             {Object.entries(permissionGroups).map(([group, groupPerms]) => {
                                 const available = groupPerms.filter((p) => permissionNames.includes(p));
-                                if (available.length === 0) return null;
+
+                                if (available.length === 0) {
+return null;
+}
 
                                 return (
                                     <Fragment key={`group-${group}`}>
@@ -255,6 +275,7 @@ export default function RolesIndex({ roles: initialRoles, permissions, permissio
                                                 {roles.map((role) => {
                                                     const has = role.permissions.includes(perm);
                                                     const key = `${role.id}:${perm}`;
+
                                                     return (
                                                         <td key={role.id} className="px-3 py-2.5 text-center">
                                                             <button
@@ -290,7 +311,9 @@ export default function RolesIndex({ roles: initialRoles, permissions, permissio
                                             <button onClick={() => openEdit(role)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary" title="Edit">
                                                 <Edit2 className="h-3.5 w-3.5" />
                                             </button>
-                                            <button onClick={() => { setDuplicateModal(role); setDupData('name', `${role.name} copy`); }} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary" title="Duplicate">
+                                            <button onClick={() => {
+ setDuplicateModal(role); setDupData('name', `${role.name} copy`); 
+}} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary" title="Duplicate">
                                                 <Copy className="h-3.5 w-3.5" />
                                             </button>
                                             {!role.is_system && (
@@ -335,7 +358,9 @@ export default function RolesIndex({ roles: initialRoles, permissions, permissio
                                     <button onClick={() => openEdit(role)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary" title="Edit">
                                         <Edit2 className="h-4 w-4" />
                                     </button>
-                                    <button onClick={() => { setDuplicateModal(role); setDupData('name', `${role.name} copy`); }} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary" title="Duplicate">
+                                    <button onClick={() => {
+ setDuplicateModal(role); setDupData('name', `${role.name} copy`); 
+}} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary" title="Duplicate">
                                         <Copy className="h-4 w-4" />
                                     </button>
                                     {!role.is_system && (
@@ -350,7 +375,11 @@ export default function RolesIndex({ roles: initialRoles, permissions, permissio
                             <div className="space-y-2">
                                 {Object.entries(permissionGroups).map(([group, perms]) => {
                                     const granted = perms.filter((p) => role.permissions.includes(p));
-                                    if (granted.length === 0) return null;
+
+                                    if (granted.length === 0) {
+return null;
+}
+
                                     return (
                                         <div key={group}>
                                             <p className="mb-1 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">{group}</p>
@@ -422,7 +451,11 @@ export default function RolesIndex({ roles: initialRoles, permissions, permissio
                         <div className="space-y-4">
                             {Object.entries(permissionGroups).map(([group, perms]) => {
                                 const available = perms.filter((p) => permissionNames.includes(p));
-                                if (available.length === 0) return null;
+
+                                if (available.length === 0) {
+return null;
+}
+
                                 const allGroupChecked = available.every((p) => data.permissions.includes(p));
 
                                 return (
@@ -440,6 +473,7 @@ export default function RolesIndex({ roles: initialRoles, permissions, permissio
                                         <div className="flex flex-wrap gap-2">
                                             {available.map((perm) => {
                                                 const checked = data.permissions.includes(perm);
+
                                                 return (
                                                     <label
                                                         key={perm}
@@ -485,9 +519,15 @@ export default function RolesIndex({ roles: initialRoles, permissions, permissio
                     id="duplicate-role-form"
                     onSubmit={(e) => {
                         e.preventDefault();
-                        if (!duplicateModal) return;
+
+                        if (!duplicateModal) {
+return;
+}
+
                         postDup(adminRolesDuplicate(duplicateModal.id), {
-                            onSuccess: () => { setDuplicateModal(null); resetDup(); },
+                            onSuccess: () => {
+ setDuplicateModal(null); resetDup(); 
+},
                         });
                     }}
                 >

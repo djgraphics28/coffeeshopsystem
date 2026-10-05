@@ -120,6 +120,33 @@ export const adminExpensesStore = () => `/admin/expenses`;
 export const adminExpensesUpdate = (id: number) => `/admin/expenses/${id}`;
 export const adminExpensesDestroy = (id: number) => `/admin/expenses/${id}`;
 
+// ─── Human Resource ──────────────────────────────────────────────────────────
+export const attendanceKiosk = () => `/attendance`;
+export const attendancePunch = () => `/attendance/punch`;
+export const adminHrEmployees = () => `/admin/hr/employees`;
+export const adminHrEmployeeCards = () => `/admin/hr/employees/cards`;
+export const adminHrEmployeesUpdate = (id: number) => `/admin/hr/employees/${id}`;
+export const adminHrPositions = () => `/admin/hr/positions`;
+export const adminHrPositionDefaults = () => `/admin/hr/positions/defaults`;
+export const adminHrPositionsUpdate = (id: number) => `/admin/hr/positions/${id}`;
+export const adminHrAttendance = () => `/admin/hr/attendance`;
+export const adminHrAttendanceUpdate = (id: number) => `/admin/hr/attendance/${id}`;
+export const adminHrPayroll = () => `/admin/hr/payroll`;
+export const adminHrPayrollSettings = () => `/admin/hr/payroll/settings`;
+export const adminHrPayrollShow = (id: number) => `/admin/hr/payroll/${id}`;
+export const adminHrPayrollPayslip = (runId: number, payslipId: number) => `/admin/hr/payroll/${runId}/payslips/${payslipId}`;
+export const adminHrPayrollRecalculate = (id: number) => `/admin/hr/payroll/${id}/recalculate`;
+export const adminHrPayrollApprove = (id: number) => `/admin/hr/payroll/${id}/approve`;
+export const adminHrPayrollPay = (id: number) => `/admin/hr/payroll/${id}/pay`;
+export const adminHrPayslipAdjustments = (payslipId: number) => `/admin/hr/payroll/payslips/${payslipId}/adjustments`;
+export const adminHrAdjustmentsDestroy = (id: number) => `/admin/hr/payroll/adjustments/${id}`;
+export const adminSystem = () => `/admin/system`;
+export const adminSystemBackupsStore = () => `/admin/system/backups`;
+export const adminSystemBackupsImport = () => `/admin/system/backups/import`;
+export const adminSystemBackupsDownload = (file: string) => `/admin/system/backups/${encodeURIComponent(file)}/download`;
+export const adminSystemBackupsDestroy = (file: string) => `/admin/system/backups/${encodeURIComponent(file)}`;
+export const adminSystemBackupsRestore = (file: string) => `/admin/system/backups/${encodeURIComponent(file)}/restore`;
+export const adminSystemDatabaseReset = () => `/admin/system/database/reset`;
 export const adminSettings = () => `/admin/settings`;
 export const adminSettingsUpdate = () => `/admin/settings`;
 

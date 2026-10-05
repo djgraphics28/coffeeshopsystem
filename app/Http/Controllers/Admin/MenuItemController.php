@@ -70,6 +70,7 @@ class MenuItemController extends Controller
             ],
             'can' => [
                 'manage_menu_items' => Auth::user()?->can('manage menu items') ?? false,
+                'import_menu_items' => Auth::user()?->can('import menu items') ?? false,
             ],
         ]);
     }
@@ -130,7 +131,7 @@ class MenuItemController extends Controller
 
     public function importTemplate(BuildMenuItemImportTemplate $template): StreamedResponse
     {
-        Gate::authorize('manage menu items');
+        Gate::authorize('import menu items');
 
         return response()->streamDownload(function () use ($template) {
             $spreadsheet = $template->handle();
@@ -146,7 +147,7 @@ class MenuItemController extends Controller
      */
     public function import(Request $request, ImportMenuItems $importer): JsonResponse
     {
-        Gate::authorize('manage menu items');
+        Gate::authorize('import menu items');
 
         $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:xlsx,xls,csv,txt', 'max:5120'],

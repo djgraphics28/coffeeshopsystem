@@ -1,7 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { storefrontOrdersShow } from '@/lib/routes';
 import { ChevronRight, ReceiptText } from 'lucide-react';
 import CustomerNav from '@/components/CustomerNav';
+import { storefrontOrdersShow } from '@/lib/routes';
 
 /* Retro-geometric palette shared with the storefront */
 const P = {
@@ -48,7 +48,7 @@ interface Props {
 export default function OrderHistory({ orders, pagination, settings }: Props) {
     return (
         <div className="customer-page min-h-screen pb-24" style={{ background: P.cream, fontFamily: "'DM Sans', sans-serif", color: P.espresso }}>
-            <Head title={`My Orders — ${settings.cafe_name}`} />
+            <Head title="My Orders" />
 
             <div className="px-5 py-6" style={{ background: P.navy }}>
                 <div className="mx-auto max-w-2xl">
@@ -69,6 +69,7 @@ export default function OrderHistory({ orders, pagination, settings }: Props) {
                 ) : (
                     orders.map((order) => {
                         const status = STATUS_STYLES[order.status] ?? { label: order.status, bg: P.caramel };
+
                         return (
                             <Link
                                 key={order.id}

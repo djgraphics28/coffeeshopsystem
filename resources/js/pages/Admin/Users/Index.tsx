@@ -1,16 +1,17 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { adminUsersDestroy, adminUsersStore, adminUsersUpdate } from '@/lib/routes';
+import type { VariantProps } from 'class-variance-authority';
 import { Edit2, Eye, EyeOff, Plus, Search, Shield, Trash2, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import AdminLayout from '@/layouts/admin-layout';
-import { PageHeader } from '@/components/admin/page-header';
 import { CrudModal } from '@/components/admin/crud-modal';
-import { FormField, adminFieldClass } from '@/components/admin/form-field';
-import { Button } from '@/components/ui/button';
-import { Badge, type badgeVariants } from '@/components/ui/badge';
 import { TableCard, TableScroll, Table, TableHead, TableHeadCell, TableBody, TableRow, TableCell, TableEmpty } from '@/components/admin/data-table';
-import type { VariantProps } from 'class-variance-authority';
+import { FormField, adminFieldClass } from '@/components/admin/form-field';
+import { PageHeader } from '@/components/admin/page-header';
+import { Badge  } from '@/components/ui/badge';
+import type {badgeVariants} from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import AdminLayout from '@/layouts/admin-layout';
+import { adminUsersDestroy, adminUsersStore, adminUsersUpdate } from '@/lib/routes';
 
 interface User {
     id: number;
@@ -40,7 +41,11 @@ const AVATAR_COLORS = ['#7C3AED', '#0369A1', '#15803D', '#B45309', '#BE185D', '#
 
 function avatarColor(name: string) {
     let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+
+    for (let i = 0; i < name.length; i++) {
+hash = name.charCodeAt(i) + ((hash << 5) - hash);
+}
+
     return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
@@ -66,8 +71,13 @@ export default function UsersIndex({ users, roles }: Props) {
     }>({ name: '', email: '', role: roles[0]?.name ?? '', password: '' });
 
     useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
+        if (flash?.success) {
+toast.success(flash.success);
+}
+
+        if (flash?.error) {
+toast.error(flash.error);
+}
     }, [flash]);
 
     const filtered = useMemo(() =>
@@ -77,6 +87,7 @@ export default function UsersIndex({ users, roles }: Props) {
                 u.name.toLowerCase().includes(search.toLowerCase()) ||
                 u.email.toLowerCase().includes(search.toLowerCase());
             const matchRole = !roleFilter || u.roles.includes(roleFilter);
+
             return matchSearch && matchRole;
         }),
     [users, search, roleFilter]);
@@ -107,7 +118,10 @@ export default function UsersIndex({ users, roles }: Props) {
     }
 
     function deleteUser(user: User) {
-        if (!confirm(`Delete user "${user.name}"? This cannot be undone.`)) return;
+        if (!confirm(`Delete user "${user.name}"? This cannot be undone.`)) {
+return;
+}
+
         router.delete(adminUsersDestroy(user.id), {
             onError: (e) => toast.error(Object.values(e)[0] ?? 'Could not delete user.'),
         });
@@ -121,7 +135,7 @@ export default function UsersIndex({ users, roles }: Props) {
 
     return (
         <AdminLayout>
-            <Head title="Staff Users — Admin" />
+            <Head title="Staff Users" />
             <Toaster position="top-right" />
 
             <PageHeader

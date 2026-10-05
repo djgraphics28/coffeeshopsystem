@@ -1,10 +1,10 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { driverCollectPayment, driverDelivered } from '@/lib/routes';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BadgeCheck, CheckCircle2, MapPin, Phone } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import DriverLayout, { DRIVER_PALETTE as P } from '@/layouts/driver-layout';
+import { driverCollectPayment, driverDelivered } from '@/lib/routes';
 
 const STATUS_LABELS: Record<string, { label: string; bg: string }> = {
     pending: { label: 'Waiting for kitchen', bg: P.caramel },
@@ -45,12 +45,20 @@ export default function DriverDashboard({ delivery_man, active_orders, completed
     const [busy, setBusy] = useState(false);
 
     useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
+        if (flash?.success) {
+toast.success(flash.success);
+}
+
+        if (flash?.error) {
+toast.error(flash.error);
+}
     }, [flash]);
 
     function runAction() {
-        if (!confirming) return;
+        if (!confirming) {
+return;
+}
+
         setBusy(true);
         const url = confirming.action === 'collect' ? driverCollectPayment(confirming.order.id) : driverDelivered(confirming.order.id);
         router.post(url, {}, {
@@ -64,7 +72,7 @@ export default function DriverDashboard({ delivery_man, active_orders, completed
 
     return (
         <DriverLayout deliveryMan={delivery_man}>
-            <Head title={`Driver — ${settings.cafe_name}`} />
+            <Head title="Driver" />
             <>
                 {!delivery_man && (
                     <div className="p-4 text-sm" style={{ background: '#FEF3C7', border: '2px solid #F59E0B', color: '#92400E' }}>
@@ -90,6 +98,7 @@ export default function DriverDashboard({ delivery_man, active_orders, completed
                             const isCod = order.payment_method === 'cod';
                             const isPaid = !!order.payment;
                             const canDeliver = order.status === 'ready' && (!isCod || isPaid);
+
                             return (
                                 <div key={order.id} className="p-4" style={{ background: P.creamLight, border: `2px solid ${P.sand}` }}>
                                     <div className="flex flex-wrap items-center gap-2">

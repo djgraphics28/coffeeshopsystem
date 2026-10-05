@@ -26,6 +26,7 @@ class RolePermissionSeeder extends Seeder
         'view menu',
         'manage categories',
         'manage menu items',
+        'import menu items',
         'manage addon groups',
         'view tables',
         'manage tables',
@@ -40,6 +41,16 @@ class RolePermissionSeeder extends Seeder
         'view expenses',
         'manage expenses',
         'manage expense categories',
+        'view system',
+        'manage backups',
+        'restore database',
+        'reset database',
+        'view employees',
+        'manage employees',
+        'view attendance',
+        'manage attendance',
+        'view payroll',
+        'manage payroll',
     ];
 
     public function run(): void

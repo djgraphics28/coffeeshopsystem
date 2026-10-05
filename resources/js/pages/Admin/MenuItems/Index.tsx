@@ -82,7 +82,7 @@ interface Props {
     addon_groups: AddonGroupOption[];
     filters: Filters;
     stats: Stats;
-    can: { manage_menu_items: boolean };
+    can: { manage_menu_items: boolean; import_menu_items: boolean };
 }
 
 type BulkType = 'percent_increase' | 'percent_decrease' | 'fixed_increase' | 'fixed_decrease' | 'per_variation';
@@ -430,7 +430,7 @@ prices[name] = val;
 
     return (
         <AdminLayout>
-            <Head title="Menu Items — Admin" />
+            <Head title="Menu Items" />
             <Toaster position="top-right" />
 
             <div className="space-y-5">
@@ -440,7 +440,7 @@ prices[name] = val;
                     actions={
                         <>
                             <FilterToggleButton open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)} activeCount={activeFilterCount} />
-                            {can.manage_menu_items && (
+                            {can.import_menu_items && (
                                 <Button variant="outline" onClick={() => setImportOpen(true)}>
                                     <FileSpreadsheet className="h-4 w-4" /> Import
                                 </Button>
@@ -772,7 +772,7 @@ prices[name] = val;
                 </TableCard>
             </div>
 
-            {can.manage_menu_items && <MenuImportDialog open={importOpen} onOpenChange={setImportOpen} />}
+            {can.import_menu_items && <MenuImportDialog open={importOpen} onOpenChange={setImportOpen} />}
 
             <ConfirmDialog
                 open={!!deleting}

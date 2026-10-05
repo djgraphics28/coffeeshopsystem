@@ -1,14 +1,14 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
-    BarChart2, Bell, Bike, ChefHat, Coffee, Home, LogOut,
-    Menu, Moon, Receipt, Search, Settings, Shield, ShoppingBag, Store,
-    Sun, Table2, Tag, UserCircle, Users,
+    BarChart2, Banknote, Bell, Bike, CalendarCheck, ChefHat, Coffee, Database, Home, LogOut,
+    Menu, Moon, Receipt, ScanLine, Search, Settings, Shield, ShoppingBag, Store,
+    Sun, Table2, Tag, UserCircle, UserCog, Users,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useAppearance } from '@/hooks/use-appearance';
 import { adminAccount, adminAddonGroupsIndex, adminCategoriesIndex, adminCustomersIndex, adminDashboard,
     adminExpensesIndex,
-    adminMenuItemsIndex, adminOrdersIndex, adminPromosIndex, adminRolesIndex, adminSettings,
+    adminMenuItemsIndex, adminOrdersIndex, adminPromosIndex, adminRolesIndex, adminHrAttendance, adminHrEmployees, adminHrPayroll, adminSettings, adminSystem, attendanceKiosk,
     adminDeliveryMenIndex, adminTablesIndex, adminUsersIndex, baristaIndex, kitchenIndex, logout, posIndex,
 } from '@/lib/routes';
 
@@ -29,11 +29,20 @@ const NAV_GROUPS = [
         ],
     },
     {
+        label: 'HUMAN RESOURCE',
+        items: [
+            { href: adminHrEmployees(),  label: 'Employees',  icon: UserCog,       permission: 'view employees' },
+            { href: adminHrAttendance(), label: 'Attendance', icon: CalendarCheck, permission: 'view attendance' },
+            { href: adminHrPayroll(),    label: 'Payroll',    icon: Banknote,      permission: 'view payroll' },
+        ],
+    },
+    {
         label: 'SETTINGS',
         items: [
             { href: adminUsersIndex(), label: 'Users',    icon: Users },
             { href: adminRolesIndex(), label: 'Roles',    icon: Shield },
             { href: adminSettings(),   label: 'Settings', icon: Settings },
+            { href: adminSystem(),     label: 'System',   icon: Database, permission: 'view system' },
         ],
     },
 ];
@@ -43,6 +52,8 @@ const TOP_SHORTCUTS = [
     { href: posIndex(), label: 'POS Terminal', icon: Store },
     { href: kitchenIndex(), label: 'Kitchen', icon: ChefHat },
     { href: baristaIndex(), label: 'Barista', icon: Coffee },
+    // Opens the employee clock in / out screen in its own tab, ready to leave open on a tablet.
+    { href: attendanceKiosk(), label: 'Attendance', title: 'Attendance — clock in / out (opens in a new tab)', icon: ScanLine, external: true },
 ];
 
 const QUICK_LINKS = [
@@ -51,7 +62,7 @@ const QUICK_LINKS = [
     { href: baristaIndex(), label: 'Barista',       icon: Coffee },
 ];
 
-type Auth = { user: { name: string; email: string } };
+type Auth = { user: { name: string; email: string; permissions?: string[] } };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const { url, props } = usePage();
@@ -117,7 +128,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                 </p>
                             )}
                             <ul className="space-y-0.5 px-2">
-                                {group.items.map(({ href, label, icon: Icon }) => {
+                                {group.items.filter((item) => !('permission' in item) || !item.permission || (auth?.user?.permissions ?? []).includes(item.permission)).map(({ href, label, icon: Icon }) => {
                                     const isActive = url === href || (href !== adminDashboard() && url.startsWith(href));
 
                                     return (
@@ -250,20 +261,23 @@ e.currentTarget.style.color = 'var(--ap-sidebar-text)';
 
                     {/* Quick navigation to POS / Kitchen / Barista */}
                     <nav aria-label="Quick navigation" className="ml-auto flex shrink-0 items-center gap-1 rounded-xl border p-1 sm:ml-0" style={{ background: 'var(--ap-bg)', borderColor: 'var(--ap-border)' }}>
-                        {TOP_SHORTCUTS.map(({ href, label, icon: Icon }) => {
-                            const active = url === href || url.startsWith(`${href}/`);
-
-                            return (
-                                <Link
-                                    key={href}
-                                    href={href}
-                                    title={label}
-                                    aria-label={label}
-                                    className={`group relative flex h-9 items-center gap-2 rounded-lg px-2.5 text-sm font-medium transition-colors ${active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-                                >
+                        {TOP_SHORTCUTS.map((shortcut) => {
+                            const { href, label, icon: Icon } = shortcut;
+                            const external = 'external' in shortcut && shortcut.external;
+                            const title = 'title' in shortcut ? shortcut.title : label;
+                            const active = !external && (url === href || url.startsWith(`${href}/`));
+                            const className = `group relative flex h-9 items-center gap-2 rounded-lg px-2.5 text-sm font-medium transition-colors ${active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`;
+                            const content = (
+                                <>
                                     <Icon className="h-[18px] w-[18px]" />
                                     <span className="hidden xl:inline">{label}</span>
-                                </Link>
+                                </>
+                            );
+
+                            return external ? (
+                                <a key={href} href={href} target="_blank" rel="noopener noreferrer" title={title} aria-label={title} className={className}>{content}</a>
+                            ) : (
+                                <Link key={href} href={href} title={title} aria-label={title} className={className}>{content}</Link>
                             );
                         })}
                     </nav>

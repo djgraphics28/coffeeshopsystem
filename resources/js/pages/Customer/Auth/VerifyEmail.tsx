@@ -1,8 +1,8 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
-import { customerAuthEmailResend, customerAuthLogout } from '@/lib/routes';
 import { Mail, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
+import { customerAuthEmailResend, customerAuthLogout } from '@/lib/routes';
 
 export default function CustomerVerifyEmail() {
     const { flash, errors } = usePage().props as {
@@ -14,8 +14,13 @@ export default function CustomerVerifyEmail() {
     const { post, processing } = useForm({});
 
     useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (errors?.verification) toast.error(errors.verification);
+        if (flash?.success) {
+toast.success(flash.success);
+}
+
+        if (errors?.verification) {
+toast.error(errors.verification);
+}
     }, [flash, errors]);
 
     function resend() {
@@ -26,14 +31,18 @@ export default function CustomerVerifyEmail() {
 
     // Countdown timer after resend
     useEffect(() => {
-        if (countdown <= 0) return;
+        if (countdown <= 0) {
+return;
+}
+
         const timer = setInterval(() => setCountdown((c) => c - 1), 1000);
+
         return () => clearInterval(timer);
     }, [countdown]);
 
     return (
         <div className="customer-page flex min-h-screen flex-col items-center justify-center px-4" style={{ background: '#F9FAFB', fontFamily: "'DM Sans', sans-serif" }}>
-            <Head title="Verify Your Email — Milk&Honey" />
+            <Head title="Verify Your Email" />
             <Toaster position="top-center" />
 
             <div className="w-full max-w-sm">

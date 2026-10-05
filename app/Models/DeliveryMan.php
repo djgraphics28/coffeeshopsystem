@@ -21,6 +21,7 @@ class DeliveryMan extends Model
         'vehicle',
         'is_active',
         'user_id',
+        'employee_id',
     ];
 
     protected $casts = [
@@ -30,6 +31,11 @@ class DeliveryMan extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class);
     }
 
     public function orders(): HasMany

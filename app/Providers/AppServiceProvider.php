@@ -3,8 +3,11 @@
 namespace App\Providers;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -24,6 +27,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->configureSystemRateLimits();
         $this->overrideConfigFromSettings();
     }
 
@@ -82,5 +86,18 @@ class AppServiceProvider extends ServiceProvider
                 ->uncompromised()
             : null,
         );
+    }
+
+    /**
+     * Backups and the destructive database actions are slow and heavy, so they are limited per user.
+     */
+    protected function configureSystemRateLimits(): void
+    {
+        // The attendance screen is public, so guessing employee IDs from one address is slowed right down.
+        RateLimiter::for('attendance-punch', fn (Request $request) => Limit::perMinute(20)->by($request->ip().'|attendance'));
+
+        foreach (['backup-create' => 6, 'backup-import' => 6, 'db-restore' => 3, 'db-reset' => 3] as $name => $perMinute) {
+            RateLimiter::for($name, fn (Request $request) => Limit::perMinute($perMinute)->by(($request->user()?->id ?? $request->ip()).'|'.$name));
+        }
     }
 }

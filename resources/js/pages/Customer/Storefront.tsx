@@ -1,10 +1,10 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { customerAuthLogin, customerAuthLogout, customerAuthRegister, customerPromoApply, storefrontOrdersShow, storefrontOrdersStore } from '@/lib/routes';
 import { AnimatePresence, motion } from 'framer-motion';
 import { LogOut, Minus, Plus, Search, ShoppingCart, Tag, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import CustomerNav from '@/components/CustomerNav';
+import { customerAuthLogin, customerAuthLogout, customerAuthRegister, customerPromoApply, storefrontOrdersShow, storefrontOrdersStore } from '@/lib/routes';
 
 interface Addon {
     id: number;
@@ -114,11 +114,14 @@ export default function Storefront({ table, categories, featured_items, settings
     useEffect(() => {
         try {
             const stored = JSON.parse(sessionStorage.getItem(cartStorageKey) ?? '[]') as CartItem[];
-            if (stored.length > 0) setCart(stored);
+
+            if (stored.length > 0) {
+setCart(stored);
+}
         } catch {
             // Corrupt or unavailable storage — start with an empty cart
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [cartStorageKey]);
     const [cartOpen, setCartOpen] = useState(false);
     const [quantity, setQuantity] = useState(1);
@@ -143,10 +146,13 @@ export default function Storefront({ table, categories, featured_items, settings
     useEffect(() => {
         if (!paymentProof) {
             setProofPreviewUrl(null);
+
             return;
         }
+
         const url = URL.createObjectURL(paymentProof);
         setProofPreviewUrl(url);
+
         return () => URL.revokeObjectURL(url);
     }, [paymentProof]);
 
@@ -164,7 +170,10 @@ export default function Storefront({ table, categories, featured_items, settings
     // Keep the cart across sign-in/register redirects
     useEffect(() => {
         try {
-            if (typeof sessionStorage === 'undefined') return;
+            if (typeof sessionStorage === 'undefined') {
+return;
+}
+
             sessionStorage.setItem(cartStorageKey, JSON.stringify(cart));
         } catch {
             // Storage unavailable (private mode) — cart just won't survive navigation
@@ -206,7 +215,11 @@ export default function Storefront({ table, categories, featured_items, settings
     function scrollToCategory(categoryId: number) {
         setActiveCategory(categoryId);
         const el = categoryRefs.current[categoryId];
-        if (!el) return;
+
+        if (!el) {
+return;
+}
+
         const offset = stickyHeaderRef.current?.offsetHeight ?? 0;
         const top = el.getBoundingClientRect().top + window.scrollY - offset;
         window.scrollTo({ top, behavior: 'smooth' });
@@ -214,7 +227,11 @@ export default function Storefront({ table, categories, featured_items, settings
 
     function scrollToMenu() {
         const el = menuStartRef.current;
-        if (!el) return;
+
+        if (!el) {
+return;
+}
+
         const offset = stickyHeaderRef.current?.offsetHeight ?? 0;
         const top = el.getBoundingClientRect().top + window.scrollY - offset;
         window.scrollTo({ top, behavior: 'smooth' });
@@ -231,15 +248,19 @@ export default function Storefront({ table, categories, featured_items, settings
     function toggleAddon(groupId: number, addonId: number, maxSelections: number) {
         setSelectedAddons((prev) => {
             const current = prev[groupId] ?? [];
+
             if (current.includes(addonId)) {
                 return { ...prev, [groupId]: current.filter((id) => id !== addonId) };
             }
+
             if (maxSelections === 1) {
                 return { ...prev, [groupId]: [addonId] };
             }
+
             if (current.length < maxSelections) {
                 return { ...prev, [groupId]: [...current, addonId] };
             }
+
             return prev;
         });
     }
@@ -252,24 +273,35 @@ export default function Storefront({ table, categories, featured_items, settings
             .flat()
             .reduce((sum, addonId) => {
                 const addon = item.addon_groups.flatMap((g) => g.addons).find((a) => a.id === addonId);
+
                 return sum + (addon?.additional_price ?? 0);
             }, 0);
+
         return basePrice + addonPrice;
     }
 
     function canAddToCart(): boolean {
-        if (!selectedItem) return false;
-        if (selectedItem.has_variations && !selectedVariationId) return false;
+        if (!selectedItem) {
+return false;
+}
+
+        if (selectedItem.has_variations && !selectedVariationId) {
+return false;
+}
+
         for (const group of selectedItem.addon_groups) {
             if (group.is_required && !(selectedAddons[group.id]?.length > 0)) {
                 return false;
             }
         }
+
         return true;
     }
 
     function addToCart() {
-        if (!selectedItem || !canAddToCart()) return;
+        if (!selectedItem || !canAddToCart()) {
+return;
+}
 
         const flatAddons = Object.values(selectedAddons)
             .flat()
@@ -311,12 +343,18 @@ export default function Storefront({ table, categories, featured_items, settings
     }
 
     async function applyPromo() {
-        if (!promoCode.trim()) return;
+        if (!promoCode.trim()) {
+return;
+}
+
         if (!customer) {
             setAuthPromptOpen(true);
+
             return;
         }
+
         setIsApplyingPromo(true);
+
         try {
             const res = await fetch(customerPromoApply(), {
                 method: 'POST',
@@ -324,6 +362,7 @@ export default function Storefront({ table, categories, featured_items, settings
                 body: JSON.stringify({ code: promoCode, subtotal: cartSubtotal }),
             });
             const data = await res.json();
+
             if (data.valid) {
                 setPromoApplied({ code: promoCode.toUpperCase(), discount: data.discount_amount, message: data.message });
                 toast.success(data.message);
@@ -341,8 +380,10 @@ export default function Storefront({ table, categories, featured_items, settings
     function useCurrentLocation() {
         if (!navigator.geolocation) {
             toast.error('Location is not supported by your browser.');
+
             return;
         }
+
         setIsLocating(true);
         navigator.geolocation.getCurrentPosition(
             (pos) => {
@@ -352,6 +393,7 @@ export default function Storefront({ table, categories, featured_items, settings
             },
             (err) => {
                 setIsLocating(false);
+
                 if (err.code === err.PERMISSION_DENIED) {
                     toast.error('Location permission was denied. Please allow location access in your browser, or type your address instead.');
                 } else {
@@ -363,20 +405,26 @@ export default function Storefront({ table, categories, featured_items, settings
     }
 
     async function placeOrder() {
-        if (cart.length === 0) return;
+        if (cart.length === 0) {
+return;
+}
 
         if (!customer) {
             setAuthPromptOpen(true);
+
             return;
         }
 
         if (!table) {
             if (fulfillment === 'delivery' && !deliveryAddress.trim()) {
                 toast.error('Please enter your delivery address or pin your location.');
+
                 return;
             }
+
             if ((paymentMethod === 'gcash' || paymentMethod === 'maya') && !paymentProof) {
                 toast.error('Please upload your proof of payment.');
+
                 return;
             }
         }
@@ -413,23 +461,40 @@ export default function Storefront({ table, categories, featured_items, settings
                 const formData = new FormData();
                 formData.append('type', fulfillment);
                 formData.append('payment_method', paymentMethod);
-                if (paymentProof) formData.append('payment_proof', paymentProof);
+
+                if (paymentProof) {
+formData.append('payment_proof', paymentProof);
+}
+
                 if (fulfillment === 'delivery') {
                     formData.append('delivery_address', deliveryAddress);
+
                     if (deliveryCoords) {
                         formData.append('delivery_lat', String(deliveryCoords.lat));
                         formData.append('delivery_lng', String(deliveryCoords.lng));
                     }
                 }
+
                 formData.append('notes', orderNotes);
-                if (promoApplied) formData.append('promo_code', promoApplied.code);
+
+                if (promoApplied) {
+formData.append('promo_code', promoApplied.code);
+}
+
                 formData.append('redeem_points', redeemPoints ? '1' : '0');
                 formData.append('use_free_drink', useFreeDrink && freeDrinksAvailable > 0 ? '1' : '0');
                 cart.forEach((item, i) => {
                     formData.append(`items[${i}][menu_item_id]`, String(item.menuItem.id));
                     formData.append(`items[${i}][quantity]`, String(item.quantity));
-                    if (item.selectedVariation) formData.append(`items[${i}][variation_id]`, String(item.selectedVariation.id));
-                    if (item.notes) formData.append(`items[${i}][notes]`, item.notes);
+
+                    if (item.selectedVariation) {
+formData.append(`items[${i}][variation_id]`, String(item.selectedVariation.id));
+}
+
+                    if (item.notes) {
+formData.append(`items[${i}][notes]`, item.notes);
+}
+
                     item.selectedAddons.forEach((addon, j) => {
                         formData.append(`items[${i}][addon_ids][${j}]`, String(addon.id));
                     });
@@ -444,27 +509,39 @@ export default function Storefront({ table, categories, featured_items, settings
 
             if (response.status === 401) {
                 setAuthPromptOpen(true);
+
                 return;
             }
+
             if (response.status === 403) {
                 const err = await response.json().catch(() => null);
                 toast.error(err?.message ?? 'Unable to place order.');
+
                 return;
             }
+
             if (response.status === 422) {
                 const err = await response.json().catch(() => null);
                 const firstError = err?.errors ? (Object.values(err.errors)[0] as string[])[0] : null;
                 toast.error(firstError ?? err?.message ?? 'Please check your order details.');
+
                 return;
             }
-            if (!response.ok) throw new Error('Order failed');
+
+            if (!response.ok) {
+throw new Error('Order failed');
+}
+
             const data = await response.json();
+
             if (data.points_earned) {
                 toast.success(`⭐ You earned ${data.points_earned} points!`);
             }
+
             if (data.free_drinks_earned > 0) {
                 setTimeout(() => toast.success(`🎉 You earned ${data.free_drinks_earned} free drink${data.free_drinks_earned > 1 ? 's' : ''}!`), 600);
             }
+
             if (data.cups_awarded > 0 && data.free_drinks_earned === 0) {
                 const newCount = data.cup_count ?? 0;
                 const threshold = settings.loyalty_cups_threshold;
@@ -472,8 +549,13 @@ export default function Storefront({ table, categories, featured_items, settings
             }
 
             // Sync local cup state
-            if (data.cup_count !== null && data.cup_count !== undefined) setCupCount(data.cup_count);
-            if (data.free_drinks_available !== null && data.free_drinks_available !== undefined) setFreeDrinksAvailable(data.free_drinks_available);
+            if (data.cup_count !== null && data.cup_count !== undefined) {
+setCupCount(data.cup_count);
+}
+
+            if (data.free_drinks_available !== null && data.free_drinks_available !== undefined) {
+setFreeDrinksAvailable(data.free_drinks_available);
+}
 
             setCart([]);
             setCartOpen(false);
@@ -494,7 +576,7 @@ export default function Storefront({ table, categories, featured_items, settings
 
     return (
         <div className="customer-page min-h-screen" style={{ background: P.cream, fontFamily: "'DM Sans', sans-serif", color: P.espresso }}>
-            <Head title={`${settings.cafe_name} — Order`} />
+            <Head title="Order" />
             <Toaster position="top-center" />
 
             {/* ─── Top Nav ─────────────────────────────────────────── */}
@@ -763,6 +845,7 @@ export default function Storefront({ table, categories, featured_items, settings
                                         <div className="mt-2 flex flex-wrap gap-2">
                                             {selectedItem.variations.map((variation) => {
                                                 const isSelected = selectedVariationId === variation.id;
+
                                                 return (
                                                     <button
                                                         key={variation.id}
@@ -804,6 +887,7 @@ export default function Storefront({ table, categories, featured_items, settings
                                                     : addon.additional_price < 0
                                                         ? `-${currency}${Math.abs(addon.additional_price)}`
                                                         : 'Free';
+
                                                 return (
                                                     <button
                                                         key={addon.id}
@@ -1030,7 +1114,13 @@ export default function Storefront({ table, categories, featured_items, settings
                                                         <button
                                                             key={option.value}
                                                             type="button"
-                                                            onClick={() => { setPaymentMethod(option.value); if (option.value === 'cod') setPaymentProof(null); }}
+                                                            onClick={() => {
+ setPaymentMethod(option.value);
+
+ if (option.value === 'cod') {
+setPaymentProof(null);
+} 
+}}
                                                             className="py-2 text-sm font-bold transition-all"
                                                             style={{
                                                                 background: paymentMethod === option.value ? P.navy : 'white',
@@ -1051,6 +1141,7 @@ export default function Storefront({ table, categories, featured_items, settings
                                                             const walletNumber = paymentMethod === 'gcash' ? settings.gcash_number : settings.maya_number;
                                                             const walletAccount = paymentMethod === 'gcash' ? settings.gcash_account_name : settings.maya_account_name;
                                                             const walletQr = paymentMethod === 'gcash' ? settings.gcash_qr_url : settings.maya_qr_url;
+
                                                             return (
                                                                 <div className="mb-2 bg-white p-3" style={{ border: `2px solid ${P.sand}` }}>
                                                                     <p className="text-xs font-bold uppercase tracking-wide" style={{ color: P.espresso }}>
@@ -1186,7 +1277,13 @@ export default function Storefront({ table, categories, featured_items, settings
                                                 <Tag className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: P.caramel }} />
                                                 <input
                                                     value={promoCode}
-                                                    onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); if (promoApplied) setPromoApplied(null); }}
+                                                    onChange={(e) => {
+ setPromoCode(e.target.value.toUpperCase());
+
+ if (promoApplied) {
+setPromoApplied(null);
+} 
+}}
                                                     placeholder="Promo code"
                                                     className="w-full bg-white py-2 pl-8 pr-3 font-mono text-sm focus:outline-none"
                                                     style={{ border: `2px solid ${P.sand}` }}

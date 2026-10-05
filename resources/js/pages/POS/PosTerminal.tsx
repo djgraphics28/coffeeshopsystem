@@ -264,7 +264,7 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
 
     return (
         <div className="admin-panel flex h-dvh overflow-hidden" style={{ background: 'var(--ap-bg)', fontFamily: "'DM Sans', sans-serif" }}>
-            <Head title="POS Terminal — Milk&Honey Cafe" />
+            <Head title="POS" />
             <Toaster position="top-center" />
 
             {/* ── Menu side ── */}

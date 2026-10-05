@@ -8,13 +8,19 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DeliveryManController;
 use App\Http\Controllers\Admin\ExpenseCategoryController;
 use App\Http\Controllers\Admin\ExpenseController;
+use App\Http\Controllers\Admin\Hr\AttendanceController as HrAttendanceController;
+use App\Http\Controllers\Admin\Hr\EmployeeController;
+use App\Http\Controllers\Admin\Hr\PayrollController;
+use App\Http\Controllers\Admin\Hr\PositionController;
 use App\Http\Controllers\Admin\MenuItemController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\PromoController as AdminPromoController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\SystemController;
 use App\Http\Controllers\Admin\TableController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\AttendanceKioskController;
 use App\Http\Controllers\Customer\CustomerAccountController;
 use App\Http\Controllers\Customer\CustomerAuthController;
 use App\Http\Controllers\Customer\OrderController as CustomerOrderController;
@@ -30,6 +36,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login');
 Route::redirect('/welcome', '/login');
+
+// Attendance screen: employees clock in / out by scanning their QR code or typing their employee ID (no sign-in needed).
+Route::get('attendance', [AttendanceKioskController::class, 'show'])->name('attendance.kiosk');
+Route::post('attendance/punch', [AttendanceKioskController::class, 'punch'])->middleware('throttle:attendance-punch')->name('attendance.punch');
 
 // Driver login (separate, rider-friendly sign-in page)
 Route::get('driver/login', [DriverAuthController::class, 'showLogin'])->name('driver.login');
@@ -138,6 +148,46 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('delivery-men/{deliveryMan}/account', [DeliveryManController::class, 'saveAccount'])->name('delivery-men.account');
         Route::resource('expense-categories', ExpenseCategoryController::class)->only(['store', 'update', 'destroy']);
         Route::resource('expenses', ExpenseController::class)->except(['show', 'edit', 'create']);
+
+        // Human Resource: employees, attendance and payroll
+        Route::prefix('hr')->name('hr.')->group(function () {
+            Route::get('employees', [EmployeeController::class, 'index'])->name('employees.index');
+            Route::get('employees/cards', [EmployeeController::class, 'cards'])->name('employees.cards');
+            Route::post('employees', [EmployeeController::class, 'store'])->name('employees.store');
+            Route::put('employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
+            Route::delete('employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
+
+            Route::post('positions', [PositionController::class, 'store'])->name('positions.store');
+            Route::post('positions/defaults', [PositionController::class, 'defaults'])->name('positions.defaults');
+            Route::put('positions/{position}', [PositionController::class, 'update'])->name('positions.update');
+            Route::delete('positions/{position}', [PositionController::class, 'destroy'])->name('positions.destroy');
+
+            Route::get('attendance', [HrAttendanceController::class, 'index'])->name('attendance.index');
+            Route::post('attendance', [HrAttendanceController::class, 'store'])->name('attendance.store');
+            Route::put('attendance/{attendance}', [HrAttendanceController::class, 'update'])->name('attendance.update');
+            Route::delete('attendance/{attendance}', [HrAttendanceController::class, 'destroy'])->name('attendance.destroy');
+
+            Route::get('payroll', [PayrollController::class, 'index'])->name('payroll.index');
+            Route::post('payroll', [PayrollController::class, 'store'])->name('payroll.store');
+            Route::put('payroll/settings', [PayrollController::class, 'updateSettings'])->name('payroll.settings');
+            Route::post('payroll/payslips/{payslip}/adjustments', [PayrollController::class, 'addAdjustment'])->name('payroll.adjustments.store');
+            Route::delete('payroll/adjustments/{adjustment}', [PayrollController::class, 'deleteAdjustment'])->name('payroll.adjustments.destroy');
+            Route::get('payroll/{run}', [PayrollController::class, 'show'])->name('payroll.show');
+            Route::get('payroll/{run}/payslips/{payslip}', [PayrollController::class, 'payslip'])->name('payroll.payslip');
+            Route::post('payroll/{run}/recalculate', [PayrollController::class, 'recalculate'])->name('payroll.recalculate');
+            Route::post('payroll/{run}/approve', [PayrollController::class, 'approve'])->name('payroll.approve');
+            Route::post('payroll/{run}/pay', [PayrollController::class, 'pay'])->name('payroll.pay');
+            Route::delete('payroll/{run}', [PayrollController::class, 'destroy'])->name('payroll.destroy');
+        });
+
+        // System: database backups, restore and reset
+        Route::get('system', [SystemController::class, 'index'])->name('system');
+        Route::post('system/backups', [SystemController::class, 'storeBackup'])->middleware('throttle:backup-create')->name('system.backups.store');
+        Route::post('system/backups/import', [SystemController::class, 'importBackup'])->middleware('throttle:backup-import')->name('system.backups.import');
+        Route::get('system/backups/{file}/download', [SystemController::class, 'downloadBackup'])->where('file', '[A-Za-z0-9._-]+\.zip')->name('system.backups.download');
+        Route::delete('system/backups/{file}', [SystemController::class, 'destroyBackup'])->where('file', '[A-Za-z0-9._-]+\.zip')->name('system.backups.destroy');
+        Route::post('system/backups/{file}/restore', [SystemController::class, 'restore'])->where('file', '[A-Za-z0-9._-]+\.zip')->middleware('throttle:db-restore')->name('system.backups.restore');
+        Route::post('system/database/reset', [SystemController::class, 'reset'])->middleware('throttle:db-reset')->name('system.database.reset');
 
         Route::get('settings', [SettingsController::class, 'index'])->name('settings');
         Route::put('settings', [SettingsController::class, 'update'])->name('settings.update');

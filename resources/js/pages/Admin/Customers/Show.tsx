@@ -1,11 +1,5 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import {
-    adminCustomersAdjustLoyalty,
-    adminCustomersIndex,
-    adminCustomersUpdate,
-    adminCustomersVerifyEmail,
-    adminOrdersShow,
-} from '@/lib/routes';
+import type { VariantProps } from 'class-variance-authority';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     ArrowLeft, BadgeCheck, Calendar, ChevronDown, ChevronUp, Coffee,
@@ -13,13 +7,20 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import AdminLayout from '@/layouts/admin-layout';
 import { CrudModal } from '@/components/admin/crud-modal';
-import { FormField, adminFieldClass } from '@/components/admin/form-field';
-import { Button } from '@/components/ui/button';
-import { Badge, type badgeVariants } from '@/components/ui/badge';
 import { TableCard, TableScroll, Table, TableHead, TableHeadCell, TableBody, TableRow, TableCell, TableEmpty } from '@/components/admin/data-table';
-import type { VariantProps } from 'class-variance-authority';
+import { FormField, adminFieldClass } from '@/components/admin/form-field';
+import { Badge  } from '@/components/ui/badge';
+import type {badgeVariants} from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import AdminLayout from '@/layouts/admin-layout';
+import {
+    adminCustomersAdjustLoyalty,
+    adminCustomersIndex,
+    adminCustomersUpdate,
+    adminCustomersVerifyEmail,
+    adminOrdersShow,
+} from '@/lib/routes';
 
 interface Customer {
     id: number;
@@ -91,14 +92,20 @@ export default function CustomerShow({ customer, orders, summary, settings }: Pr
     const { flash } = usePage().props as { flash?: { success?: string } };
     const cur = settings.currency;
 
-    useEffect(() => { if (flash?.success) toast.success(flash.success); }, [flash]);
+    useEffect(() => {
+ if (flash?.success) {
+toast.success(flash.success);
+} 
+}, [flash]);
 
     // Profile edit modal
     const [editOpen, setEditOpen] = useState(false);
     const editForm = useForm({ name: customer.name, phone: customer.phone ?? '', email: customer.email ?? '', notes: customer.notes ?? '', _method: 'PUT' });
     function submitEdit(e: React.FormEvent) {
         e.preventDefault();
-        editForm.post(adminCustomersUpdate(customer.id), { onSuccess: () => { setEditOpen(false); toast.success('Profile updated.'); } });
+        editForm.post(adminCustomersUpdate(customer.id), { onSuccess: () => {
+ setEditOpen(false); toast.success('Profile updated.'); 
+} });
     }
 
     // Loyalty adjustment panel
@@ -112,7 +119,9 @@ export default function CustomerShow({ customer, orders, summary, settings }: Pr
     });
     function submitLoyalty(e: React.FormEvent) {
         e.preventDefault();
-        loyaltyForm.post(adminCustomersAdjustLoyalty(customer.id), { onSuccess: () => { setLoyaltyOpen(false); toast.success('Loyalty data updated.'); } });
+        loyaltyForm.post(adminCustomersAdjustLoyalty(customer.id), { onSuccess: () => {
+ setLoyaltyOpen(false); toast.success('Loyalty data updated.'); 
+} });
     }
 
     // Order history sort
@@ -124,7 +133,10 @@ export default function CustomerShow({ customer, orders, summary, settings }: Pr
     );
 
     function fmtDate(iso: string | null) {
-        if (!iso) return '—';
+        if (!iso) {
+return '—';
+}
+
         return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
     }
     function fmtDateTime(iso: string) {
@@ -272,7 +284,11 @@ export default function CustomerShow({ customer, orders, summary, settings }: Pr
                                                     <ShieldAlert className="h-3.5 w-3.5" /> Not verified
                                                 </span>
                                                 <button
-                                                    onClick={() => { if (confirm(`Manually verify ${customer.name}'s email?`)) router.post(adminCustomersVerifyEmail(customer.id)); }}
+                                                    onClick={() => {
+ if (confirm(`Manually verify ${customer.name}'s email?`)) {
+router.post(adminCustomersVerifyEmail(customer.id));
+} 
+}}
                                                     className="rounded-lg bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
                                                 >
                                                     Verify now

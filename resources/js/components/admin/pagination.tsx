@@ -31,6 +31,7 @@ export function Pagination({ meta, className }: { meta: PaginationMeta; classNam
                 {meta.links.map((link, i) => {
                     const isPrev = link.label.includes('Previous');
                     const isNext = link.label.includes('Next');
+
                     return (
                         <button
                             key={i}

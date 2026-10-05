@@ -1,15 +1,15 @@
 import { Head, useForm, router } from '@inertiajs/react';
-import { adminDeliveryMenAccount, adminDeliveryMenDestroy, adminDeliveryMenStore, adminDeliveryMenUpdate } from '@/lib/routes';
 import { Bike, Edit2, KeyRound, Phone, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import AdminLayout from '@/layouts/admin-layout';
-import { PageHeader } from '@/components/admin/page-header';
-import { CrudModal } from '@/components/admin/crud-modal';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
+import { CrudModal } from '@/components/admin/crud-modal';
 import { FormField, adminFieldClass } from '@/components/admin/form-field';
-import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/admin/page-header';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import AdminLayout from '@/layouts/admin-layout';
+import { adminDeliveryMenAccount, adminDeliveryMenDestroy, adminDeliveryMenStore, adminDeliveryMenUpdate } from '@/lib/routes';
 
 interface DeliveryMan {
     id: number;
@@ -46,11 +46,17 @@ export default function DeliveryMenIndex({ delivery_men }: Props) {
 
     function saveAccount(e: React.FormEvent) {
         e.preventDefault();
-        if (!accountFor) return;
+
+        if (!accountFor) {
+return;
+}
+
         setSavingAccount(true);
         router.put(adminDeliveryMenAccount(accountFor.id), { email: accountEmail, password: accountPassword }, {
             preserveScroll: true,
-            onSuccess: () => { setAccountFor(null); toast.success('Driver account saved!'); },
+            onSuccess: () => {
+ setAccountFor(null); toast.success('Driver account saved!'); 
+},
             onError: (errs) => setAccountErrors(errs as Record<string, string>),
             onFinish: () => setSavingAccount(false),
         });
@@ -77,25 +83,35 @@ export default function DeliveryMenIndex({ delivery_men }: Props) {
 
     function submit(e: React.FormEvent) {
         e.preventDefault();
+
         if (editing) {
-            put(adminDeliveryMenUpdate(editing.id), { onSuccess: () => { setModalOpen(false); toast.success('Delivery man updated!'); } });
+            put(adminDeliveryMenUpdate(editing.id), { onSuccess: () => {
+ setModalOpen(false); toast.success('Delivery man updated!'); 
+} });
         } else {
-            post(adminDeliveryMenStore(), { onSuccess: () => { setModalOpen(false); toast.success('Delivery man added!'); } });
+            post(adminDeliveryMenStore(), { onSuccess: () => {
+ setModalOpen(false); toast.success('Delivery man added!'); 
+} });
         }
     }
 
     function confirmDelete() {
-        if (!deleting) return;
+        if (!deleting) {
+return;
+}
+
         setDeleteLoading(true);
         router.delete(adminDeliveryMenDestroy(deleting.id), {
-            onSuccess: () => { setDeleting(null); toast.success('Delivery man removed.'); },
+            onSuccess: () => {
+ setDeleting(null); toast.success('Delivery man removed.'); 
+},
             onFinish: () => setDeleteLoading(false),
         });
     }
 
     return (
         <AdminLayout>
-            <Head title="Delivery Men — Admin" />
+            <Head title="Delivery Men" />
             <Toaster position="top-right" />
 
             <PageHeader

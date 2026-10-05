@@ -1,11 +1,12 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
+import { Bell, Coins, Store, Truck } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import { useEffect } from 'react';
+import { FormField, adminFieldClass } from '@/components/admin/form-field';
+import { PageHeader } from '@/components/admin/page-header';
+import { Button } from '@/components/ui/button';
 import AdminLayout from '@/layouts/admin-layout';
 import { adminSettingsUpdate } from '@/lib/routes';
-import { PageHeader } from '@/components/admin/page-header';
-import { FormField, adminFieldClass } from '@/components/admin/form-field';
-import { Button } from '@/components/ui/button';
 
 interface Props {
     settings: Record<string, string>;
@@ -22,6 +23,22 @@ function Section({ title, description, children }: { title: string; description?
         </div>
     );
 }
+
+const TABS = [
+    { key: 'general', label: 'General', icon: Store },
+    { key: 'pricing', label: 'Pricing & Loyalty', icon: Coins },
+    { key: 'delivery', label: 'Delivery & Payments', icon: Truck },
+    { key: 'integrations', label: 'Email & Real-time', icon: Bell },
+] as const;
+
+type TabKey = (typeof TABS)[number]['key'];
+
+const TAB_FIELDS: Record<TabKey, string[]> = {
+    general: ['cafe_name', 'cafe_tagline', 'opening_time', 'closing_time', 'estimated_wait_minutes', 'pay_as_you_order'],
+    pricing: ['tax_rate', 'currency', 'points_earn_rate', 'points_redeem_rate', 'loyalty_cups_enabled', 'loyalty_cups_threshold'],
+    delivery: ['delivery_fee', 'free_delivery_minimum', 'gcash_number', 'gcash_account_name', 'gcash_qr', 'maya_number', 'maya_account_name', 'maya_qr'],
+    integrations: ['mail_host', 'mail_port', 'mail_username', 'mail_password', 'mail_encryption', 'mail_from_address', 'mail_from_name', 'pusher_app_id', 'pusher_app_key', 'pusher_app_secret', 'pusher_app_cluster'],
+};
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
     return (
@@ -82,8 +99,23 @@ export default function SettingsPage({ settings, gcash_qr_url, maya_qr_url }: Pr
         pusher_app_cluster: settings.pusher_app_cluster ?? 'ap1',
     });
 
+    const [tab, setTab] = useState<TabKey>(() => {
+        const saved = typeof window !== 'undefined' ? window.location.hash.slice(1) : '';
+
+        return TABS.some((t) => t.key === saved) ? (saved as TabKey) : 'general';
+    });
+
+    function selectTab(key: TabKey) {
+        setTab(key);
+        window.history.replaceState(null, '', `#${key}`);
+    }
+
+    const tabHasErrors = (key: TabKey) => TAB_FIELDS[key].some((field) => (errors as Record<string, string | undefined>)[field]);
+
     useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
+        if (flash?.success) {
+toast.success(flash.success);
+}
     }, [flash]);
 
     function submit(e: React.FormEvent) {
@@ -94,12 +126,32 @@ export default function SettingsPage({ settings, gcash_qr_url, maya_qr_url }: Pr
 
     return (
         <AdminLayout>
-            <Head title="Settings — Admin" />
+            <Head title="Settings" />
             <Toaster position="top-right" />
-            <div className="max-w-2xl">
+            <div className="max-w-3xl">
                 <PageHeader title="Settings" breadcrumbs={[{ label: 'Settings' }]} />
 
+                <div role="tablist" className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-border bg-muted/40 p-1">
+                    {TABS.map(({ key, label, icon: Icon }) => (
+                        <button
+                            key={key}
+                            type="button"
+                            role="tab"
+                            aria-selected={tab === key}
+                            onClick={() => selectTab(key)}
+                            className={`relative flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                tab === key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                        >
+                            <Icon className="h-4 w-4" />
+                            {label}
+                            {tabHasErrors(key) && <span className="h-2 w-2 rounded-full bg-destructive" />}
+                        </button>
+                    ))}
+                </div>
+
                 <form onSubmit={submit} className="space-y-6">
+                    <div role="tabpanel" hidden={tab !== 'general'} className="space-y-6">
                     <Section title="Cafe Info">
                         <div className="space-y-4">
                             <FormField label="Cafe Name">
@@ -107,17 +159,6 @@ export default function SettingsPage({ settings, gcash_qr_url, maya_qr_url }: Pr
                             </FormField>
                             <FormField label="Tagline">
                                 <input value={data.cafe_tagline} onChange={(e) => setData('cafe_tagline', e.target.value)} className={adminFieldClass()} />
-                            </FormField>
-                        </div>
-                    </Section>
-
-                    <Section title="Pricing">
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField label="Tax Rate (%)">
-                                <input type="number" step="0.01" value={data.tax_rate} onChange={(e) => setData('tax_rate', e.target.value)} className={adminFieldClass()} />
-                            </FormField>
-                            <FormField label="Currency Symbol">
-                                <input value={data.currency} onChange={(e) => setData('currency', e.target.value)} className={adminFieldClass()} maxLength={5} />
                             </FormField>
                         </div>
                     </Section>
@@ -140,6 +181,19 @@ export default function SettingsPage({ settings, gcash_qr_url, maya_qr_url }: Pr
                                 </div>
                                 <Toggle checked={data.pay_as_you_order} onChange={() => setData('pay_as_you_order', !data.pay_as_you_order)} />
                             </div>
+                        </div>
+                    </Section>
+                    </div>
+
+                    <div role="tabpanel" hidden={tab !== 'pricing'} className="space-y-6">
+                    <Section title="Pricing">
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField label="Tax Rate (%)">
+                                <input type="number" step="0.01" value={data.tax_rate} onChange={(e) => setData('tax_rate', e.target.value)} className={adminFieldClass()} />
+                            </FormField>
+                            <FormField label="Currency Symbol">
+                                <input value={data.currency} onChange={(e) => setData('currency', e.target.value)} className={adminFieldClass()} maxLength={5} />
+                            </FormField>
                         </div>
                     </Section>
 
@@ -178,57 +232,9 @@ export default function SettingsPage({ settings, gcash_qr_url, maya_qr_url }: Pr
                             )}
                         </div>
                     </Section>
+                    </div>
 
-                    {/* Email SMTP */}
-                    <Section title="Email (SMTP)" description="Used for sending verification emails and notifications to customers.">
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField label="SMTP Host" className="col-span-2">
-                                <input value={data.mail_host} onChange={(e) => setData('mail_host', e.target.value)} placeholder="smtp.hostinger.com" className={adminFieldClass()} />
-                            </FormField>
-                            <FormField label="Port">
-                                <input type="number" value={data.mail_port} onChange={(e) => setData('mail_port', e.target.value)} placeholder="587" className={adminFieldClass()} />
-                            </FormField>
-                            <FormField label="Encryption">
-                                <select value={data.mail_encryption} onChange={(e) => setData('mail_encryption', e.target.value as 'tls' | 'ssl' | 'none')} className={adminFieldClass()}>
-                                    <option value="tls">TLS</option>
-                                    <option value="ssl">SSL</option>
-                                    <option value="none">None</option>
-                                </select>
-                            </FormField>
-                            <FormField label="Username">
-                                <input value={data.mail_username} onChange={(e) => setData('mail_username', e.target.value)} placeholder="you@example.com" className={adminFieldClass()} />
-                            </FormField>
-                            <FormField label="Password">
-                                <input type="password" value={data.mail_password} onChange={(e) => setData('mail_password', e.target.value)} placeholder="••••••••" className={adminFieldClass()} />
-                            </FormField>
-                            <FormField label="From Address">
-                                <input type="email" value={data.mail_from_address} onChange={(e) => setData('mail_from_address', e.target.value)} placeholder="noreply@example.com" className={adminFieldClass()} />
-                            </FormField>
-                            <FormField label="From Name">
-                                <input value={data.mail_from_name} onChange={(e) => setData('mail_from_name', e.target.value)} placeholder="Milk&Honey Cafe" className={adminFieldClass()} />
-                            </FormField>
-                        </div>
-                    </Section>
-
-                    {/* Pusher Broadcasting */}
-                    <Section title="Broadcasting (Pusher)" description="Real-time updates for kitchen display, order tracking, and POS. Get your credentials at pusher.com.">
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField label="App ID">
-                                <input value={data.pusher_app_id} onChange={(e) => setData('pusher_app_id', e.target.value)} placeholder="1234567" className={adminFieldClass() + ' font-mono'} />
-                            </FormField>
-                            <FormField label="Cluster">
-                                <input value={data.pusher_app_cluster} onChange={(e) => setData('pusher_app_cluster', e.target.value)} placeholder="ap1" className={adminFieldClass() + ' font-mono'} />
-                            </FormField>
-                            <FormField label="App Key" className="col-span-2">
-                                <input value={data.pusher_app_key} onChange={(e) => setData('pusher_app_key', e.target.value)} placeholder="xxxxxxxxxxxxxxxxxxxxxxxx" className={adminFieldClass() + ' font-mono'} />
-                            </FormField>
-                            <FormField label="App Secret" className="col-span-2">
-                                <input type="password" value={data.pusher_app_secret} onChange={(e) => setData('pusher_app_secret', e.target.value)} placeholder="••••••••••••••••••••••••" className={adminFieldClass() + ' font-mono'} />
-                            </FormField>
-                        </div>
-                    </Section>
-
-                    {/* Delivery */}
+                    <div role="tabpanel" hidden={tab !== 'delivery'} className="space-y-6">
                     <Section title="Delivery" description="Charged on online delivery orders. Set a minimum order amount to give free delivery.">
                         <div className="grid grid-cols-2 gap-4">
                             <FormField label={`Delivery Fee (${data.currency})`} hint="0 = delivery is always free">
@@ -240,7 +246,6 @@ export default function SettingsPage({ settings, gcash_qr_url, maya_qr_url }: Pr
                         </div>
                     </Section>
 
-                    {/* Online Payments */}
                     <Section title="Online Payments (GCash / Maya)" description="Shown to customers as payment instructions when they choose GCash or Maya for online orders.">
                         {([
                             { key: 'gcash', label: 'GCash', numberField: 'gcash_number', nameField: 'gcash_account_name', qrField: 'gcash_qr', currentUrl: gcash_qr_url },
@@ -291,10 +296,62 @@ export default function SettingsPage({ settings, gcash_qr_url, maya_qr_url }: Pr
                             </div>
                         ))}
                     </Section>
+                    </div>
 
-                    <Button type="submit" disabled={processing} size="lg">
+                    <div role="tabpanel" hidden={tab !== 'integrations'} className="space-y-6">
+                    <Section title="Email (SMTP)" description="Used for sending verification emails and notifications to customers.">
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField label="SMTP Host" className="col-span-2">
+                                <input value={data.mail_host} onChange={(e) => setData('mail_host', e.target.value)} placeholder="smtp.hostinger.com" className={adminFieldClass()} />
+                            </FormField>
+                            <FormField label="Port">
+                                <input type="number" value={data.mail_port} onChange={(e) => setData('mail_port', e.target.value)} placeholder="587" className={adminFieldClass()} />
+                            </FormField>
+                            <FormField label="Encryption">
+                                <select value={data.mail_encryption} onChange={(e) => setData('mail_encryption', e.target.value as 'tls' | 'ssl' | 'none')} className={adminFieldClass()}>
+                                    <option value="tls">TLS</option>
+                                    <option value="ssl">SSL</option>
+                                    <option value="none">None</option>
+                                </select>
+                            </FormField>
+                            <FormField label="Username">
+                                <input value={data.mail_username} onChange={(e) => setData('mail_username', e.target.value)} placeholder="you@example.com" className={adminFieldClass()} />
+                            </FormField>
+                            <FormField label="Password">
+                                <input type="password" value={data.mail_password} onChange={(e) => setData('mail_password', e.target.value)} placeholder="••••••••" className={adminFieldClass()} />
+                            </FormField>
+                            <FormField label="From Address">
+                                <input type="email" value={data.mail_from_address} onChange={(e) => setData('mail_from_address', e.target.value)} placeholder="noreply@example.com" className={adminFieldClass()} />
+                            </FormField>
+                            <FormField label="From Name">
+                                <input value={data.mail_from_name} onChange={(e) => setData('mail_from_name', e.target.value)} placeholder="Milk&Honey Cafe" className={adminFieldClass()} />
+                            </FormField>
+                        </div>
+                    </Section>
+
+                    <Section title="Broadcasting (Pusher)" description="Real-time updates for kitchen display, order tracking, and POS. Get your credentials at pusher.com.">
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField label="App ID">
+                                <input value={data.pusher_app_id} onChange={(e) => setData('pusher_app_id', e.target.value)} placeholder="1234567" className={adminFieldClass() + ' font-mono'} />
+                            </FormField>
+                            <FormField label="Cluster">
+                                <input value={data.pusher_app_cluster} onChange={(e) => setData('pusher_app_cluster', e.target.value)} placeholder="ap1" className={adminFieldClass() + ' font-mono'} />
+                            </FormField>
+                            <FormField label="App Key" className="col-span-2">
+                                <input value={data.pusher_app_key} onChange={(e) => setData('pusher_app_key', e.target.value)} placeholder="xxxxxxxxxxxxxxxxxxxxxxxx" className={adminFieldClass() + ' font-mono'} />
+                            </FormField>
+                            <FormField label="App Secret" className="col-span-2">
+                                <input type="password" value={data.pusher_app_secret} onChange={(e) => setData('pusher_app_secret', e.target.value)} placeholder="••••••••••••••••••••••••" className={adminFieldClass() + ' font-mono'} />
+                            </FormField>
+                        </div>
+                    </Section>
+                    </div>
+
+                    <div className="sticky bottom-0 border-t border-border bg-background/90 py-3 backdrop-blur">
+                        <Button type="submit" disabled={processing} size="lg">
                         {processing ? 'Saving...' : 'Save Settings'}
-                    </Button>
+                        </Button>
+                    </div>
                 </form>
             </div>
         </AdminLayout>

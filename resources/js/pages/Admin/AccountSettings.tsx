@@ -2,10 +2,10 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import { Eye, EyeOff, KeyRound, Save, UserCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import AdminLayout from '@/layouts/admin-layout';
-import { PageHeader } from '@/components/admin/page-header';
 import { FormField, adminFieldClass } from '@/components/admin/form-field';
+import { PageHeader } from '@/components/admin/page-header';
 import { Button } from '@/components/ui/button';
+import AdminLayout from '@/layouts/admin-layout';
 
 type Auth = { user: { name: string; email: string; email_verified_at: string | null } };
 
@@ -59,20 +59,27 @@ export default function AccountSettings({ mustVerifyEmail, status }: Props) {
                 toast.success('Password updated.');
             },
             onError: (errors) => {
-                if (errors.password) newPwRef.current?.focus();
-                if (errors.current_password) currentPwRef.current?.focus();
+                if (errors.password) {
+newPwRef.current?.focus();
+}
+
+                if (errors.current_password) {
+currentPwRef.current?.focus();
+}
             },
         });
     }
 
     // flash status from server (verification link sent, etc.)
     useEffect(() => {
-        if (status === 'verification-link-sent') toast.success('Verification link sent to your email.');
+        if (status === 'verification-link-sent') {
+toast.success('Verification link sent to your email.');
+}
     }, [status]);
 
     return (
         <AdminLayout>
-            <Head title="Account Settings — Admin" />
+            <Head title="Account Settings" />
             <Toaster position="top-right" />
 
             <div className="mx-auto max-w-2xl space-y-6">

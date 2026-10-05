@@ -1,7 +1,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import { customerAuthLogin, customerAuthRegisterStore } from '@/lib/routes';
 import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { customerAuthLogin, customerAuthRegisterStore } from '@/lib/routes';
 
 interface Props { qrToken: string | null; recaptchaSiteKey: string | null }
 
@@ -38,7 +38,10 @@ export default function CustomerRegister({ qrToken, recaptchaSiteKey }: Props) {
     });
 
     useEffect(() => {
-        if (!recaptchaSiteKey || document.getElementById('recaptcha-script')) return;
+        if (!recaptchaSiteKey || document.getElementById('recaptcha-script')) {
+return;
+}
+
         const script = document.createElement('script');
         script.id = 'recaptcha-script';
         script.src = `https://www.google.com/recaptcha/api.js?render=${recaptchaSiteKey}`;
@@ -50,6 +53,7 @@ export default function CustomerRegister({ qrToken, recaptchaSiteKey }: Props) {
         e.preventDefault();
 
         let token = '';
+
         if (recaptchaSiteKey && window.grecaptcha) {
             try {
                 await new Promise<void>((resolve) => window.grecaptcha!.ready(resolve));
@@ -65,7 +69,7 @@ export default function CustomerRegister({ qrToken, recaptchaSiteKey }: Props) {
 
     return (
         <div className="customer-page relative flex min-h-screen flex-col overflow-hidden sm:items-center sm:justify-center sm:py-12" style={{ background: P.cream, fontFamily: "'DM Sans', sans-serif", color: P.espresso }}>
-            <Head title="Register — Milk&Honey" />
+            <Head title="Register" />
             <GeometricBackdrop />
 
             <div className="relative flex w-full flex-1 flex-col sm:max-w-md sm:flex-none sm:shadow-xl" style={{ background: P.creamLight }}>

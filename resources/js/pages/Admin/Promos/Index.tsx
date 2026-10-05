@@ -1,16 +1,16 @@
 import { Head, useForm } from '@inertiajs/react';
-import { adminPromosDestroy, adminPromosStore, adminPromosUpdate } from '@/lib/routes';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import AdminLayout from '@/layouts/admin-layout';
-import { PageHeader } from '@/components/admin/page-header';
-import { CrudModal } from '@/components/admin/crud-modal';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
-import { FormField, adminFieldClass } from '@/components/admin/form-field';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { CrudModal } from '@/components/admin/crud-modal';
 import { TableCard, TableScroll, Table, TableHead, TableHeadCell, TableBody, TableRow, TableCell, TableEmpty } from '@/components/admin/data-table';
+import { FormField, adminFieldClass } from '@/components/admin/form-field';
+import { PageHeader } from '@/components/admin/page-header';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import AdminLayout from '@/layouts/admin-layout';
+import { adminPromosDestroy, adminPromosStore, adminPromosUpdate } from '@/lib/routes';
 
 interface Promo {
     id: number;
@@ -73,26 +73,35 @@ export default function PromosIndex({ promos }: Props) {
     function submit(e: React.FormEvent) {
         e.preventDefault();
         const url = editing ? adminPromosUpdate(editing.id) : adminPromosStore();
-        post(url, { onSuccess: () => { setModalOpen(false); toast.success(editing ? 'Promo updated!' : 'Promo created!'); } });
+        post(url, { onSuccess: () => {
+ setModalOpen(false); toast.success(editing ? 'Promo updated!' : 'Promo created!'); 
+} });
     }
 
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
     function confirmDelete() {
-        if (!deleting) return;
+        if (!deleting) {
+return;
+}
+
         setDeleteLoading(true);
         fetch(adminPromosDestroy(deleting.id), { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrf() } }).then(() => window.location.reload());
     }
 
     function formatExpiry(iso: string | null) {
-        if (!iso) return <span className="text-muted-foreground">—</span>;
+        if (!iso) {
+return <span className="text-muted-foreground">—</span>;
+}
+
         const d = new Date(iso);
+
         return d < new Date() ? <span className="text-xs text-error">Expired</span> : <span className="text-xs text-muted-foreground">{d.toLocaleDateString()}</span>;
     }
 
     return (
         <AdminLayout>
-            <Head title="Promos — Admin" />
+            <Head title="Promos" />
             <Toaster position="top-right" />
 
             <PageHeader

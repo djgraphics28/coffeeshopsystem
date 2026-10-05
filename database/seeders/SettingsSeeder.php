@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Actions\Hr\HrSettings;
 use App\Models\Setting;
 use Illuminate\Database\Seeder;
 
@@ -23,5 +24,7 @@ class SettingsSeeder extends Seeder
         foreach ($defaults as $key => $value) {
             Setting::firstOrCreate(['key' => $key], ['value' => $value]);
         }
+
+        HrSettings::seedDefaults();
     }
 }

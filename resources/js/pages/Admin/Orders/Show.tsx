@@ -154,7 +154,7 @@ toast.error(flash.error);
 
     return (
         <AdminLayout>
-            <Head title={`Order ${order.order_number} — Admin`} />
+            <Head title={`Order ${order.order_number}`} />
             <Toaster position="top-right" />
 
             {/* Header */}

@@ -62,6 +62,12 @@ return [
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
+            // Folder that holds mysqldump / mysql. Leave empty to auto-detect (see App\Actions\Database\DatabaseBackup).
+            'dump' => [
+                'dump_binary_path' => env('DB_DUMP_BINARY_PATH', ''),
+                // GTID bookkeeping changes server-wide state when restored, so it is left out of the dump.
+                'add_extra_option' => '--set-gtid-purged=OFF',
+            ],
         ],
 
         'mariadb' => [

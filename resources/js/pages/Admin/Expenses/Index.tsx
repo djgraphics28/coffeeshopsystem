@@ -1,8 +1,4 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import {
-    adminExpensesDestroy, adminExpensesIndex,
-    adminExpensesStore, adminExpensesUpdate,
-} from '@/lib/routes';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     ArrowDownCircle, Calendar, Edit2, Filter, Plus,
@@ -10,14 +6,18 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import AdminLayout from '@/layouts/admin-layout';
-import { PageHeader } from '@/components/admin/page-header';
-import { CrudModal } from '@/components/admin/crud-modal';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
-import { FormField, adminFieldClass } from '@/components/admin/form-field';
-import { ExpenseCategoriesDialog } from '@/components/admin/expense-categories-dialog';
-import { Button } from '@/components/ui/button';
+import { CrudModal } from '@/components/admin/crud-modal';
 import { TableCard, TableScroll, Table, TableHead, TableHeadCell, TableBody, TableRow, TableCell, TableEmpty } from '@/components/admin/data-table';
+import { ExpenseCategoriesDialog } from '@/components/admin/expense-categories-dialog';
+import { FormField, adminFieldClass } from '@/components/admin/form-field';
+import { PageHeader } from '@/components/admin/page-header';
+import { Button } from '@/components/ui/button';
+import AdminLayout from '@/layouts/admin-layout';
+import {
+    adminExpensesDestroy, adminExpensesIndex,
+    adminExpensesStore, adminExpensesUpdate,
+} from '@/lib/routes';
 
 interface Category { id: number; name: string; color: string }
 interface ManagedCategory extends Category { description: string | null; is_active: boolean; expenses_count: number }
@@ -65,8 +65,13 @@ export default function ExpensesIndex({ expenses, categories, stats, filters, se
     const currency = settings.currency;
 
     useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
+        if (flash?.success) {
+toast.success(flash.success);
+}
+
+        if (flash?.error) {
+toast.error(flash.error);
+}
     }, [flash]);
 
     function applyFilters() {
@@ -117,7 +122,10 @@ export default function ExpensesIndex({ expenses, categories, stats, filters, se
     const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
     function confirmDelete() {
-        if (!deleting) return;
+        if (!deleting) {
+return;
+}
+
         setDeleteLoading(true);
         fetch(adminExpensesDestroy(deleting.id), { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrf() } })
             .then(() => window.location.reload());
@@ -144,7 +152,7 @@ export default function ExpensesIndex({ expenses, categories, stats, filters, se
 
     return (
         <AdminLayout>
-            <Head title="Expenses — Admin" />
+            <Head title="Expenses" />
             <Toaster position="top-right" />
 
             <PageHeader

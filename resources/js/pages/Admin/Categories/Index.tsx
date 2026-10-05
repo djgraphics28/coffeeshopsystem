@@ -1,15 +1,15 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
-import { adminCategoriesDestroy, adminCategoriesStore, adminCategoriesUpdate } from '@/lib/routes';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import AdminLayout from '@/layouts/admin-layout';
-import { PageHeader } from '@/components/admin/page-header';
-import { CrudModal } from '@/components/admin/crud-modal';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
+import { CrudModal } from '@/components/admin/crud-modal';
 import { FormField, adminFieldClass } from '@/components/admin/form-field';
-import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/admin/page-header';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import AdminLayout from '@/layouts/admin-layout';
+import { adminCategoriesDestroy, adminCategoriesStore, adminCategoriesUpdate } from '@/lib/routes';
 
 interface Category {
     id: number;
@@ -52,15 +52,23 @@ export default function CategoriesIndex({ categories }: Props) {
 
     function submit(e: React.FormEvent) {
         e.preventDefault();
+
         if (editing) {
-            put(adminCategoriesUpdate(editing.id), { onSuccess: () => { setModalOpen(false); toast.success('Category updated!'); } });
+            put(adminCategoriesUpdate(editing.id), { onSuccess: () => {
+ setModalOpen(false); toast.success('Category updated!'); 
+} });
         } else {
-            post(adminCategoriesStore(), { onSuccess: () => { setModalOpen(false); toast.success('Category created!'); } });
+            post(adminCategoriesStore(), { onSuccess: () => {
+ setModalOpen(false); toast.success('Category created!'); 
+} });
         }
     }
 
     function confirmDelete() {
-        if (!deleting) return;
+        if (!deleting) {
+return;
+}
+
         setDeleteLoading(true);
         fetch(adminCategoriesDestroy(deleting.id), {
             method: 'DELETE',
@@ -70,7 +78,7 @@ export default function CategoriesIndex({ categories }: Props) {
 
     return (
         <AdminLayout>
-            <Head title="Categories — Admin" />
+            <Head title="Categories" />
             <Toaster position="top-right" />
 
             <PageHeader

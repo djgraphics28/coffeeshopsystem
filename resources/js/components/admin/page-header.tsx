@@ -15,7 +15,7 @@ type PageHeaderProps = {
 export function PageHeader({ title, breadcrumbs = [], actions }: PageHeaderProps) {
     return (
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
+            <div className="min-w-0">
                 <h1 className="text-xl font-semibold text-foreground sm:text-2xl">{title}</h1>
                 <nav className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
                     <Link href={adminDashboard()} className="hover:text-primary">
@@ -35,7 +35,7 @@ export function PageHeader({ title, breadcrumbs = [], actions }: PageHeaderProps
                     ))}
                 </nav>
             </div>
-            {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+            {actions && <div className="flex flex-wrap items-center gap-2 sm:justify-end">{actions}</div>}
         </div>
     );
 }

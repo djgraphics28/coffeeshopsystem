@@ -41,4 +41,37 @@ describe('Roles & Permissions', function () {
 
         expect($kitchen?->hasPermissionTo('void orders'))->toBeFalse();
     });
+
+    it('has permissions for the import, the stations and the System page', function () {
+        $names = ['import menu items', 'access kitchen', 'access barista', 'view system', 'manage backups', 'restore database', 'reset database'];
+
+        foreach ($names as $name) {
+            expect(Permission::where('name', $name)->exists())->toBeTrue("missing permission: {$name}");
+        }
+
+        $admin = Role::findByName('admin');
+        foreach ($names as $name) {
+            expect($admin->hasPermissionTo($name))->toBeTrue("admin lacks: {$name}");
+        }
+    });
+
+    it('does not hand the System or import permissions to the working roles', function () {
+        foreach (['cashier', 'kitchen', 'barista'] as $role) {
+            foreach (['import menu items', 'view system', 'manage backups', 'restore database', 'reset database'] as $permission) {
+                expect(Role::findByName($role)->hasPermissionTo($permission))->toBeFalse("{$role} should not have {$permission}");
+            }
+        }
+
+        expect(Role::findByName('barista')->hasPermissionTo('access barista'))->toBeTrue()
+            ->and(Role::findByName('kitchen')->hasPermissionTo('access kitchen'))->toBeTrue();
+    });
+
+    it('lists the new permissions on the roles page', function () {
+        actingAs($this->admin)
+            ->get(route('admin.roles.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('permissionGroups.System', ['view system', 'manage backups', 'restore database', 'reset database'])
+                ->where('permissionGroups.Barista', ['access barista'])
+                ->where('permissionGroups.Menu', fn ($menu) => in_array('import menu items', $menu->all(), true)));
+    });
 });
