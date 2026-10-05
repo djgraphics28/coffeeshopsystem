@@ -1,26 +1,56 @@
 /**
- * Browser-side face recognition (runs fully on the device — only a 128-number descriptor is ever sent to the server).
- * face-api and its models are loaded on demand so they don't weigh down the rest of the app.
+ * Browser-side face recognition built on Human (BlazeFace detection, 468-point mesh with iris tracking, a 1024-number
+ * face embedding, and passive anti-spoofing / liveness models). Everything runs on the device — only the embedding
+ * is ever sent to the server. Human and its models are loaded on demand so they don't weigh down the rest of the app.
  */
-import type * as FaceApiModule from '@vladmandic/face-api';
+import type { Human } from '@vladmandic/human';
 
-export type FaceApi = typeof FaceApiModule;
+export type { Human };
 
-const MODEL_URL = '/models/face';
+export const DESCRIPTOR_SIZE = 1024;
 
-let loading: Promise<FaceApi> | null = null;
+/** Smallest face (share of the frame width) we accept, so people have to step up to the screen. */
+export const MIN_FACE_SIZE = 0.2;
+/** Largest head turn (radians) that still gives a reliable embedding. */
+const MAX_TURN = 0.45;
+const MIN_REAL = 0.55;
+const MIN_LIVE = 0.55;
 
-export function loadFaceApi(): Promise<FaceApi> {
+let loading: Promise<Human> | null = null;
+
+export function loadHuman(): Promise<Human> {
     loading ??= (async () => {
-        const faceapi = await import('@vladmandic/face-api');
+        const { Human: HumanEngine } = await import('@vladmandic/human');
+        const human = new HumanEngine({
+            backend: 'webgl',
+            modelBasePath: '/models/human/',
+            debug: false,
+            async: true,
+            warmup: 'none',
+            cacheSensitivity: 0.7,
+            filter: { enabled: true, equalization: false },
+            face: {
+                enabled: true,
+                detector: { rotation: false, maxDetected: 1, minConfidence: 0.5 },
+                mesh: { enabled: true },
+                iris: { enabled: true },
+                description: { enabled: true },
+                antispoof: { enabled: true },
+                liveness: { enabled: true },
+                emotion: { enabled: false },
+                attention: { enabled: false },
+            },
+            body: { enabled: false },
+            hand: { enabled: false },
+            object: { enabled: false },
+            gesture: { enabled: false },
+            segmentation: { enabled: false },
+        });
 
-        await Promise.all([
-            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-        ]);
+        await human.load();
+        await human.warmup();
 
-        return faceapi;
+        return human;
     })().catch((error) => {
         loading = null;
 
@@ -31,43 +61,60 @@ export function loadFaceApi(): Promise<FaceApi> {
 }
 
 export interface FaceReading {
-    descriptor: number[];
-    /** Face width as a share of the frame width, so callers can ask the person to move closer. */
+    /** Whether this frame is good enough to recognise (right size, facing the camera, confident detection). */
+    usable: boolean;
+    /** Plain-words guidance for the person standing at the camera. */
+    message: string;
+    /** Face width as a share of the frame width. */
     size: number;
-    /** Eye aspect ratio — drops sharply while the eyes are closed (used as a blink / liveness check). */
-    eyeRatio: number;
-}
-
-type Point = { x: number; y: number };
-
-const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
-
-function eyeAspectRatio(eye: Point[]): number {
-    return (distance(eye[1], eye[5]) + distance(eye[2], eye[4])) / (2 * distance(eye[0], eye[3]));
+    /** Photo / screen detection scores (only meaningful on a fresh reading). */
+    real: number | null;
+    live: number | null;
+    embedding: number[] | null;
 }
 
 /**
- * Reads the single most prominent face in the frame, or null when there is none.
- * Only computes the (heavier) descriptor when asked to.
+ * Looks at the current video frame. Quick readings reuse Human's tracking cache and are cheap; a `fresh` reading
+ * recomputes the embedding and the anti-spoofing checks from this exact frame, which is what we send to the server.
  */
-export async function readFace(faceapi: FaceApi, source: HTMLVideoElement, withDescriptor: boolean): Promise<FaceReading | null> {
-    const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 });
-    const detection = faceapi.detectSingleFace(source, options).withFaceLandmarks();
-    const result = withDescriptor ? await detection.withFaceDescriptor() : await detection;
+export async function readFace(human: Human, video: HTMLVideoElement, fresh = false): Promise<FaceReading | null> {
+    const result = await human.detect(
+        video,
+        fresh
+            ? {
+                face: {
+                    description: { skipFrames: 0, skipTime: 0 },
+                    antispoof: { skipFrames: 0, skipTime: 0 },
+                    liveness: { skipFrames: 0, skipTime: 0 },
+                },
+            }
+            : undefined,
+    );
 
-    if (!result) {
+    if (result.face.length === 0) {
         return null;
     }
 
-    const points = result.landmarks.positions;
-    const eyeRatio = (eyeAspectRatio(points.slice(36, 42)) + eyeAspectRatio(points.slice(42, 48))) / 2;
+    const face = result.face[0];
+    const size = face.box[2] / (video.videoWidth || 1);
+    const yaw = Math.abs(face.rotation?.angle.yaw ?? 0);
+    const pitch = Math.abs(face.rotation?.angle.pitch ?? 0);
+    const real = face.real ?? null;
+    const live = face.live ?? null;
 
-    return {
-        descriptor: withDescriptor && 'descriptor' in result ? Array.from(result.descriptor as Float32Array) : [],
-        size: result.detection.box.width / (source.videoWidth || 1),
-        eyeRatio,
-    };
+    let message = '';
+
+    if (face.faceScore < 0.7 || face.boxScore < 0.6) {
+        message = 'Face the camera in good light.';
+    } else if (size < MIN_FACE_SIZE) {
+        message = 'Move a little closer.';
+    } else if (yaw > MAX_TURN || pitch > MAX_TURN) {
+        message = 'Look straight at the camera.';
+    } else if (fresh && ((real !== null && real < MIN_REAL) || (live !== null && live < MIN_LIVE))) {
+        message = 'Could not confirm a live face. Please look at the camera directly.';
+    } else if (fresh && (!face.embedding || face.embedding.length !== DESCRIPTOR_SIZE)) {
+        message = 'Hold still for a moment.';
+    }
+
+    return { usable: message === '', message, size, real, live, embedding: fresh ? (face.embedding ?? null) : null };
 }
-
-export const EYES_CLOSED_BELOW = 0.2;
-export const EYES_OPEN_ABOVE = 0.25;

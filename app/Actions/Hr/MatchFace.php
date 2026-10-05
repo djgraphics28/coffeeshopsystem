@@ -10,13 +10,14 @@ use App\Models\Employee;
  */
 class MatchFace
 {
-    /** Euclidean distance below which two descriptors are considered the same person (face-api's default is 0.6). */
-    public const MAX_DISTANCE = 0.5;
+    /** Length of the face embedding produced in the browser. */
+    public const DESCRIPTOR_SIZE = 1024;
 
-    /** The runner-up (another person) must be at least this much further away, otherwise the match is ambiguous. */
+    /** Similarity (0–1, the scale used by the Human library: 1 = identical) needed to accept a face. */
+    public const MIN_SIMILARITY = 0.6;
+
+    /** The runner-up (a different employee) must score at least this much lower, otherwise the match is ambiguous. */
     public const MIN_MARGIN = 0.05;
-
-    public const DESCRIPTOR_SIZE = 128;
 
     /**
      * @param  list<float>  $descriptor
@@ -26,25 +27,25 @@ class MatchFace
     public function handle(array $descriptor): Employee
     {
         $best = null;
-        $bestDistance = INF;
-        $runnerUp = INF;
+        $bestScore = 0.0;
+        $runnerUp = 0.0;
 
         foreach (Employee::where('status', 'active')->whereNotNull('face_descriptors')->get() as $employee) {
-            $distance = $this->closest($descriptor, $employee->face_descriptors ?? []);
+            $score = $this->bestSimilarity($descriptor, $employee->face_descriptors ?? []);
 
-            if ($distance < $bestDistance) {
-                $runnerUp = $bestDistance;
-                [$best, $bestDistance] = [$employee, $distance];
-            } elseif ($distance < $runnerUp) {
-                $runnerUp = $distance;
+            if ($score > $bestScore) {
+                $runnerUp = $bestScore;
+                [$best, $bestScore] = [$employee, $score];
+            } elseif ($score > $runnerUp) {
+                $runnerUp = $score;
             }
         }
 
-        if (! $best || $bestDistance > self::MAX_DISTANCE) {
+        if (! $best || $bestScore < self::MIN_SIMILARITY) {
             throw new AttendanceException('Face not recognised. Try again facing the camera, or use your employee ID.');
         }
 
-        if ($runnerUp - $bestDistance < self::MIN_MARGIN) {
+        if ($bestScore - $runnerUp < self::MIN_MARGIN) {
             throw new AttendanceException('Could not tell for sure who you are. Please use your employee ID.');
         }
 
@@ -52,23 +53,30 @@ class MatchFace
     }
 
     /**
+     * Same normalisation as Human's `similarity()`: Euclidean distance scaled and mapped from the 0.2–0.8 band onto 0–1.
+     *
      * @param  list<float>  $descriptor
      * @param  list<list<float>>  $samples
      */
-    private function closest(array $descriptor, array $samples): float
+    private function bestSimilarity(array $descriptor, array $samples): float
     {
-        $closest = INF;
+        $best = 0.0;
 
         foreach ($samples as $sample) {
+            if (count($sample) !== count($descriptor)) {
+                continue;
+            }
+
             $sum = 0.0;
 
             foreach ($descriptor as $i => $value) {
-                $sum += (($sample[$i] ?? 0) - $value) ** 2;
+                $sum += ($sample[$i] - $value) ** 2;
             }
 
-            $closest = min($closest, sqrt($sum));
+            $root = sqrt(25 * $sum) / 100;
+            $best = max($best, max(0.0, min(1.0, (1 - $root - 0.2) / 0.6)));
         }
 
-        return $closest;
+        return $best;
     }
 }

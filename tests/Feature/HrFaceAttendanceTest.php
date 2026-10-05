@@ -12,13 +12,13 @@ use function Pest\Laravel\delete;
 use function Pest\Laravel\postJson;
 
 /**
- * A fake 128-number face descriptor: a unit "signature" per person plus a little noise.
+ * A fake 1024-number face embedding: a distinct "signature" per person plus a little noise.
  *
  * @return list<float>
  */
 function face(int $person, float $noise = 0.0): array
 {
-    return array_map(fn (int $i) => (($i * 7 + $person * 13) % 10) / 10 + ($i % 2 === 0 ? $noise : -$noise), range(0, 127));
+    return array_map(fn (int $i) => (($i * 7 + $person * 13) % 10) / 10 + ($i % 2 === 0 ? $noise : -$noise), range(0, 1023));
 }
 
 beforeEach(function () {

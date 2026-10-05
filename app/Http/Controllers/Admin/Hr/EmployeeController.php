@@ -113,7 +113,7 @@ class EmployeeController extends Controller
         return redirect()->back()->with('success', 'Employee deleted.');
     }
 
-    /** Saves the face samples (128-number descriptors computed in the browser) used for face attendance. */
+    /** Saves the face samples (1024-number face embeddings computed in the browser) used for face attendance. */
     public function enrollFace(Request $request, Employee $employee): RedirectResponse
     {
         Gate::authorize('manage employees');
@@ -121,7 +121,7 @@ class EmployeeController extends Controller
         $validated = $request->validate([
             'descriptors' => ['required', 'array', 'min:3', 'max:10'],
             'descriptors.*' => ['required', 'array', 'size:'.MatchFace::DESCRIPTOR_SIZE],
-            'descriptors.*.*' => ['required', 'numeric', 'between:-5,5'],
+            'descriptors.*.*' => ['required', 'numeric', 'between:-100,100'],
         ]);
 
         $employee->update([

@@ -3,7 +3,7 @@ import jsQR from 'jsqr';
 import { AlertTriangle, Camera, CameraOff, CheckCircle2, Clock, LogIn, LogOut, Loader2, ScanFace, ScanLine, SwitchCamera } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useCameraStream } from '@/hooks/use-camera-stream';
-import { EYES_CLOSED_BELOW, EYES_OPEN_ABOVE, loadFaceApi, readFace } from '@/lib/face';
+import { loadHuman, readFace } from '@/lib/face';
 import { attendanceFace, attendancePunch } from '@/lib/routes';
 import { cn } from '@/lib/utils';
 
@@ -126,7 +126,7 @@ export default function Kiosk({ enabled, cafe_name, face_enabled, recent: initia
             return;
         }
 
-        loadFaceApi().then(() => setFaceModelsReady(true)).catch(() => setFaceStatus('Could not load face recognition. Use your employee ID instead.'));
+        loadHuman().then(() => setFaceModelsReady(true)).catch(() => setFaceStatus('Could not load face recognition. Use your employee ID instead.'));
     }, [faceActive, faceModelsReady]);
 
     useEffect(() => {
@@ -136,7 +136,7 @@ export default function Kiosk({ enabled, cafe_name, face_enabled, recent: initia
 
         let stopped = false;
         let timer = 0;
-        let closedSeen = false;
+        let steadyFrames = 0;
         let lastFaceAt = Date.now();
         let armed = true;
         let rearmAt = 0;
@@ -146,12 +146,12 @@ export default function Kiosk({ enabled, cafe_name, face_enabled, recent: initia
 
             try {
                 if (video && video.readyState === video.HAVE_ENOUGH_DATA && !busyRef.current) {
-                    const api = await loadFaceApi();
-                    const reading = await readFace(api, video, false);
+                    const human = await loadHuman();
+                    const quick = await readFace(human, video);
                     const nowMs = Date.now();
 
-                    if (!reading) {
-                        closedSeen = false;
+                    if (!quick) {
+                        steadyFrames = 0;
 
                         if (nowMs - lastFaceAt > 3000) {
                             armed = true; // the previous person has walked away
@@ -162,31 +162,30 @@ export default function Kiosk({ enabled, cafe_name, face_enabled, recent: initia
                         lastFaceAt = nowMs;
 
                         if (!armed || nowMs < rearmAt) {
+                            steadyFrames = 0;
                             setFaceStatus('Thanks! Step away to clock the next person.');
-                        } else if (reading.size < 0.22) {
-                            setFaceStatus('Move a little closer.');
+                        } else if (!quick.usable) {
+                            steadyFrames = 0;
+                            setFaceStatus(quick.message);
+                        } else if (++steadyFrames < 3) {
+                            setFaceStatus('Hold still…');
                         } else {
-                            // Liveness: the person has to blink once, so a photo held up to the camera is not enough.
-                            if (reading.eyeRatio < EYES_CLOSED_BELOW) {
-                                closedSeen = true;
-                            }
+                            // A steady, well-framed face: take a fresh reading (new embedding + live-person checks) and clock it.
+                            steadyFrames = 0;
+                            setFaceStatus('Recognising…');
+                            const fresh = await readFace(human, video, true);
 
-                            if (closedSeen && reading.eyeRatio > EYES_OPEN_ABOVE) {
-                                closedSeen = false;
-                                setFaceStatus('Recognising…');
-                                const full = await readFace(api, video, true);
+                            if (fresh?.usable && fresh.embedding) {
+                                const recorded = await punch(attendanceFace(), { descriptor: fresh.embedding }, 'face');
 
-                                if (full && full.descriptor.length === 128) {
-                                    const recorded = await punch(attendanceFace(), { descriptor: full.descriptor }, 'face');
-
-                                    if (recorded) {
-                                        armed = false;
-                                    } else {
-                                        rearmAt = Date.now() + 4000;
-                                    }
+                                if (recorded) {
+                                    armed = false;
+                                } else {
+                                    rearmAt = Date.now() + 4000;
                                 }
-                            } else {
-                                setFaceStatus('Face found — blink once to clock in / out.');
+                            } else if (fresh) {
+                                setFaceStatus(fresh.message);
+                                rearmAt = Date.now() + 1500;
                             }
                         }
                     }
@@ -196,7 +195,7 @@ export default function Kiosk({ enabled, cafe_name, face_enabled, recent: initia
             }
 
             if (!stopped) {
-                timer = window.setTimeout(loop, 220);
+                timer = window.setTimeout(loop, 90);
             }
         }
 

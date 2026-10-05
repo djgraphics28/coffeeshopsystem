@@ -49,7 +49,7 @@ class AttendanceKioskController extends Controller
     }
 
     /**
-     * Clock in / out by face: the browser sends a 128-number descriptor and the server finds the matching employee.
+     * Clock in / out by face: the browser sends a 1024-number face embedding and the server finds the matching employee.
      */
     public function punchByFace(Request $request, MatchFace $match, RecordAttendance $attendance): JsonResponse
     {
@@ -59,7 +59,7 @@ class AttendanceKioskController extends Controller
 
         $validated = $request->validate([
             'descriptor' => ['required', 'array', 'size:'.MatchFace::DESCRIPTOR_SIZE],
-            'descriptor.*' => ['required', 'numeric', 'between:-5,5'],
+            'descriptor.*' => ['required', 'numeric', 'between:-100,100'],
         ]);
 
         try {

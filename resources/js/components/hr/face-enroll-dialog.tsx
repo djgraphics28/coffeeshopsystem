@@ -1,11 +1,10 @@
 import { router } from '@inertiajs/react';
-import { Camera, CheckCircle2, Loader2, ScanFace, Trash2 } from 'lucide-react';
+import { CheckCircle2, Loader2, ScanFace, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { CrudModal } from '@/components/admin/crud-modal';
 import { Button } from '@/components/ui/button';
 import { useCameraStream } from '@/hooks/use-camera-stream';
-import { loadFaceApi, readFace } from '@/lib/face';
-import type { FaceReading } from '@/lib/face';
+import { loadHuman, readFace } from '@/lib/face';
 import { adminHrEmployeeFace } from '@/lib/routes';
 import { cn } from '@/lib/utils';
 
@@ -15,7 +14,8 @@ interface Props {
 }
 
 const SAMPLES_NEEDED = 5;
-const MIN_FACE_SIZE = 0.22;
+/** Pause between automatic captures so each sample is a slightly different pose. */
+const CAPTURE_GAP_MS = 1400;
 
 const PROMPTS = [
     'Look straight at the camera',
@@ -29,12 +29,10 @@ const PROMPTS = [
 export function FaceEnrollDialog({ employee, onClose }: Props) {
     const open = employee !== null;
     const videoRef = useRef<HTMLVideoElement>(null);
-    const faceApiRef = useRef<Awaited<ReturnType<typeof loadFaceApi>> | null>(null);
     const [modelsReady, setModelsReady] = useState(false);
     const [modelError, setModelError] = useState(false);
     const [samples, setSamples] = useState<number[][]>([]);
     const [hint, setHint] = useState<string | null>(null);
-    const [capturing, setCapturing] = useState(false);
     const [saving, setSaving] = useState(false);
 
     const { error: cameraError, ready: cameraReady } = useCameraStream(videoRef, open);
@@ -45,13 +43,8 @@ export function FaceEnrollDialog({ employee, onClose }: Props) {
         }
 
         let cancelled = false;
-        loadFaceApi()
-            .then((api) => {
-                if (!cancelled) {
-                    faceApiRef.current = api;
-                    setModelsReady(true);
-                }
-            })
+        loadHuman()
+            .then(() => !cancelled && setModelsReady(true))
             .catch(() => !cancelled && setModelError(true));
 
         return () => {
@@ -59,39 +52,61 @@ export function FaceEnrollDialog({ employee, onClose }: Props) {
         };
     }, [open]);
 
-    async function capture() {
-        const api = faceApiRef.current;
-        const video = videoRef.current;
-
-        if (!api || !video || capturing) {
+    // Captures a sample automatically each time the face is well framed and live — no button presses needed.
+    useEffect(() => {
+        if (!open || !cameraReady || !modelsReady || samples.length >= SAMPLES_NEEDED) {
             return;
         }
 
-        setCapturing(true);
-        setHint(null);
+        let stopped = false;
+        let timer = 0;
+        let steady = 0;
+        const nextAllowedAt = { value: Date.now() + 800 };
 
-        let reading: FaceReading | null = null;
+        async function loop() {
+            const video = videoRef.current;
 
-        try {
-            reading = await readFace(api, video, true);
-        } finally {
-            setCapturing(false);
+            try {
+                if (video && video.readyState === video.HAVE_ENOUGH_DATA && Date.now() >= nextAllowedAt.value) {
+                    const human = await loadHuman();
+                    const quick = await readFace(human, video);
+
+                    if (!quick) {
+                        steady = 0;
+                        setHint('No face found. Face the camera in good light.');
+                    } else if (!quick.usable) {
+                        steady = 0;
+                        setHint(quick.message);
+                    } else if (++steady >= 3) {
+                        steady = 0;
+                        const fresh = await readFace(human, video, true);
+
+                        if (fresh?.usable && fresh.embedding) {
+                            const embedding = fresh.embedding;
+                            nextAllowedAt.value = Date.now() + CAPTURE_GAP_MS;
+                            setHint(null);
+                            setSamples((s) => (s.length < SAMPLES_NEEDED ? [...s, embedding] : s));
+                        } else if (fresh) {
+                            setHint(fresh.message);
+                        }
+                    }
+                }
+            } catch {
+                // skip a dropped frame
+            }
+
+            if (!stopped) {
+                timer = window.setTimeout(loop, 120);
+            }
         }
 
-        if (!reading) {
-            setHint('No face found. Face the camera in good light and try again.');
+        loop();
 
-            return;
-        }
-
-        if (reading.size < MIN_FACE_SIZE) {
-            setHint('Move a little closer to the camera.');
-
-            return;
-        }
-
-        setSamples((s) => [...s, reading.descriptor]);
-    }
+        return () => {
+            stopped = true;
+            clearTimeout(timer);
+        };
+    }, [open, cameraReady, modelsReady, samples.length]);
 
     function save() {
         if (!employee) {
@@ -122,7 +137,7 @@ export function FaceEnrollDialog({ employee, onClose }: Props) {
             open={open}
             onOpenChange={(v) => !v && onClose()}
             title={`Face attendance — ${employee?.full_name ?? ''}`}
-            description="Capture a few photos of the face from different angles. Only a numeric signature is stored, never the photos."
+            description="Look at the camera and follow the prompts. Photos are taken automatically; only a numeric signature is stored, never the photos."
             footer={
                 <>
                     {employee?.face_enrolled && (
@@ -154,17 +169,12 @@ export function FaceEnrollDialog({ employee, onClose }: Props) {
                             <span key={i} className={cn('h-2.5 w-8 rounded-full', i < samples.length ? 'bg-success' : 'bg-muted')} />
                         ))}
                     </div>
-                    <div className="flex gap-2">
-                        {samples.length > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setSamples([])}>Start over</Button>}
-                        <Button type="button" onClick={capture} disabled={!cameraReady || !modelsReady || capturing || done}>
-                            {capturing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Capture
-                        </Button>
-                    </div>
+                    {samples.length > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setSamples([])}>Start over</Button>}
                 </div>
 
                 {hint && <p role="alert" className="rounded-lg bg-warning/10 px-3 py-2 text-xs text-foreground">{hint}</p>}
                 {employee?.face_enrolled && samples.length === 0 && (
-                    <p className="flex items-center gap-2 text-xs text-muted-foreground"><ScanFace className="h-4 w-4 text-success" /> A face is already registered. Capturing new photos replaces it.</p>
+                    <p className="flex items-center gap-2 text-xs text-muted-foreground"><ScanFace className="h-4 w-4 text-success" /> A face is already registered. Scanning again replaces it.</p>
                 )}
             </div>
         </CrudModal>
