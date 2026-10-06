@@ -6,10 +6,11 @@ import { cn } from '@/lib/utils';
 import type { Order } from './types';
 import { formatMoney } from './utils';
 
-const NEXT_STATUS: Record<string, { status: string; label: string }> = {
-    pending: { status: 'preparing', label: 'Start Preparing' },
-    preparing: { status: 'ready', label: 'Mark Ready' },
-    ready: { status: 'completed', label: 'Complete' },
+// Each action takes the colour of the status it moves the order into, so Pay (primary) never looks like an order step.
+const NEXT_STATUS: Record<string, { status: string; label: string; className: string }> = {
+    pending: { status: 'preparing', label: 'Start Preparing', className: 'bg-info text-info-foreground hover:bg-info/90' },
+    preparing: { status: 'ready', label: 'Mark Ready', className: 'bg-success text-success-foreground hover:bg-success/90' },
+    ready: { status: 'completed', label: 'Complete', className: 'bg-foreground text-background hover:bg-foreground/90' },
 };
 
 const STATUS_CLASS: Record<string, string> = {
@@ -76,11 +77,11 @@ export function ActiveOrders({ orders, currency, expanded, onToggle, onAdvance, 
                                         <div className="mt-2 flex gap-1.5">
                                             {!order.payment && <Button size="sm" className="h-9 flex-1" onClick={() => onPay(order)}>Pay</Button>}
                                             {next && (
-                                                <Button size="sm" variant={order.payment ? 'default' : 'secondary'} className="h-9 flex-1" onClick={() => onAdvance(order, next.status)}>
+                                                <Button size="sm" className={cn('h-9 flex-1', next.className)} onClick={() => onAdvance(order, next.status)}>
                                                     {next.label}
                                                 </Button>
                                             )}
-                                            <button onClick={() => onVoid(order)} className="flex h-9 w-9 items-center justify-center rounded-lg text-error transition-colors hover:bg-error/10" title="Void order" aria-label={`Void ${order.order_number}`}>
+                                            <button onClick={() => onVoid(order)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-error/40 text-error transition-colors hover:bg-error hover:text-error-foreground" title="Void order" aria-label={`Void ${order.order_number}`}>
                                                 <Ban className="h-4 w-4" />
                                             </button>
                                         </div>
