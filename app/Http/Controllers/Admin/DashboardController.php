@@ -59,7 +59,7 @@ class DashboardController extends Controller
             ->with('menuItem:id,name')
             ->groupBy('menu_item_id')
             ->orderByDesc('total_sold')
-            ->limit(5)
+            ->limit(10)
             ->get()
             ->map(fn ($i) => [
                 'name' => $i->menuItem?->name,

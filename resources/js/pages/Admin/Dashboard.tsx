@@ -316,10 +316,10 @@ export default function Dashboard({ filters, range, currency, can, stats, series
                 </div>
 
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm xl:col-span-2">
-                    <h2 className="mb-4 font-semibold text-foreground">Best Sellers</h2>
+                    <h2 className="mb-4 font-semibold text-foreground">Top 10 Best Sellers</h2>
                     {top_items.length > 0 ? (
                         <div className="space-y-3">
-                            {top_items.slice(0, 6).map((item, i) => (
+                            {top_items.slice(0, 10).map((item, i) => (
                                 <div key={i} className="flex items-center gap-3">
                                     <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold', i === 0 ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300' : i === 2 ? 'bg-warning/10 text-warning' : 'bg-muted text-muted-foreground')}>{i + 1}</div>
                                     <div className="min-w-0 flex-1">
