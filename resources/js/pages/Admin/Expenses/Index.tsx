@@ -1,4 +1,5 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { localDateString } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     ArrowDownCircle, Calendar, Edit2, Filter, Plus,
@@ -88,13 +89,13 @@ toast.error(flash.error);
         expense_date: string; notes: string; reference_no: string; _method?: string;
     }>({
         expense_category_id: '', title: '', amount: '',
-        expense_date: new Date().toISOString().split('T')[0],
+        expense_date: localDateString(),
         notes: '', reference_no: '',
     });
 
     function openCreate() {
         reset();
-        setData('expense_date', new Date().toISOString().split('T')[0]);
+        setData('expense_date', localDateString());
         setEditing(null);
         setModalOpen(true);
     }

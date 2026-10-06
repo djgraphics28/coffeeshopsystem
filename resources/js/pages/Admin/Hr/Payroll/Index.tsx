@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import AdminLayout from '@/layouts/admin-layout';
 import { adminHrPayroll, adminHrPayrollShow } from '@/lib/routes';
-import { cn } from '@/lib/utils';
+import { cn, localDateString } from '@/lib/utils';
 
 interface Props {
     runs: PayrollRun[];
@@ -23,8 +23,8 @@ interface Props {
     currency: string;
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
-const thisMonth = () => new Date().toISOString().slice(0, 7);
+const today = () => localDateString();
+const thisMonth = () => localDateString().slice(0, 7);
 
 export default function PayrollIndex({ runs, employee_counts, settings, can, currency }: Props) {
     const { flash } = usePage().props as { flash?: { success?: string; error?: string } };

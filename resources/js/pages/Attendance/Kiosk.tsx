@@ -20,6 +20,7 @@ interface PunchResult {
 
 interface Props {
     enabled: boolean;
+    timezone: string;
     cafe_name: string;
     face_enabled: boolean;
     recent: RecentPunch[];
@@ -34,9 +35,9 @@ const SCAN_COOLDOWN_MS = 4000;
 const SUCCESS_COOLDOWN_MS = 15000;
 
 const duration = (minutes: number) => `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`;
-const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
+const clock = (iso: string, timeZone: string) => new Date(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone });
 
-export default function Kiosk({ enabled, cafe_name, face_enabled, recent: initialRecent }: Props) {
+export default function Kiosk({ enabled, timezone, cafe_name, face_enabled, recent: initialRecent }: Props) {
     const [now, setNow] = useState(() => new Date());
     const [code, setCode] = useState('');
     const [busy, setBusy] = useState(false);
@@ -291,9 +292,9 @@ export default function Kiosk({ enabled, cafe_name, face_enabled, recent: initia
                 </div>
                 <div className="text-right">
                     <p className="text-3xl leading-none font-bold tabular-nums sm:text-4xl" style={{ fontFamily: "'Space Mono', monospace" }}>
-                        {now.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}
+                        {now.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', second: '2-digit', timeZone: timezone })}
                     </p>
-                    <p className="mt-1 text-xs opacity-80">{now.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                    <p className="mt-1 text-xs opacity-80">{now.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: timezone })}</p>
                 </div>
             </header>
 
@@ -314,7 +315,7 @@ export default function Kiosk({ enabled, cafe_name, face_enabled, recent: initia
                                     <div className="min-w-0">
                                         <p className="text-sm font-semibold tracking-widest uppercase opacity-90">{success.type === 'in' ? 'Clocked in' : 'Clocked out'}</p>
                                         <p className="truncate text-2xl font-bold">{success.employee.name}</p>
-                                        <p className="text-sm opacity-90">{success.employee.position ?? success.employee.code} · {clock(success.time)}</p>
+                                        <p className="text-sm opacity-90">{success.employee.position ?? success.employee.code} · {clock(success.time, timezone)}</p>
                                         <p className="mt-1 text-sm font-medium">{success.message}</p>
                                     </div>
                                 </div>
@@ -411,7 +412,7 @@ export default function Kiosk({ enabled, cafe_name, face_enabled, recent: initia
                                                 <p className="truncate text-sm font-semibold">{r.name}</p>
                                                 <p className="text-xs text-muted-foreground">{r.type === 'in' ? 'Clocked in' : 'Clocked out'}</p>
                                             </div>
-                                            <span className="text-xs font-medium text-muted-foreground tabular-nums">{clock(r.time)}</span>
+                                            <span className="text-xs font-medium text-muted-foreground tabular-nums">{clock(r.time, timezone)}</span>
                                         </li>
                                     ))}
                                 </ul>

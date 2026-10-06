@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import AdminLayout from '@/layouts/admin-layout';
 import { adminHrAdjustmentsDestroy, adminHrPayroll, adminHrPayrollApprove, adminHrPayrollPay, adminHrPayrollPayslip, adminHrPayrollRecalculate, adminHrPayrollShow, adminHrPayslipAdjustments } from '@/lib/routes';
-import { cn } from '@/lib/utils';
+import { cn, localDateString } from '@/lib/utils';
 
 interface Props {
     run: PayrollRun;
@@ -27,7 +27,7 @@ export default function PayrollShow({ run, payslips, totals, can, currency }: Pr
     const [adjusting, setAdjusting] = useState<number | null>(null);
     const [confirm, setConfirm] = useState<'approve' | 'delete' | null>(null);
     const [payOpen, setPayOpen] = useState(false);
-    const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
+    const [payDate, setPayDate] = useState(localDateString());
     const [busy, setBusy] = useState(false);
 
     useEffect(() => {

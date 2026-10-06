@@ -5,7 +5,7 @@ import { CrudModal } from '@/components/admin/crud-modal';
 import { FormField, adminFieldClass } from '@/components/admin/form-field';
 import { Button } from '@/components/ui/button';
 import { adminHrEmployees, adminHrEmployeesUpdate } from '@/lib/routes';
-import { cn } from '@/lib/utils';
+import { cn, localDateString } from '@/lib/utils';
 import { FREQUENCY_LABEL     } from './types';
 import type {Employee, PayFrequency, Position, SalaryType} from './types';
 
@@ -27,7 +27,7 @@ interface FormData {
 }
 
 const emptyForm = (defaults: Props['defaults']): FormData => ({
-    first_name: '', last_name: '', email: '', phone: '', address: '', birth_date: '', hire_date: new Date().toISOString().slice(0, 10),
+    first_name: '', last_name: '', email: '', phone: '', address: '', birth_date: '', hire_date: localDateString(),
     position_id: '', status: 'active', pay_frequency: defaults.pay_frequency, salary_type: 'monthly', base_salary: '',
     shift_start: '', shift_end: '', vehicle: '', emergency_contact: '', notes: '',
     create_login: false, account_email: '', account_password: '', account_role: '',

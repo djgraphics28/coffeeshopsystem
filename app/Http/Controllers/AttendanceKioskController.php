@@ -25,6 +25,7 @@ class AttendanceKioskController extends Controller
     {
         return Inertia::render('Attendance/Kiosk', [
             'enabled' => HrSettings::flag('hr_attendance_enabled'),
+            'timezone' => config('app.timezone'),
             'cafe_name' => Setting::get('cafe_name', config('app.name')),
             'face_enabled' => Employee::where('status', 'active')->whereNotNull('face_descriptors')->exists(),
             'recent' => $this->recent(),
