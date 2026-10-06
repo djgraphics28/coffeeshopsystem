@@ -31,6 +31,7 @@ interface Order {
     type: string;
     table: { id: number; name: string } | null;
     items: OrderItem[];
+    notes?: string | null;
     total: number;
     created_at: string;
 }
@@ -240,6 +241,12 @@ function OrderCard({
                     {allDone ? <><Undo2 className="h-4 w-4" /> Uncheck all</> : <><CheckCheck className="h-4 w-4" /> Check all</>}
                 </button>
             </div>
+
+            {order.notes && (
+                <p className="mt-3 rounded-lg px-3 py-2 text-sm font-semibold italic" style={{ background: 'var(--k-overlay)', color: 'var(--k-warn)' }}>
+                    ⚠ Order note: {order.notes}
+                </p>
+            )}
 
             {/* Items */}
             {expanded ? (
