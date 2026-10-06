@@ -238,6 +238,7 @@ class PosController extends Controller
             'amount' => ['required', 'numeric', 'min:0'],
             'method' => ['required', Rule::in(['cash', 'card', 'gcash', 'maya'])],
             'reference_no' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
         if (! $order->isVoidable()) {
@@ -256,6 +257,7 @@ class PosController extends Controller
             'amount' => $validated['amount'],
             'method' => $validated['method'],
             'reference_no' => $validated['reference_no'] ?? null,
+            'notes' => $validated['notes'] ?? null,
             'paid_at' => now(),
         ]);
 

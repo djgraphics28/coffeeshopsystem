@@ -214,7 +214,7 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
 
         try {
             const data = await apiRequest<{ order: Order }>(posOrdersPayment(payingOrder.id), 'POST', {
-                amount: payment.amount, method: payment.method, reference_no: payment.referenceNo,
+                amount: payment.amount, method: payment.method, reference_no: payment.referenceNo, notes: payment.notes,
             });
             // Paying does not close the order; it stays in the list and moves through its own steps.
             setActiveOrders((prev) => prev.map((o) => (o.id === payingOrder.id ? { ...o, ...data.order } : o)));

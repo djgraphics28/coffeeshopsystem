@@ -313,6 +313,17 @@ function OrderCard({
     );
 }
 
+/** The spoken announcement for a new order, e.g. "New order alert! 2 Burger, 3 Fries. Please take note: no onions." */
+function buildAnnouncement(order: Order): string {
+    const items = order.items.map((item) => `${item.quantity} ${item.menu_item.name}${item.variation ? ` ${item.variation.name}` : ''}`).join(', ');
+    const notes = [order.notes, ...order.items.map((item) => (item.notes ? `${item.menu_item.name}: ${item.notes}` : null))].filter(Boolean);
+
+    return `New order alert! ${items}.${notes.length > 0 ? ` Please take note: ${notes.join('. ')}.` : ''}`;
+}
+
+const ANNOUNCEMENT_RATE = 0.7;
+const ANNOUNCEMENT_REPEAT_DELAY_MS = 5000;
+
 const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 const socketId = () => window.Echo?.socketId() ?? '';
 
@@ -342,6 +353,67 @@ export default function KitchenDisplay({ station, initialOrders }: Props) {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [soundEnabled, setSoundEnabled] = useState(true);
     const audioContextRef = useRef<AudioContext | null>(null);
+    const repeatTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+    useEffect(() => {
+        const timers = repeatTimers.current;
+
+        return () => {
+            timers.forEach(clearTimeout);
+            window.speechSynthesis?.cancel();
+        };
+    }, []);
+
+    const announceOrder = useCallback(
+        (order: Order) => {
+            if (!soundEnabled || !('speechSynthesis' in window)) {
+                return;
+            }
+
+            const message = buildAnnouncement(order);
+
+            const speak = (onEnd?: () => void) => {
+                const utterance = new SpeechSynthesisUtterance(message);
+                utterance.lang = 'en-US';
+                utterance.rate = ANNOUNCEMENT_RATE;
+                utterance.onend = () => onEnd?.();
+                window.speechSynthesis.speak(utterance);
+            };
+
+            // Said twice, with a pause in between, so the kitchen staff can catch it over the noise.
+            speak(() => {
+                const timer = setTimeout(() => speak(), ANNOUNCEMENT_REPEAT_DELAY_MS);
+                repeatTimers.current.push(timer);
+            });
+        },
+        [soundEnabled],
+    );
+
+    // Browsers only allow sound and speech after the screen has been touched; until then the banner asks for a tap.
+    const [audioLocked, setAudioLocked] = useState(true);
+
+    const unlockAudio = useCallback(() => {
+        try {
+            audioContextRef.current ??= new AudioContext();
+            void audioContextRef.current.resume().then(() => setAudioLocked(audioContextRef.current?.state !== 'running'));
+
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+            }
+        } catch {
+            // Audio is unavailable on this device.
+        }
+    }, []);
+
+    useEffect(() => {
+        window.addEventListener('pointerdown', unlockAudio);
+        window.addEventListener('keydown', unlockAudio);
+
+        return () => {
+            window.removeEventListener('pointerdown', unlockAudio);
+            window.removeEventListener('keydown', unlockAudio);
+        };
+    }, [unlockAudio]);
 
     const playChime = useCallback(
         (type: 'new' | 'ready') => {
@@ -352,16 +424,24 @@ return;
             try {
                 const ctx = audioContextRef.current ?? new AudioContext();
                 audioContextRef.current = ctx;
-                const oscillator = ctx.createOscillator();
-                const gain = ctx.createGain();
-                oscillator.connect(gain);
-                gain.connect(ctx.destination);
-                oscillator.frequency.setValueAtTime(type === 'new' ? 880 : 1320, ctx.currentTime);
-                oscillator.frequency.exponentialRampToValueAtTime(type === 'new' ? 1100 : 1760, ctx.currentTime + 0.15);
-                gain.gain.setValueAtTime(0.3, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-                oscillator.start(ctx.currentTime);
-                oscillator.stop(ctx.currentTime + 0.4);
+                void ctx.resume();
+                // A new order rings three times so it cannot be missed over the noise of the bar; "ready" is a single ding.
+                const beeps = type === 'new' ? [0, 0.45, 0.9] : [0];
+
+                beeps.forEach((offset) => {
+                    const start = ctx.currentTime + offset;
+                    const oscillator = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    oscillator.type = 'triangle';
+                    oscillator.connect(gain);
+                    gain.connect(ctx.destination);
+                    oscillator.frequency.setValueAtTime(type === 'new' ? 880 : 1320, start);
+                    oscillator.frequency.exponentialRampToValueAtTime(type === 'new' ? 1100 : 1760, start + 0.15);
+                    gain.gain.setValueAtTime(0.8, start);
+                    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
+                    oscillator.start(start);
+                    oscillator.stop(start + 0.4);
+                });
             } catch {
                 // AudioContext may be blocked before user interaction
             }
@@ -394,7 +474,12 @@ return;
                     return;
                 }
 
-                playChime('new');
+                if (station === 'kitchen') {
+                    announceOrder(kitchenOrder);
+                } else {
+                    playChime('new');
+                }
+
                 setOrders((prev) => {
                     if (prev.some((o) => o.id === kitchenOrder.id)) {
                         return prev;
@@ -426,7 +511,7 @@ playChime('ready');
         return () => {
             window.Echo?.leaveChannel('kitchen');
         };
-    }, [playChime, station]);
+    }, [announceOrder, playChime, station]);
 
     async function handleUpdateStatus(orderId: number, status: string) {
         setUpdatingIds((prev) => new Set(prev).add(orderId));
@@ -639,6 +724,16 @@ playChime('ready');
                     </button>
                 </div>
             </div>
+
+            {audioLocked && soundEnabled && (
+                <button
+                    type="button"
+                    onClick={unlockAudio}
+                    className="w-full bg-amber-500 py-2 text-center text-sm font-bold text-black"
+                >
+                    🔔 Tap here to turn on order alerts — the browser keeps sound off until the screen is touched
+                </button>
+            )}
 
             {/* Kanban Board */}
             <div className="grid h-[calc(100vh-56px)] grid-cols-3 gap-0">

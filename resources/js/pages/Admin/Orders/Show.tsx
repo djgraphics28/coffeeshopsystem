@@ -51,7 +51,7 @@ interface Order {
     creator: { name: string } | null;
     voided_by: { name: string } | null;
     items: OrderItem[];
-    payment: { method: string; amount: number; reference_no: string | null; paid_at: string } | null;
+    payment: { method: string; amount: number; reference_no: string | null; notes: string | null; paid_at: string } | null;
     created_at: string;
     updated_at: string;
 }
@@ -391,6 +391,7 @@ toast.error(flash.error);
                                 <InfoRow label="Method" value={<span className="capitalize">{order.payment.method}</span>} />
                                 <InfoRow label="Amount" value={currency(order.payment.amount)} />
                                 {order.payment.reference_no && <InfoRow label="Reference" value={<span className="font-mono text-xs">{order.payment.reference_no}</span>} />}
+                                {order.payment.notes && <InfoRow label="Notes" value={<span className="text-xs">{order.payment.notes}</span>} />}
                                 <InfoRow label="Paid at" value={new Date(order.payment.paid_at).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })} />
                             </div>
                         ) : order.payment_method ? (

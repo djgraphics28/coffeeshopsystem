@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import type { Order, PayMethod } from './types';
 import { formatMoney, round2 } from './utils';
 
-export interface PaymentSubmission { amount: number; method: PayMethod; referenceNo: string | null }
+export interface PaymentSubmission { amount: number; method: PayMethod; referenceNo: string | null; notes: string | null }
 
 interface Props {
     order: Order | null;
@@ -35,7 +35,7 @@ function PaymentForm({ order, currency, submitting, onClose, onSubmit }: Props &
     const [method, setMethod] = useState<PayMethod>('cash');
     const [cash, setCash] = useState('');
     const [reference, setReference] = useState('');
-
+    const [notes, setNotes] = useState('');
 
     const total = round2(Number(order.total));
     const isCash = method === 'cash';
@@ -48,7 +48,7 @@ function PaymentForm({ order, currency, submitting, onClose, onSubmit }: Props &
  return; 
 }
 
-        onSubmit({ amount: isCash ? received : total, method, referenceNo: reference.trim() || null });
+        onSubmit({ amount: isCash ? received : total, method, referenceNo: reference.trim() || null, notes: notes.trim() || null });
     }
 
     return (
@@ -124,6 +124,13 @@ function PaymentForm({ order, currency, submitting, onClose, onSubmit }: Props &
                     <input id="pos-ref" autoFocus value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Enter reference no." maxLength={100} className={adminFieldClass()} />
                 </form>
             )}
+
+            <label htmlFor="pos-payment-notes" className="mt-4 mb-1 block text-xs text-muted-foreground">Notes (optional)</label>
+            <textarea
+                id="pos-payment-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500}
+                placeholder="e.g. Holding ₱1,000 bill — will give change once we have small bills"
+                className={adminFieldClass() + ' resize-none'}
+            />
         </CrudModal>
     );
 }

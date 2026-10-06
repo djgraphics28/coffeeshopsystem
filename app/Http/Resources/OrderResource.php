@@ -102,6 +102,7 @@ class OrderResource extends JsonResource
                 'amount' => $this->payment->amount,
                 'method' => $this->payment->method,
                 'reference_no' => $this->payment->reference_no,
+                'notes' => $this->payment->notes,
                 'paid_at' => $this->payment->paid_at,
             ] : null),
             'created_at' => $this->created_at,

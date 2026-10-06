@@ -56,6 +56,22 @@ describe('POS Terminal', function () {
 
         $this->assertDatabaseHas('payments', ['order_id' => $order->id, 'method' => 'cash']);
     });
+
+    it('saves the cashier note on the payment', function () {
+        $order = Order::factory()->create(['status' => 'ready', 'total' => 200]);
+
+        actingAs($this->cashier)
+            ->postJson(route('pos.orders.payment', $order->id), [
+                'amount' => 1000,
+                'method' => 'cash',
+                'notes' => 'Holding the 1000 bill until we get change',
+            ])
+            ->assertOk()
+            ->assertJsonPath('order.payment.notes', 'Holding the 1000 bill until we get change');
+
+        $this->assertDatabaseHas('payments', ['order_id' => $order->id, 'notes' => 'Holding the 1000 bill until we get change']);
+    });
+
     it('requires a table for dine-in orders', function () {
         actingAs($this->cashier)
             ->postJson(route('pos.orders.store'), [
