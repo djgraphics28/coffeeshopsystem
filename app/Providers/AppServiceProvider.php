@@ -64,6 +64,15 @@ class AppServiceProvider extends ServiceProvider
                 'broadcasting.connections.pusher.secret' => $settings->get('pusher_app_secret', config('broadcasting.connections.pusher.secret')),
                 'broadcasting.connections.pusher.options.cluster' => $settings->get('pusher_app_cluster', config('broadcasting.connections.pusher.options.cluster')),
             ]);
+
+            if ($settings->has('pusher_app_id') && $settings->has('pusher_app_key') && $settings->has('pusher_app_secret')) {
+                $cluster = config('broadcasting.connections.pusher.options.cluster');
+
+                config([
+                    'broadcasting.default' => 'pusher',
+                    'broadcasting.connections.pusher.options.host' => "api-{$cluster}.pusher.com",
+                ]);
+            }
         } catch (\Throwable) {
             // DB not ready yet (e.g. during fresh migrations) — skip silently
         }

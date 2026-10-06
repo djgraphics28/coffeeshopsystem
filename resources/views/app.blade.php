@@ -5,6 +5,14 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
+        {{-- Public Pusher credentials (from system settings) for Laravel Echo --}}
+        <script>
+            window.__pusher = @json([
+                'key' => config('broadcasting.default') === 'pusher' ? config('broadcasting.connections.pusher.key') : null,
+                'cluster' => config('broadcasting.connections.pusher.options.cluster'),
+            ]);
+        </script>
+
         {{-- Inline script to detect system dark mode preference and apply it immediately --}}
         <script>
             (function() {
