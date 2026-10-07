@@ -146,8 +146,7 @@ export default function PosTerminal({ categories, tables, addonGroups, initialOr
     }
 
     function onItemTap(item: MenuItem) {
-        // With add-ons in the system, every item opens the dialog so extras can be added even when the item lists none.
-        if (needsCustomization(item) || addonGroups.length > 0) {
+        if (needsCustomization(item)) {
  setItemInDialog(item);
 
  return; 

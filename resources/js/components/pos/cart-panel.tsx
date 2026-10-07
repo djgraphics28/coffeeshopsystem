@@ -135,7 +135,7 @@ export function CartPanel(p: Props) {
                                         <span className="w-6 text-center text-sm font-bold text-foreground">{item.quantity}</span>
                                         <button onClick={() => p.onQuantity(item.id, 1)} aria-label="Increase quantity" className="flex h-9 w-9 items-center justify-center"><Plus className="h-3.5 w-3.5" /></button>
                                     </div>
-                                    <button onClick={() => p.onEdit(item.id)} aria-label={`Edit add-ons for ${item.menuItem.name}`} className="flex h-9 items-center gap-1.5 rounded-full border border-[var(--ap-border)] bg-card px-3 text-xs font-medium text-foreground hover:border-primary/40"><Settings2 className="h-3.5 w-3.5 text-primary" /> Add-ons</button>
+                                    {item.menuItem.addon_groups.some((g) => g.addons.length > 0) ? <button onClick={() => p.onEdit(item.id)} aria-label={`Edit add-ons for ${item.menuItem.name}`} className="flex h-9 items-center gap-1.5 rounded-full border border-[var(--ap-border)] bg-card px-3 text-xs font-medium text-foreground hover:border-primary/40"><Settings2 className="h-3.5 w-3.5 text-primary" /> Add-ons</button> : <span />}
                                     <span className="text-sm font-bold text-primary">{formatMoney(p.currency, item.unitPrice * item.quantity)}</span>
                                 </div>
                             </li>

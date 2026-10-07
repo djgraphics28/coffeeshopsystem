@@ -54,7 +54,9 @@ function ItemForm({ item, initial = null, allAddonGroups = [], currency, onClose
     const [showExtras, setShowExtras] = useState(() => !!initial && allAddonGroups.some((g) => !item.addon_groups.some((own) => own.id === g.id) && g.addons.some((a) => initial.addons.some((c) => c.id === a.id))));
 
     const ownGroupIds = new Set(item.addon_groups.map((g) => g.id));
-    const extraGroups = allAddonGroups.filter((g) => !ownGroupIds.has(g.id));
+    // Extras are only offered on items that have add-ons of their own.
+    const hasOwnAddons = item.addon_groups.some((g) => g.addons.length > 0);
+    const extraGroups = hasOwnAddons ? allAddonGroups.filter((g) => !ownGroupIds.has(g.id)) : [];
     const extraChosenCount = extraGroups.reduce((n, g) => n + (selected[g.id]?.length ?? 0), 0);
 
     const basePrice = variationId
