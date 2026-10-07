@@ -34,6 +34,8 @@ class SettingsController extends Controller
             'closing_time' => ['nullable', 'string'],
             'estimated_wait_minutes' => ['nullable', 'string', 'max:20'],
             'pay_as_you_order' => ['nullable', 'boolean'],
+            'buzzer_enabled' => ['nullable', 'boolean'],
+            'buzzer_total' => ['nullable', 'integer', 'min:1', 'max:200'],
             'points_earn_rate' => ['nullable', 'numeric', 'min:0'],
             'points_redeem_rate' => ['nullable', 'integer', 'min:1'],
             'loyalty_cups_enabled' => ['nullable', 'boolean'],
@@ -79,6 +81,8 @@ class SettingsController extends Controller
         }
 
         $validated['pay_as_you_order'] = $request->boolean('pay_as_you_order') ? '1' : '0';
+        $validated['buzzer_enabled'] = $request->boolean('buzzer_enabled') ? '1' : '0';
+        $validated['buzzer_total'] ??= '20';
         $validated['loyalty_cups_enabled'] = $request->boolean('loyalty_cups_enabled') ? '1' : '0';
         $validated['points_earn_rate'] ??= '1';
         $validated['points_redeem_rate'] ??= '100';

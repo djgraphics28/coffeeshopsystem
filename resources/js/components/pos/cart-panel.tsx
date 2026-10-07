@@ -1,4 +1,5 @@
-import { Minus, Plus, Settings2, Star, Tag, Trash2, UserCircle, X } from 'lucide-react';
+import { BellRing, ChevronDown, Minus, Plus, Settings2, Star, Tag, Trash2, UserCircle, X } from 'lucide-react';
+import { useState } from 'react';
 import { adminFieldClass } from '@/components/admin/form-field';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -18,6 +19,8 @@ interface Props {
     customer: Customer | null;
     onPickCustomer: () => void;
     onClearCustomer: () => void;
+    /** Set when the café uses numbered pagers: walk-in and takeout customers each get one. */
+    buzzer: { total: number; inUse: number[]; selected: number | null; onSelect: (n: number | null) => void } | null;
     notes: string;
     onNotes: (value: string) => void;
     discountValue: number;
@@ -40,6 +43,7 @@ const TYPES: Array<{ id: OrderType; label: string }> = [
 ];
 
 export function CartPanel(p: Props) {
+    const [buzzerOpen, setBuzzerOpen] = useState(false);
     const needsTable = p.orderType === 'dine-in' && !p.tableId;
     const blocked = p.cart.length === 0 || needsTable || p.submitting;
     const count = p.cart.reduce((n, i) => n + i.quantity, 0);
@@ -83,6 +87,39 @@ export function CartPanel(p: Props) {
                                         {t.name}
                                     </button>
                                 ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {p.buzzer && p.orderType !== 'dine-in' && (
+                    <div>
+                        <button
+                            type="button" onClick={() => setBuzzerOpen((v) => !v)} aria-expanded={buzzerOpen}
+                            className={cn('flex h-10 w-full items-center gap-2 rounded-xl border px-3 text-sm transition-all', p.buzzer.selected ? 'border-primary bg-primary/10' : 'border-[var(--ap-border)] bg-[var(--ap-bg)]')}
+                        >
+                            <BellRing className={cn('h-4 w-4 shrink-0', p.buzzer.selected ? 'text-primary' : 'text-muted-foreground')} />
+                            <span className={cn('flex-1 text-left', p.buzzer.selected ? 'font-medium text-foreground' : 'text-muted-foreground')}>
+                                {p.buzzer.selected ? `Buzzer #${p.buzzer.selected}` : 'Add buzzer (optional)'}
+                            </span>
+                            <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', buzzerOpen && 'rotate-180')} />
+                        </button>
+                        {buzzerOpen && (
+                            <div className="mt-2 grid max-h-28 grid-cols-6 gap-1.5 overflow-y-auto">
+                                {Array.from({ length: p.buzzer.total }, (_, i) => i + 1).map((n) => {
+                                    const taken = p.buzzer!.inUse.includes(n);
+
+                                    return (
+                                        <button key={n} type="button" disabled={taken} aria-pressed={p.buzzer!.selected === n} title={taken ? `Buzzer ${n} is with another customer` : undefined}
+                                            onClick={() => {
+                                                p.buzzer!.onSelect(p.buzzer!.selected === n ? null : n);
+                                                setBuzzerOpen(false);
+                                            }}
+                                            className={cn('h-10 rounded-lg border text-sm font-bold transition-all disabled:cursor-not-allowed disabled:line-through disabled:opacity-30', p.buzzer!.selected === n ? 'border-transparent bg-primary text-primary-foreground' : 'border-[var(--ap-border)] bg-[var(--ap-bg)] text-foreground')}>
+                                            {n}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

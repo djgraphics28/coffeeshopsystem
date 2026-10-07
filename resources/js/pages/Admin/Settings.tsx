@@ -34,7 +34,7 @@ const TABS = [
 type TabKey = (typeof TABS)[number]['key'];
 
 const TAB_FIELDS: Record<TabKey, string[]> = {
-    general: ['cafe_name', 'cafe_tagline', 'opening_time', 'closing_time', 'estimated_wait_minutes', 'pay_as_you_order'],
+    general: ['cafe_name', 'cafe_tagline', 'opening_time', 'closing_time', 'estimated_wait_minutes', 'pay_as_you_order', 'buzzer_enabled', 'buzzer_total'],
     pricing: ['tax_rate', 'currency', 'points_earn_rate', 'points_redeem_rate', 'loyalty_cups_enabled', 'loyalty_cups_threshold'],
     delivery: ['delivery_fee', 'free_delivery_minimum', 'gcash_number', 'gcash_account_name', 'gcash_qr', 'maya_number', 'maya_account_name', 'maya_qr'],
     integrations: ['mail_host', 'mail_port', 'mail_username', 'mail_password', 'mail_encryption', 'mail_from_address', 'mail_from_name', 'pusher_app_id', 'pusher_app_key', 'pusher_app_secret', 'pusher_app_cluster'],
@@ -80,6 +80,8 @@ export default function SettingsPage({ settings, gcash_qr_url, maya_qr_url }: Pr
         closing_time: settings.closing_time ?? '21:00',
         estimated_wait_minutes: settings.estimated_wait_minutes ?? '10-15',
         pay_as_you_order: settings.pay_as_you_order === '1',
+        buzzer_enabled: settings.buzzer_enabled === '1',
+        buzzer_total: settings.buzzer_total ?? '20',
         points_earn_rate: settings.points_earn_rate ?? '1',
         points_redeem_rate: settings.points_redeem_rate ?? '100',
         loyalty_cups_enabled: settings.loyalty_cups_enabled === '1',
@@ -187,6 +189,18 @@ toast.success(flash.success);
                                 </div>
                                 <Toggle checked={data.pay_as_you_order} onChange={() => setData('pay_as_you_order', !data.pay_as_you_order)} />
                             </div>
+                            <div className="flex items-center justify-between gap-4 rounded-xl border border-border p-4">
+                                <div>
+                                    <p className="text-sm font-medium text-foreground">Buzzer queue</p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">Walk-in and takeout orders get a numbered buzzer (pager) the customer carries until the order is ready</p>
+                                </div>
+                                <Toggle checked={data.buzzer_enabled} onChange={() => setData('buzzer_enabled', !data.buzzer_enabled)} />
+                            </div>
+                            {data.buzzer_enabled && (
+                                <FormField label="Number of buzzers" hint="Buzzers are numbered 1 to this number">
+                                    <input type="number" min={1} max={200} value={data.buzzer_total} onChange={(e) => setData('buzzer_total', e.target.value)} className={adminFieldClass()} />
+                                </FormField>
+                            )}
                         </div>
                     </Section>
                     </div>

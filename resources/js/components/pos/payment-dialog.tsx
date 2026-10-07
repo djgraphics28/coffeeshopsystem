@@ -7,10 +7,12 @@ import { cn } from '@/lib/utils';
 import type { Order, PayMethod } from './types';
 import { formatMoney, round2 } from './utils';
 
-export interface PaymentSubmission { amount: number; method: PayMethod; referenceNo: string | null; notes: string | null }
+export interface PaymentSubmission { amount: number; method: PayMethod; referenceNo: string | null; notes: string | null; buzzerNumber: number | null }
 
 interface Props {
     order: Order | null;
+    /** Set when buzzers are on and this order is walk-in or takeout. `inUse` already leaves out this order's own buzzer. */
+    buzzer?: { total: number; inUse: number[] } | null;
     currency: string;
     submitting: boolean;
     onClose: () => void;
@@ -31,11 +33,12 @@ export function PaymentDialog(props: Props) {
     return props.order ? <PaymentForm key={props.order.id} {...props} order={props.order} /> : null;
 }
 
-function PaymentForm({ order, currency, submitting, onClose, onSubmit }: Props & { order: Order }) {
+function PaymentForm({ order, buzzer = null, currency, submitting, onClose, onSubmit }: Props & { order: Order }) {
     const [method, setMethod] = useState<PayMethod>('cash');
     const [cash, setCash] = useState('');
     const [reference, setReference] = useState('');
     const [notes, setNotes] = useState('');
+    const [buzzerNumber, setBuzzerNumber] = useState<number | null>(order.buzzer_number ?? null);
 
     const total = round2(Number(order.total));
     const isCash = method === 'cash';
@@ -44,11 +47,11 @@ function PaymentForm({ order, currency, submitting, onClose, onSubmit }: Props &
     const change = isCash ? round2(Math.max(0, received - total)) : 0;
 
     function submit() {
-        if (short || submitting) {
+        if (short || submitting || (buzzer && !buzzerNumber)) {
  return; 
 }
 
-        onSubmit({ amount: isCash ? received : total, method, referenceNo: reference.trim() || null, notes: notes.trim() || null });
+        onSubmit({ amount: isCash ? received : total, method, referenceNo: reference.trim() || null, notes: notes.trim() || null, buzzerNumber: buzzer ? buzzerNumber : null });
     }
 
     return (
@@ -58,8 +61,8 @@ function PaymentForm({ order, currency, submitting, onClose, onSubmit }: Props &
             title={<span className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /> Take Payment</span>}
             className="max-w-sm"
             footer={
-                <Button className="h-12 w-full text-base" onClick={submit} disabled={short || submitting}>
-                    {submitting ? 'Processing...' : `Confirm ${formatMoney(currency, isCash ? received : total)}`}
+                <Button className="h-12 w-full text-base" onClick={submit} disabled={short || submitting || (!!buzzer && !buzzerNumber)}>
+                    {submitting ? 'Processing...' : buzzer && !buzzerNumber ? 'Pick a buzzer number' : `Confirm ${formatMoney(currency, isCash ? received : total)}`}
                 </Button>
             }
         >
@@ -123,6 +126,30 @@ function PaymentForm({ order, currency, submitting, onClose, onSubmit }: Props &
                     <label htmlFor="pos-ref" className="mb-1 block text-xs text-muted-foreground">Reference number (optional)</label>
                     <input id="pos-ref" autoFocus value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Enter reference no." maxLength={100} className={adminFieldClass()} />
                 </form>
+            )}
+
+            {buzzer && (
+                <div className="mt-4">
+                    <p className={cn('mb-1.5 text-xs', buzzerNumber ? 'text-muted-foreground' : 'font-medium text-error')}>
+                        {buzzerNumber ? `Buzzer #${buzzerNumber}` : 'Give the customer a buzzer and pick its number'}
+                    </p>
+                    <div className="grid max-h-32 grid-cols-6 gap-1.5 overflow-y-auto sm:grid-cols-8">
+                        {Array.from({ length: buzzer.total }, (_, i) => i + 1).map((n) => {
+                            const taken = buzzer.inUse.includes(n);
+
+                            return (
+                                <button
+                                    key={n} type="button" disabled={taken} aria-pressed={buzzerNumber === n}
+                                    title={taken ? `Buzzer ${n} is with another customer` : undefined}
+                                    onClick={() => setBuzzerNumber(buzzerNumber === n ? null : n)}
+                                    className={cn('h-10 rounded-lg border text-sm font-bold transition-all disabled:cursor-not-allowed disabled:line-through disabled:opacity-30', buzzerNumber === n ? 'border-transparent bg-primary text-primary-foreground' : 'border-[var(--ap-border)] bg-[var(--ap-bg)] text-foreground')}
+                                >
+                                    {n}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
             )}
 
             <label htmlFor="pos-payment-notes" className="mt-4 mb-1 block text-xs text-muted-foreground">Notes (optional)</label>

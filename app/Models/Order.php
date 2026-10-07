@@ -49,6 +49,7 @@ class Order extends Model implements HasMedia
         'customer_id',
         'promo_id',
         'order_number',
+        'buzzer_number',
         'status',
         'kitchen_status',
         'barista_status',

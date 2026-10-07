@@ -25,7 +25,7 @@ export interface OrderItemLine {
     addons: Array<{ name: string }>;
 }
 export interface Order {
-    id: number; order_number: string; status: string; type: string;
+    id: number; order_number: string; buzzer_number?: number | null; status: string; type: string;
     kitchen_status?: StationStatus | null;
     barista_status?: StationStatus | null;
     subtotal: number; tax: number; discount: number; total: number;
@@ -40,4 +40,4 @@ export interface Customer {
 }
 export type OrderType = 'dine-in' | 'takeout' | 'walkin';
 export type PayMethod = 'cash' | 'card' | 'gcash' | 'maya';
-export interface PosSettings { currency: string; tax_rate: number; pay_as_you_order: boolean }
+export interface PosSettings { currency: string; tax_rate: number; pay_as_you_order: boolean; buzzer_enabled: boolean; buzzer_total: number }

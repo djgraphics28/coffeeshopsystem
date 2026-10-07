@@ -5,6 +5,7 @@ use App\Models\AddonGroup;
 use App\Models\Category;
 use App\Models\MenuItem;
 use App\Models\Order;
+use App\Models\Setting;
 use App\Models\Table;
 use App\Models\User;
 
@@ -42,6 +43,45 @@ describe('POS Terminal', function () {
             ->assertStatus(201)
             ->assertJsonPath('order.items.0.unit_price', 175)
             ->assertJsonPath('order.items.0.addons.0.addon_id', $extra->id);
+    });
+
+    describe('buzzer queue', function () {
+        $place = fn (array $extra = []) => actingAs(test()->cashier)->postJson(route('pos.orders.store'), array_merge([
+            'type' => 'walkin',
+            'items' => [['menu_item_id' => test()->item->id, 'quantity' => 1]],
+        ], $extra));
+
+        it('ignores buzzers while the feature is off', function () use ($place) {
+            $place(['buzzer_number' => 5])->assertStatus(201)->assertJsonPath('order.buzzer_number', null);
+        });
+
+        it('accepts a buzzer when ordering but only requires one at payment', function () use ($place) {
+            Setting::set('buzzer_enabled', '1');
+            Setting::set('buzzer_total', '10');
+
+            $place(['buzzer_number' => 11])->assertStatus(422)->assertJsonValidationErrors('buzzer_number');
+            $place(['buzzer_number' => 3])->assertStatus(201)->assertJsonPath('order.buzzer_number', 3);
+
+            $orderId = $place()->assertStatus(201)->assertJsonPath('order.buzzer_number', null)->json('order.id');
+            $total = Order::find($orderId)->total;
+
+            actingAs($this->cashier)->postJson(route('pos.orders.payment', $orderId), ['amount' => $total, 'method' => 'cash'])
+                ->assertStatus(422)->assertJsonValidationErrors('buzzer_number');
+            actingAs($this->cashier)->postJson(route('pos.orders.payment', $orderId), ['amount' => $total, 'method' => 'cash', 'buzzer_number' => 3])
+                ->assertStatus(422)->assertJsonValidationErrors('buzzer_number');
+            actingAs($this->cashier)->postJson(route('pos.orders.payment', $orderId), ['amount' => $total, 'method' => 'cash', 'buzzer_number' => 4])
+                ->assertOk()->assertJsonPath('order.buzzer_number', 4);
+        });
+
+        it('does not hand out a buzzer that is still with another customer, and frees it once the order is done', function () use ($place) {
+            Setting::set('buzzer_enabled', '1');
+
+            $place(['buzzer_number' => 3])->assertStatus(201);
+            $place(['buzzer_number' => 3])->assertStatus(422)->assertJsonValidationErrors('buzzer_number');
+
+            Order::where('buzzer_number', 3)->update(['status' => 'completed']);
+            $place(['buzzer_number' => 3])->assertStatus(201);
+        });
     });
 
     it('cashier can place a walkin order', function () {

@@ -41,7 +41,7 @@ export default function PosTerminal({ categories, tables, addonGroups, initialOr
     // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => setMounted(true), []);
 
-    const { currency, tax_rate: taxRate, pay_as_you_order: payAsYouOrder } = settings;
+    const { currency, tax_rate: taxRate, pay_as_you_order: payAsYouOrder, buzzer_enabled: buzzerEnabled, buzzer_total: buzzerTotal } = settings;
 
     const [view, setView] = useState<'menu' | 'kitchen' | 'barista'>('menu');
     const [editingLineId, setEditingLineId] = useState<string | null>(null);
@@ -55,6 +55,7 @@ export default function PosTerminal({ categories, tables, addonGroups, initialOr
     const [cartOpen, setCartOpen] = useState(false);
     const [orderType, setOrderType] = useState<OrderType>('walkin');
     const [tableId, setTableId] = useState<number | null>(null);
+    const [buzzerNumber, setBuzzerNumber] = useState<number | null>(null);
     const [orderNotes, setOrderNotes] = useState('');
     const [discountValue, setDiscountValue] = useState(0);
     const [discountMode, setDiscountMode] = useState<'amount' | 'percent'>('amount');
@@ -193,7 +194,7 @@ export default function PosTerminal({ categories, tables, addonGroups, initialOr
     }
 
     function clearCart() {
-        setCart([]); setOrderNotes(''); setDiscountValue(0); setCustomer(null); setTableId(null);
+        setCart([]); setOrderNotes(''); setDiscountValue(0); setCustomer(null); setTableId(null); setBuzzerNumber(null);
     }
 
     async function placeOrder() {
@@ -208,6 +209,7 @@ export default function PosTerminal({ categories, tables, addonGroups, initialOr
                 table_id: orderType === 'dine-in' ? tableId : null,
                 customer_id: customer?.id ?? null,
                 type: orderType, notes: orderNotes, discount: totals.discount,
+                buzzer_number: buzzerEnabled && orderType !== 'dine-in' ? buzzerNumber : null,
                 items: cart.map((i) => ({
                     menu_item_id: i.menuItem.id, variation_id: i.selectedVariation?.id ?? null,
                     quantity: i.quantity, notes: i.notes, addon_ids: i.selectedAddons.map((a) => a.id),
@@ -237,7 +239,7 @@ export default function PosTerminal({ categories, tables, addonGroups, initialOr
 
         try {
             const data = await apiRequest<{ order: Order }>(posOrdersPayment(payingOrder.id), 'POST', {
-                amount: payment.amount, method: payment.method, reference_no: payment.referenceNo, notes: payment.notes,
+                amount: payment.amount, method: payment.method, reference_no: payment.referenceNo, notes: payment.notes, buzzer_number: payment.buzzerNumber,
             });
             // Paying does not close the order; it stays in the list and moves through its own steps.
             setActiveOrders((prev) => prev.map((o) => (o.id === payingOrder.id ? { ...o, ...data.order } : o)));
@@ -415,6 +417,7 @@ export default function PosTerminal({ categories, tables, addonGroups, initialOr
                     cart={cart} currency={currency} taxRate={taxRate} totals={totals}
                     orderType={orderType} onOrderType={setOrderType} tables={tables} tableId={tableId} onTable={setTableId}
                     customer={customer} onPickCustomer={() => setCustomerOpen(true)} onClearCustomer={() => setCustomer(null)}
+                    buzzer={buzzerEnabled ? { total: buzzerTotal, inUse: activeOrders.filter((o) => o.buzzer_number && !CLOSED_STATUSES.includes(o.status)).map((o) => o.buzzer_number as number), selected: buzzerNumber, onSelect: setBuzzerNumber } : null}
                     notes={orderNotes} onNotes={setOrderNotes}
                     discountValue={discountValue} discountMode={discountMode} onDiscount={(v, m) => {
  setDiscountValue(v); setDiscountMode(m); 
@@ -433,7 +436,7 @@ export default function PosTerminal({ categories, tables, addonGroups, initialOr
             )}
 
             <ItemDialog item={editingLine ? editingLine.menuItem : itemInDialog} initial={editingLine ? { lineId: editingLine.id, quantity: editingLine.quantity, variationId: editingLine.selectedVariation?.id ?? null, addons: editingLine.selectedAddons, notes: editingLine.notes } : null} allAddonGroups={addonGroups} currency={currency} onClose={() => { setItemInDialog(null); setEditingLineId(null); }} onAdd={onItemConfirmed} />
-            <PaymentDialog order={payingOrder} currency={currency} submitting={paying} onClose={() => setPayingOrder(null)} onSubmit={submitPayment} />
+            <PaymentDialog order={payingOrder} buzzer={buzzerEnabled && payingOrder && payingOrder.type !== 'dine-in' ? { total: buzzerTotal, inUse: activeOrders.filter((o) => o.id !== payingOrder.id && o.buzzer_number && !CLOSED_STATUSES.includes(o.status)).map((o) => o.buzzer_number as number) } : null} currency={currency} submitting={paying} onClose={() => setPayingOrder(null)} onSubmit={submitPayment} />
             <CustomerDialog open={customerOpen} onOpenChange={setCustomerOpen} onSelect={setCustomer} />
 
             <CrudModal

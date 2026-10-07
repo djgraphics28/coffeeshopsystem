@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { Ban, ChevronDown, ChevronUp } from 'lucide-react';
+import { Ban, BellRing, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -60,6 +60,11 @@ export function ActiveOrders({ orders, currency, expanded, onToggle, onAdvance, 
                                             <p className="font-bold text-foreground" style={{ fontFamily: "'Space Mono', monospace" }}>{order.order_number}</p>
                                             <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium capitalize', STATUS_CLASS[order.status] ?? 'bg-muted text-muted-foreground')}>{order.status}</span>
                                         </div>
+                                        {order.buzzer_number && (
+                                            <p className={cn('mt-1.5 flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold', order.status === 'ready' ? 'animate-pulse bg-success text-success-foreground' : 'bg-primary/10 text-primary')}>
+                                                <BellRing className="h-3.5 w-3.5" /> Buzzer #{order.buzzer_number}{order.status === 'ready' && ' — press it now'}
+                                            </p>
+                                        )}
                                         <p className="mt-1 text-muted-foreground">
                                             {order.table?.name ?? 'Walk-in'} · {order.items.reduce((n, i) => n + i.quantity, 0)} items · {minutesAgo(order.created_at)}
                                         </p>

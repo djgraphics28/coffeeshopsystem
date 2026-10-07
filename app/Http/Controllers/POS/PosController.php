@@ -62,6 +62,8 @@ class PosController extends Controller
                 'currency' => $settings['currency'] ?? '₱',
                 'tax_rate' => (float) ($settings['tax_rate'] ?? 12),
                 'pay_as_you_order' => ($settings['pay_as_you_order'] ?? '0') === '1',
+                'buzzer_enabled' => ($settings['buzzer_enabled'] ?? '0') === '1',
+                'buzzer_total' => (int) ($settings['buzzer_total'] ?? 20),
             ],
         ]);
     }
@@ -101,6 +103,7 @@ class PosController extends Controller
             'type' => ['required', Rule::in(['dine-in', 'takeout', 'walkin'])],
             'notes' => ['nullable', 'string', 'max:500'],
             'discount' => ['nullable', 'numeric', 'min:0'],
+            'buzzer_number' => ['nullable', 'integer', 'min:1', 'max:'.max(1, (int) Setting::get('buzzer_total', 20))],
             'items' => ['required', 'array', 'min:1'],
             'items.*.menu_item_id' => ['required', 'exists:menu_items,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
@@ -110,7 +113,18 @@ class PosController extends Controller
             'items.*.addon_ids.*' => ['exists:addons,id'],
         ]);
 
-        $order = DB::transaction(function () use ($validated, $request) {
+        $buzzerNumber = $validated['buzzer_number'] ?? null;
+        $usesBuzzer = Setting::get('buzzer_enabled', '0') === '1' && $validated['type'] !== 'dine-in';
+
+        if (! $usesBuzzer) {
+            $buzzerNumber = null;
+        }
+
+        $order = DB::transaction(function () use ($validated, $request, $buzzerNumber) {
+            if ($buzzerNumber && Order::active()->where('buzzer_number', $buzzerNumber)->lockForUpdate()->exists()) {
+                throw ValidationException::withMessages(['buzzer_number' => ["Buzzer {$buzzerNumber} is still with another customer. Pick a different one."]]);
+            }
+
             $taxRate = (float) Setting::get('tax_rate', 12);
             $subtotal = 0;
 
@@ -118,6 +132,7 @@ class PosController extends Controller
                 'table_id' => $validated['table_id'] ?? null,
                 'customer_id' => $validated['customer_id'] ?? null,
                 'order_number' => Order::generateOrderNumber(),
+                'buzzer_number' => $buzzerNumber,
                 'status' => 'pending',
                 'type' => $validated['type'],
                 'notes' => $validated['notes'] ?? null,
@@ -251,6 +266,7 @@ class PosController extends Controller
             'method' => ['required', Rule::in(['cash', 'card', 'gcash', 'maya'])],
             'reference_no' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:500'],
+            'buzzer_number' => ['nullable', 'integer', 'min:1', 'max:'.max(1, (int) Setting::get('buzzer_total', 20))],
         ]);
 
         if (! $order->isVoidable()) {
@@ -263,6 +279,21 @@ class PosController extends Controller
 
         if (round((float) $validated['amount'], 2) < round((float) $order->total, 2)) {
             return response()->json(['message' => 'The amount received is less than the order total.'], 422);
+        }
+
+        // With buzzers on, a walk-in or takeout customer must hold one by the time they pay (it can also be given earlier, when ordering).
+        if (Setting::get('buzzer_enabled', '0') === '1' && $order->type !== 'dine-in') {
+            $buzzerNumber = $validated['buzzer_number'] ?? $order->buzzer_number;
+
+            if (! $buzzerNumber) {
+                throw ValidationException::withMessages(['buzzer_number' => ['Give the customer a buzzer and pick its number.']]);
+            }
+
+            if (Order::active()->where('buzzer_number', $buzzerNumber)->whereKeyNot($order->id)->exists()) {
+                throw ValidationException::withMessages(['buzzer_number' => ["Buzzer {$buzzerNumber} is still with another customer. Pick a different one."]]);
+            }
+
+            $order->update(['buzzer_number' => $buzzerNumber]);
         }
 
         $payment = $order->payment()->create([

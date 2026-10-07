@@ -1,5 +1,6 @@
 export interface ReceiptOrder {
     order_number: string;
+    buzzer_number?: number | null;
     type: string;
     subtotal: number;
     tax: number;
@@ -76,6 +77,7 @@ export function ThermalReceipt({ order, currency = '₱' }: { order: ReceiptOrde
                 <span>{date}</span><span>{time}</span>
             </div>
             <div style={{ fontSize: 11 }}>Order #: <strong>{order.order_number}</strong></div>
+            {order.buzzer_number && <div style={{ fontSize: 16, fontWeight: 'bold', margin: '4px 0' }}>BUZZER #{order.buzzer_number}</div>}
             <div style={{ fontSize: 11 }}>
                 {order.table?.name ?? 'Walk-in'} &nbsp;|&nbsp;
                 <span style={{ textTransform: 'capitalize' }}>{(order.type ?? '').replace('-', ' ')}</span>
