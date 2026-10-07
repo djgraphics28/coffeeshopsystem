@@ -36,7 +36,7 @@ interface RecentOrder {
     created_at: string;
 }
 
-interface TopItem { name: string; total_sold: number; revenue: number }
+interface TopItem { name: string; category: string | null; total_sold: number; revenue: number }
 interface SeriesPoint { label: string; revenue: number; expenses: number }
 interface ExpenseSummary {
     total: number;
@@ -324,7 +324,10 @@ export default function Dashboard({ filters, range, currency, can, stats, series
                                     <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold', i === 0 ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300' : i === 2 ? 'bg-warning/10 text-warning' : 'bg-muted text-muted-foreground')}>{i + 1}</div>
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
-                                        <p className="text-xs text-muted-foreground">{item.total_sold} sold</p>
+                                        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                            {item.total_sold} sold
+                                            {item.category && <Badge variant="neutral" className="px-1.5 py-0 text-[10px]">{item.category}</Badge>}
+                                        </p>
                                     </div>
                                     <p className="shrink-0 text-sm font-bold text-primary">{money(item.revenue)}</p>
                                 </div>

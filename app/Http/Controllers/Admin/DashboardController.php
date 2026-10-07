@@ -56,13 +56,14 @@ class DashboardController extends Controller
 
         $topItems = OrderItem::select('menu_item_id', DB::raw('SUM(quantity) as total_sold'), DB::raw('SUM(subtotal) as revenue'))
             ->whereHas('order', fn ($q) => $q->whereBetween('created_at', [$start, $end])->where('status', 'completed'))
-            ->with('menuItem:id,name')
+            ->with('menuItem:id,name,category_id', 'menuItem.category:id,name')
             ->groupBy('menu_item_id')
             ->orderByDesc('total_sold')
             ->limit(10)
             ->get()
             ->map(fn ($i) => [
                 'name' => $i->menuItem?->name,
+                'category' => $i->menuItem?->category?->name,
                 'total_sold' => (int) $i->total_sold,
                 'revenue' => (float) $i->revenue,
             ]);
