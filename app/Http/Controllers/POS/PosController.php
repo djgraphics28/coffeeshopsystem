@@ -9,6 +9,7 @@ use App\Http\Resources\CategoryResource;
 use App\Http\Resources\CustomerResource;
 use App\Http\Resources\OrderResource;
 use App\Models\Addon;
+use App\Models\AddonGroup;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\MenuItem;
@@ -34,6 +35,16 @@ class PosController extends Controller
 
         $tables = Table::active()->get(['id', 'name']);
 
+        // Every add-on group, so the cashier can add extras a customer asks for that the item does not list itself.
+        $addonGroups = AddonGroup::query()->with('addons')->has('addons')->orderBy('sort_order')->orderBy('name')->get()
+            ->map(fn (AddonGroup $group) => [
+                'id' => $group->id,
+                'name' => $group->name,
+                'is_required' => false,
+                'max_selections' => $group->max_selections,
+                'addons' => $group->addons->map(fn (Addon $addon) => ['id' => $addon->id, 'name' => $addon->name, 'additional_price' => $addon->additional_price])->values(),
+            ]);
+
         $activeOrders = Order::active()
             ->today()
             ->with(['table', 'items.menuItem', 'items.addons.addon', 'payment'])
@@ -45,6 +56,7 @@ class PosController extends Controller
         return Inertia::render('POS/PosTerminal', [
             'categories' => CategoryResource::collection($categories)->resolve(),
             'tables' => $tables,
+            'addonGroups' => $addonGroups,
             'initialOrders' => OrderResource::collection($activeOrders)->resolve(),
             'settings' => [
                 'currency' => $settings['currency'] ?? '₱',

@@ -1,4 +1,4 @@
-import { Minus, Plus, Star, Tag, Trash2, UserCircle, X } from 'lucide-react';
+import { Minus, Plus, Settings2, Star, Tag, Trash2, UserCircle, X } from 'lucide-react';
 import { adminFieldClass } from '@/components/admin/form-field';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -25,6 +25,7 @@ interface Props {
     onDiscount: (value: number, mode: 'amount' | 'percent') => void;
     onQuantity: (id: string, delta: number) => void;
     onRemove: (id: string) => void;
+    onEdit: (id: string) => void;
     onClear: () => void;
     onSubmit: () => void;
     submitting: boolean;
@@ -134,6 +135,7 @@ export function CartPanel(p: Props) {
                                         <span className="w-6 text-center text-sm font-bold text-foreground">{item.quantity}</span>
                                         <button onClick={() => p.onQuantity(item.id, 1)} aria-label="Increase quantity" className="flex h-9 w-9 items-center justify-center"><Plus className="h-3.5 w-3.5" /></button>
                                     </div>
+                                    <button onClick={() => p.onEdit(item.id)} aria-label={`Edit add-ons for ${item.menuItem.name}`} className="flex h-9 items-center gap-1.5 rounded-full border border-[var(--ap-border)] bg-card px-3 text-xs font-medium text-foreground hover:border-primary/40"><Settings2 className="h-3.5 w-3.5 text-primary" /> Add-ons</button>
                                     <span className="text-sm font-bold text-primary">{formatMoney(p.currency, item.unitPrice * item.quantity)}</span>
                                 </div>
                             </li>

@@ -194,6 +194,40 @@ describe('System: backups, restore and reset', function () {
         });
     });
 
+    describe('seeders', function () {
+        it('runs a chosen seeder after the password and word are confirmed', function () {
+            actingAs($this->admin);
+
+            post(route('admin.system.seeders.run'), ['seeder' => 'CategorySeeder', 'password' => 'secret-pass-123', 'confirmation' => 'SEED'], ['Accept' => 'application/json'])
+                ->assertOk();
+
+            expect(Category::count())->toBeGreaterThan(0);
+            $this->assertDatabaseHas('system_activity', ['event' => 'seeder-run']);
+        });
+
+        it('refuses a wrong password, a wrong word and an unlisted class', function () {
+            actingAs($this->admin);
+
+            post(route('admin.system.seeders.run'), ['seeder' => 'CategorySeeder', 'password' => 'wrong', 'confirmation' => 'SEED'], ['Accept' => 'application/json'])
+                ->assertStatus(422)->assertJsonValidationErrors('password');
+            post(route('admin.system.seeders.run'), ['seeder' => 'CategorySeeder', 'password' => 'secret-pass-123', 'confirmation' => 'seed'], ['Accept' => 'application/json'])
+                ->assertStatus(422)->assertJsonValidationErrors('confirmation');
+            post(route('admin.system.seeders.run'), ['seeder' => 'DatabaseSeeder', 'password' => 'secret-pass-123', 'confirmation' => 'SEED'], ['Accept' => 'application/json'])
+                ->assertStatus(422)->assertJsonValidationErrors('seeder');
+
+            expect(Category::count())->toBe(0);
+        });
+
+        it('is forbidden without the run seeders permission', function () {
+            $this->admin->roles->first()->revokePermissionTo('run seeders');
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+            actingAs($this->admin);
+
+            post(route('admin.system.seeders.run'), ['seeder' => 'CategorySeeder', 'password' => 'secret-pass-123', 'confirmation' => 'SEED'], ['Accept' => 'application/json'])
+                ->assertForbidden();
+        });
+    });
+
     describe('reset', function () {
         it('needs the password and the typed word, and deletes nothing when they are wrong', function () {
             Category::factory()->create();

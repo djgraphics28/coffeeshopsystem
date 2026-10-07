@@ -166,18 +166,18 @@ export default function Dashboard({ filters, range, currency, can, stats, series
 
             {/* ── Stat Cards ── */}
             <div className={cn('mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2', can.view_expenses ? 'xl:grid-cols-5' : 'xl:grid-cols-3')}>
-                <StatCard icon={TrendingUp} label="Revenue" value={money(stats.revenue)} trend={stats.trends.revenue} tone="brand" />
+                <StatCard icon={TrendingUp} label="Sales" value={money(stats.revenue)} trend={stats.trends.revenue} tone="brand" />
                 <StatCard icon={ShoppingBag} label="Orders" value={stats.order_count.toLocaleString()} trend={stats.trends.order_count} tone="info" />
                 <StatCard icon={BarChart2} label="Avg. Order Value" value={money(stats.avg_order_value)} trend={stats.trends.avg_order_value} tone="success" />
                 {can.view_expenses && <StatCard icon={Receipt} label="Expenses" value={money(stats.expenses)} trend={stats.trends.expenses} tone="error" invert />}
-                {can.view_expenses && <StatCard icon={Wallet} label="Net (Revenue − Expenses)" value={money(stats.net)} trend={stats.trends.net} tone={stats.net >= 0 ? 'success' : 'error'} />}
+                {can.view_expenses && <StatCard icon={Wallet} label="Net (Sales − Expenses)" value={money(stats.net)} trend={stats.trends.net} tone={stats.net >= 0 ? 'success' : 'error'} />}
             </div>
 
-            {/* ── Revenue vs expenses ── */}
+            {/* ── Sales vs expenses ── */}
             <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-5">
                 <div className={cn('rounded-2xl border border-border bg-card p-5 shadow-sm', can.view_expenses ? 'xl:col-span-3' : 'xl:col-span-5')}>
                     <div className="mb-4">
-                        <h2 className="font-semibold text-foreground">{showExpenseSeries ? 'Revenue vs Expenses' : range.granularity === 'hour' ? 'Sales by hour' : 'Revenue'}</h2>
+                        <h2 className="font-semibold text-foreground">{showExpenseSeries ? 'Sales vs Expenses' : range.granularity === 'hour' ? 'Sales by hour' : 'Sales'}</h2>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                             {range.granularity === 'hour' ? 'Completed orders by hour of the day' : range.granularity === 'day' ? 'Per day' : 'Per month'}
                             {can.view_expenses && range.granularity === 'hour' && ' · expenses are recorded per day, see the cards above'}
@@ -191,7 +191,7 @@ export default function Dashboard({ filters, range, currency, can, stats, series
                                 <YAxis tick={{ fontSize: 11, fill: 'var(--ap-muted)' }} axisLine={false} tickLine={false} tickFormatter={compact} width={52} />
                                 <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--ap-border)' }} formatter={(v, name) => [money(Number(v)), name]} />
                                 {showExpenseSeries && <Legend formatter={(v) => <span style={{ fontSize: 11, color: 'var(--ap-muted)' }}>{v}</span>} />}
-                                <Bar dataKey="revenue" name="Revenue" fill="var(--color-primary)" radius={[5, 5, 0, 0]} />
+                                <Bar dataKey="revenue" name="Sales" fill="var(--color-primary)" radius={[5, 5, 0, 0]} />
                                 {showExpenseSeries && <Bar dataKey="expenses" name="Expenses" fill="var(--color-error)" radius={[5, 5, 0, 0]} />}
                             </BarChart>
                         </ResponsiveContainer>

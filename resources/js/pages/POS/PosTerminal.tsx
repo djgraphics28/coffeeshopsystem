@@ -13,7 +13,7 @@ import type {ItemSelection} from '@/components/pos/item-dialog';
 import { PaymentDialog  } from '@/components/pos/payment-dialog';
 import type {PaymentSubmission} from '@/components/pos/payment-dialog';
 import { StationOrders, stationOrders } from '@/components/pos/station-orders';
-import type { CartItem, Category, Customer, MenuItem, Order, OrderType, PosSettings, TableOption } from '@/components/pos/types';
+import type { AddonGroup, CartItem, Category, Customer, MenuItem, Order, OrderType, PosSettings, TableOption } from '@/components/pos/types';
 import { calculateTotals, apiRequest, formatMoney, lineKey, needsCustomization } from '@/components/pos/utils';
 import { printReceipt, ThermalReceipt } from '@/components/thermal-receipt';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ import '../../echo';
 interface Props {
     categories: Category[];
     tables: TableOption[];
+    addonGroups: AddonGroup[];
     initialOrders: Order[];
     settings: PosSettings;
 }
@@ -33,7 +34,7 @@ type ReceiptOrder = Order & { cashReceived?: number; change?: number; payMethod?
 
 const CLOSED_STATUSES = ['completed', 'cancelled', 'voided'];
 
-export default function PosTerminal({ categories, tables, initialOrders, settings }: Props) {
+export default function PosTerminal({ categories, tables, addonGroups, initialOrders, settings }: Props) {
     const { resolvedAppearance, updateAppearance } = useAppearance();
     const [mounted, setMounted] = useState(false);
     // Appearance is only known client-side; avoids a hydration mismatch on the theme icon.
@@ -43,6 +44,7 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
     const { currency, tax_rate: taxRate, pay_as_you_order: payAsYouOrder } = settings;
 
     const [view, setView] = useState<'menu' | 'kitchen' | 'barista'>('menu');
+    const [editingLineId, setEditingLineId] = useState<string | null>(null);
     const [activeCategoryId, setActiveCategoryId] = useState<number | null>(categories[0]?.id ?? null);
     const [searchQuery, setSearchQuery] = useState('');
     const searchRef = useRef<HTMLInputElement>(null);
@@ -127,6 +129,8 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
         return () => window.removeEventListener('keydown', onKey);
     }, []);
 
+    const editingLine = editingLineId ? (cart.find((l) => l.id === editingLineId) ?? null) : null;
+
     function addLine(line: Omit<CartItem, 'id'>) {
         const key = lineKey(line);
         setCart((prev) => {
@@ -142,7 +146,8 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
     }
 
     function onItemTap(item: MenuItem) {
-        if (needsCustomization(item)) {
+        // With add-ons in the system, every item opens the dialog so extras can be added even when the item lists none.
+        if (needsCustomization(item) || addonGroups.length > 0) {
  setItemInDialog(item);
 
  return; 
@@ -152,6 +157,25 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
     }
 
     function onItemConfirmed(s: ItemSelection) {
+        if (editingLine) {
+            const edited = {
+                menuItem: s.item, quantity: s.quantity, notes: s.notes.trim(), unitPrice: s.unitPrice, selectedAddons: s.addons,
+                selectedVariation: s.item.variations?.find((v) => v.id === s.variationId) ?? null,
+            };
+            const key = lineKey(edited);
+
+            // Editing can make the line identical to another one: fold them together instead of listing it twice.
+            setCart((prev) => {
+                const twin = prev.find((i) => i.id !== editingLine.id && lineKey(i) === key);
+                const updated = prev.map((i) => (i.id === editingLine.id ? { ...i, ...edited } : i));
+
+                return twin ? updated.filter((i) => i.id !== editingLine.id).map((i) => (i.id === twin.id ? { ...i, quantity: i.quantity + edited.quantity } : i)) : updated;
+            });
+            setEditingLineId(null);
+
+            return;
+        }
+
         addLine({
             menuItem: s.item, quantity: s.quantity, notes: s.notes.trim(), unitPrice: s.unitPrice, selectedAddons: s.addons,
             selectedVariation: s.item.variations?.find((v) => v.id === s.variationId) ?? null,
@@ -396,6 +420,7 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
                     discountValue={discountValue} discountMode={discountMode} onDiscount={(v, m) => {
  setDiscountValue(v); setDiscountMode(m); 
 }}
+                    onEdit={(id) => setEditingLineId(id)}
                     onQuantity={changeQuantity} onRemove={(id) => setCart((prev) => prev.filter((i) => i.id !== id))} onClear={clearCart}
                     onSubmit={placeOrder} submitting={placing} payAsYouOrder={payAsYouOrder} onClose={() => setCartOpen(false)}
                 />
@@ -408,7 +433,7 @@ export default function PosTerminal({ categories, tables, initialOrders, setting
                 </button>
             )}
 
-            <ItemDialog item={itemInDialog} currency={currency} onClose={() => setItemInDialog(null)} onAdd={onItemConfirmed} />
+            <ItemDialog item={editingLine ? editingLine.menuItem : itemInDialog} initial={editingLine ? { lineId: editingLine.id, quantity: editingLine.quantity, variationId: editingLine.selectedVariation?.id ?? null, addons: editingLine.selectedAddons, notes: editingLine.notes } : null} allAddonGroups={addonGroups} currency={currency} onClose={() => { setItemInDialog(null); setEditingLineId(null); }} onAdd={onItemConfirmed} />
             <PaymentDialog order={payingOrder} currency={currency} submitting={paying} onClose={() => setPayingOrder(null)} onSubmit={submitPayment} />
             <CustomerDialog open={customerOpen} onOpenChange={setCustomerOpen} onSelect={setCustomer} />
 

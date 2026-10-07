@@ -30,6 +30,20 @@ describe('POS Terminal', function () {
         get(route('pos.index'))->assertRedirect();
     });
 
+    it('offers every add-on group on the POS and accepts an add-on the item does not list', function () {
+        $group = AddonGroup::factory()->create(['name' => 'Rice Meal Extras']);
+        $extra = Addon::factory()->create(['addon_group_id' => $group->id, 'additional_price' => 25]);
+
+        actingAs($this->cashier)->get(route('pos.index'))
+            ->assertInertia(fn ($page) => $page->where('addonGroups.0.name', 'Rice Meal Extras')->where('addonGroups.0.addons.0.id', $extra->id));
+
+        actingAs($this->cashier)
+            ->postJson(route('pos.orders.store'), ['type' => 'walkin', 'items' => [['menu_item_id' => $this->item->id, 'quantity' => 2, 'addon_ids' => [$extra->id]]]])
+            ->assertStatus(201)
+            ->assertJsonPath('order.items.0.unit_price', 175)
+            ->assertJsonPath('order.items.0.addons.0.addon_id', $extra->id);
+    });
+
     it('cashier can place a walkin order', function () {
         $response = actingAs($this->cashier)
             ->postJson(route('pos.orders.store'), [

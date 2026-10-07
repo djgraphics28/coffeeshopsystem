@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\Hr\PositionController;
 use App\Http\Controllers\Admin\MenuItemController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\PromoController as AdminPromoController;
+use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\SystemController;
@@ -149,6 +150,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('delivery-men/{deliveryMan}/account', [DeliveryManController::class, 'saveAccount'])->name('delivery-men.account');
         Route::resource('expense-categories', ExpenseCategoryController::class)->only(['store', 'update', 'destroy']);
         Route::resource('expenses', ExpenseController::class)->except(['show', 'edit', 'create']);
+        Route::get('reports', [ReportController::class, 'index'])->name('reports');
 
         // Human Resource: employees, attendance and payroll
         Route::prefix('hr')->name('hr.')->group(function () {
@@ -190,6 +192,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('system/backups/{file}/download', [SystemController::class, 'downloadBackup'])->where('file', '[A-Za-z0-9._-]+\.zip')->name('system.backups.download');
         Route::delete('system/backups/{file}', [SystemController::class, 'destroyBackup'])->where('file', '[A-Za-z0-9._-]+\.zip')->name('system.backups.destroy');
         Route::post('system/backups/{file}/restore', [SystemController::class, 'restore'])->where('file', '[A-Za-z0-9._-]+\.zip')->middleware('throttle:db-restore')->name('system.backups.restore');
+        Route::post('system/seeders', [SystemController::class, 'runSeeder'])->middleware('throttle:db-reset')->name('system.seeders.run');
         Route::post('system/database/reset', [SystemController::class, 'reset'])->middleware('throttle:db-reset')->name('system.database.reset');
 
         Route::get('settings', [SettingsController::class, 'index'])->name('settings');

@@ -26,11 +26,12 @@ class RoleController extends Controller
         'Customers' => ['view customers', 'manage customers', 'adjust loyalty'],
         'Promos' => ['view promos', 'manage promos'],
         'Tables' => ['view tables', 'manage tables'],
+        'Reports' => ['view reports'],
         'Expenses' => ['view expenses', 'manage expenses', 'manage expense categories'],
         'Staff' => ['manage users', 'manage roles'],
         'Settings' => ['manage settings'],
         'Human Resource' => ['view employees', 'manage employees', 'view attendance', 'manage attendance', 'view payroll', 'manage payroll'],
-        'System' => ['view system', 'manage backups', 'restore database', 'reset database'],
+        'System' => ['view system', 'manage backups', 'restore database', 'reset database', 'run seeders'],
     ];
 
     public function index(): Response

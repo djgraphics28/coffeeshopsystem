@@ -1,4 +1,5 @@
 import { Head, useForm } from '@inertiajs/react';
+import { cn } from '@/lib/utils';
 import { Edit2, Plus, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -145,10 +146,10 @@ return;
                         <div className="space-y-2">
                             {data.addons.map((addon, i) => (
                                 <div key={i} className="flex gap-2">
-                                    <input value={addon.name} onChange={(e) => updateAddon(i, 'name', e.target.value)} placeholder="Option name" className={adminFieldClass() + ' flex-1'} />
-                                    <input type="number" step="0.01" value={addon.additional_price} onChange={(e) => updateAddon(i, 'additional_price', parseFloat(e.target.value) || 0)} placeholder="+price" className={adminFieldClass() + ' w-24'} />
+                                    <input value={addon.name} onChange={(e) => updateAddon(i, 'name', e.target.value)} placeholder="Option name" className={cn(adminFieldClass(), 'min-w-0 flex-1')} />
+                                    <input type="number" step="0.01" min="0" inputMode="decimal" value={addon.additional_price === 0 ? '' : addon.additional_price} onChange={(e) => updateAddon(i, 'additional_price', parseFloat(e.target.value) || 0)} placeholder="+ Price" aria-label="Extra price" className={cn(adminFieldClass(), 'w-28 shrink-0')} />
                                     {data.addons.length > 1 && (
-                                        <button type="button" onClick={() => removeAddon(i)} className="text-muted-foreground hover:text-error"><X className="h-4 w-4" /></button>
+                                        <button type="button" onClick={() => removeAddon(i)} aria-label="Remove option" className="flex h-10 w-8 shrink-0 items-center justify-center text-muted-foreground hover:text-error"><X className="h-4 w-4" /></button>
                                     )}
                                 </div>
                             ))}

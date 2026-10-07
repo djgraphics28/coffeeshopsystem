@@ -45,12 +45,14 @@ class RolePermissionSeeder extends Seeder
         'manage backups',
         'restore database',
         'reset database',
+        'run seeders',
         'view employees',
         'manage employees',
         'view attendance',
         'manage attendance',
         'view payroll',
         'manage payroll',
+        'view reports',
     ];
 
     public function run(): void

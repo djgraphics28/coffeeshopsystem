@@ -70,7 +70,7 @@ describe('Roles & Permissions', function () {
         actingAs($this->admin)
             ->get(route('admin.roles.index'))
             ->assertInertia(fn ($page) => $page
-                ->where('permissionGroups.System', ['view system', 'manage backups', 'restore database', 'reset database'])
+                ->where('permissionGroups.System', ['view system', 'manage backups', 'restore database', 'reset database', 'run seeders'])
                 ->where('permissionGroups.Barista', ['access barista'])
                 ->where('permissionGroups.Menu', fn ($menu) => in_array('import menu items', $menu->all(), true)));
     });

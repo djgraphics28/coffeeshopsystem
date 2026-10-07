@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Addon;
+use App\Models\AddonGroup;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -18,7 +19,10 @@ class AddonFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'addon_group_id' => AddonGroup::factory(),
+            'name' => fake()->unique()->word(),
+            'additional_price' => 0,
+            'sort_order' => 0,
         ];
     }
 }

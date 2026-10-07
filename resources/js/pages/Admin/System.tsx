@@ -1,7 +1,7 @@
 import { Head, router } from '@inertiajs/react';
 import {
     AlertTriangle, CalendarClock, CheckCircle2, Clock, Database, DatabaseBackup, Download, HardDrive, History,
-    Loader2, Lock, RotateCcw, ShieldCheck, Trash2, Upload, XCircle,
+    Loader2, Lock, Play, RotateCcw, ShieldCheck, Trash2, Upload, XCircle,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -12,20 +12,22 @@ import { Button } from '@/components/ui/button';
 import AdminLayout from '@/layouts/admin-layout';
 import {
     adminSystemBackupsDestroy, adminSystemBackupsDownload, adminSystemBackupsImport, adminSystemBackupsRestore,
-    adminSystemBackupsStore, adminSystemDatabaseReset,
+    adminSystemBackupsStore, adminSystemDatabaseReset, adminSystemSeedersRun,
 } from '@/lib/routes';
 import { cn } from '@/lib/utils';
 
 interface BackupFile { name: string; size: number; created_at: string }
+interface SeederInfo { class: string; label: string; description: string; warning: string | null }
 interface ActivityEntry { id: number; event: string; description: string; user_name: string | null; created_at: string }
 
 interface Props {
     backups: BackupFile[];
     activity: ActivityEntry[];
     reset_preview: Record<string, number>;
+    seeders: SeederInfo[];
     info: { database: string; driver: string; schedule: string; retention: string; encrypted: boolean };
-    words: { reset: string; restore: string };
-    can: { manage_backups: boolean; restore: boolean; reset: boolean };
+    words: { reset: string; restore: string; seed: string };
+    can: { manage_backups: boolean; restore: boolean; reset: boolean; seed: boolean };
 }
 
 class RequestError extends Error {
@@ -83,12 +85,16 @@ const EVENT_STYLE: Record<string, string> = {
     'backup-downloaded': 'bg-muted text-muted-foreground',
     'backup-deleted': 'bg-warning/10 text-warning',
     'database-restored': 'bg-info/10 text-info',
+    'seeder-run': 'bg-info/10 text-info',
+    'seeder-denied': 'bg-error/10 text-error',
     'database-reset': 'bg-error/10 text-error',
     'database-restore-denied': 'bg-error/10 text-error',
     'database-reset-denied': 'bg-error/10 text-error',
 };
 
-export default function System({ backups, activity, reset_preview: preview, info, words, can }: Props) {
+export default function System({ backups, activity, reset_preview: preview, seeders, info, words, can }: Props) {
+    const [seeding, setSeeding] = useState<SeederInfo | null>(null);
+    const [seedBusy, setSeedBusy] = useState(false);
     const [creating, setCreating] = useState(false);
     const [importing, setImporting] = useState(false);
     const [deleting, setDeleting] = useState<BackupFile | null>(null);
@@ -188,6 +194,30 @@ export default function System({ backups, activity, reset_preview: preview, info
 }
 
             setRestoreBusy(false);
+        }
+    }
+
+    async function runSeeder(password: string) {
+        if (!seeding) {
+            return;
+        }
+
+        setSeedBusy(true);
+        setPasswordError(null);
+
+        try {
+            const res = await request<{ message: string }>(adminSystemSeedersRun(), 'POST', { seeder: seeding.class, password, confirmation: words.seed });
+            setSeeding(null);
+            toast.success(res.message);
+            refresh();
+        } catch (e) {
+            if (e instanceof RequestError && e.errors.password) {
+                setPasswordError(e.errors.password[0]);
+            } else {
+                toast.error((e as Error).message, { duration: 12000 });
+            }
+        } finally {
+            setSeedBusy(false);
         }
     }
 
@@ -334,6 +364,27 @@ export default function System({ backups, activity, reset_preview: preview, info
                 )}
             </section>
 
+            {can.seed && (
+            <section className="mb-6 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+                <header className="border-b border-border px-5 py-4">
+                    <h2 className="flex items-center gap-2 text-base font-semibold text-foreground"><Play className="h-5 w-5 text-primary" /> Run seeders</h2>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Adds default data without opening a terminal. Seeders only add what is missing; your existing records are not deleted. You will be asked for your password.</p>
+                </header>
+                <ul className="divide-y divide-border">
+                    {seeders.map((seeder) => (
+                        <li key={seeder.class} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-foreground">{seeder.label} <span className="ml-1 font-mono text-[11px] font-normal text-muted-foreground">{seeder.class}</span></p>
+                                <p className="text-xs text-muted-foreground">{seeder.description}</p>
+                                {seeder.warning && <p className="mt-1 flex items-start gap-1.5 text-xs text-warning"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {seeder.warning}</p>}
+                            </div>
+                            <Button variant="secondary" onClick={() => { setPasswordError(null); setSeeding(seeder); }}><Play className="h-4 w-4" /> Run</Button>
+                        </li>
+                    ))}
+                </ul>
+            </section>
+            )}
+
             {/* Danger zone */}
             {can.reset && (
             <section className="overflow-hidden rounded-2xl border-2 border-error/30 bg-card shadow-sm">
@@ -397,6 +448,24 @@ export default function System({ backups, activity, reset_preview: preview, info
                             <li>A safety backup of the current data is made first.</li>
                             <li>You will be signed out and must sign in again with an account from the backup.</li>
                         </ul>
+                    </>
+                )}
+            </SecureConfirmDialog>
+
+            <SecureConfirmDialog
+                open={!!seeding}
+                onOpenChange={(open) => !open && setSeeding(null)}
+                title={seeding ? `Run the ${seeding.label} seeder?` : 'Run seeder'}
+                word={words.seed}
+                confirmLabel="Run seeder"
+                loading={seedBusy}
+                passwordError={passwordError}
+                onConfirm={runSeeder}
+            >
+                {seeding && (
+                    <>
+                        <p>{seeding.description}</p>
+                        {seeding.warning && <p className="rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning">{seeding.warning}</p>}
                     </>
                 )}
             </SecureConfirmDialog>

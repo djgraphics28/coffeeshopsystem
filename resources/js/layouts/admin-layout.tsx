@@ -1,13 +1,13 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     BarChart2, Banknote, Bell, Bike, CalendarCheck, ChefHat, Coffee, Database, Home, LogOut,
-    Menu, Moon, Receipt, ScanLine, Search, Settings, Shield, ShoppingBag, Store,
+    FileBarChart, Menu, Moon, Receipt, ScanLine, Search, Settings, Shield, ShoppingBag, Store,
     Sun, Table2, Tag, UserCircle, UserCog, Users,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useAppearance } from '@/hooks/use-appearance';
 import { adminAccount, adminAddonGroupsIndex, adminCategoriesIndex, adminCustomersIndex, adminDashboard,
-    adminExpensesIndex,
+    adminExpensesIndex, adminReports,
     adminMenuItemsIndex, adminOrdersIndex, adminPromosIndex, adminRolesIndex, adminHrAttendance, adminHrEmployees, adminHrPayroll, adminSettings, adminSystem, attendanceKiosk,
     adminDeliveryMenIndex, adminTablesIndex, adminUsersIndex, baristaIndex, kitchenIndex, logout, posIndex,
 } from '@/lib/routes';
@@ -26,6 +26,7 @@ const NAV_GROUPS = [
             { href: adminCustomersIndex(), label: 'Customers',   icon: UserCircle },
             { href: adminPromosIndex(),          label: 'Promos',       icon: Tag },
             { href: adminExpensesIndex(),        label: 'Expenses',     icon: Receipt },
+            { href: adminReports(),              label: 'Reports',      icon: FileBarChart, permission: 'view reports' },
         ],
     },
     {

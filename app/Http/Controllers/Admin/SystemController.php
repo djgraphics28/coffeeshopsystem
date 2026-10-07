@@ -32,6 +32,24 @@ class SystemController extends Controller
 
     public const RESTORE_WORD = 'RESTORE';
 
+    public const SEED_WORD = 'SEED';
+
+    /**
+     * Seeders that can be run from the screen. Only these are allowed, so the page cannot be used to run any class.
+     * All of them add what is missing and leave existing rows alone, except where `warning` says otherwise.
+     *
+     * @var array<string, array{label: string, description: string, warning: string|null}>
+     */
+    public const SEEDERS = [
+        'RolePermissionSeeder' => ['label' => 'Roles & permissions', 'description' => 'Creates any missing permission (for example new report permissions) and the standard roles.', 'warning' => 'Resets the permissions of the admin, cashier, kitchen and barista roles to their defaults. Permissions you changed on the Roles page for those roles are lost.'],
+        'SettingsSeeder' => ['label' => 'System settings', 'description' => 'Adds any missing default setting (café name, tax rate, HR settings). Existing values are kept.', 'warning' => null],
+        'CategorySeeder' => ['label' => 'Menu categories', 'description' => 'Adds the sample categories that do not exist yet.', 'warning' => null],
+        'AddonSeeder' => ['label' => 'Add-ons', 'description' => 'Adds the sample add-on groups and add-ons that do not exist yet.', 'warning' => null],
+        'MenuItemSeeder' => ['label' => 'Sample menu items', 'description' => 'Adds the sample menu items that do not exist yet. Needs the categories and add-ons first.', 'warning' => null],
+        'TableSeeder' => ['label' => 'Tables', 'description' => 'Adds the sample dine-in tables that do not exist yet.', 'warning' => null],
+        'UserSeeder' => ['label' => 'Default staff accounts', 'description' => 'Creates the demo admin, cashier and kitchen accounts if they are missing.', 'warning' => 'The demo accounts use the password "password". Do not run this on a live system unless you change those passwords right after.'],
+    ];
+
     public function __construct(private readonly DatabaseBackup $backups) {}
 
     public function index(Request $request, DatabaseResetter $resetter): Response
@@ -51,11 +69,13 @@ class SystemController extends Controller
                 'retention' => 'All backups for 7 days, then daily, weekly and monthly ones',
                 'encrypted' => (bool) config('backup.backup.password'),
             ],
-            'words' => ['reset' => self::RESET_WORD, 'restore' => self::RESTORE_WORD],
+            'seeders' => collect(self::SEEDERS)->map(fn (array $seeder, string $class) => ['class' => $class] + $seeder)->values(),
+            'words' => ['reset' => self::RESET_WORD, 'restore' => self::RESTORE_WORD, 'seed' => self::SEED_WORD],
             'can' => [
                 'manage_backups' => $user->can('manage backups'),
                 'restore' => $this->isOwner($user, 'restore database'),
                 'reset' => $this->isOwner($user, 'reset database'),
+                'seed' => $this->isOwner($user, 'run seeders'),
             ],
         ]);
     }
@@ -181,6 +201,38 @@ class SystemController extends Controller
             // The restored data has its own sessions, so the current one is gone: the app sends you back to sign in.
             'sign_in_again' => true,
         ]);
+    }
+
+    public function runSeeder(Request $request): JsonResponse
+    {
+        abort_unless($this->isOwner($request->user(), 'run seeders'), 403, 'Only an administrator with the "run seeders" permission can do this.');
+
+        $validated = $request->validate([
+            'seeder' => ['required', 'string', 'in:'.implode(',', array_keys(self::SEEDERS))],
+            'password' => ['required', 'string'],
+            'confirmation' => ['required', 'string', 'in:'.self::SEED_WORD],
+        ], [
+            'confirmation.in' => 'Type '.self::SEED_WORD.' exactly to confirm.',
+        ]);
+
+        $label = self::SEEDERS[$validated['seeder']]['label'];
+
+        if ($rejection = $this->rejectWrongPassword($request, 'seeder-denied', "Seeder refused: wrong password ({$label})")) {
+            return $rejection;
+        }
+
+        try {
+            Artisan::call('db:seed', ['--class' => 'Database\\Seeders\\'.$validated['seeder'], '--force' => true]);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => "The {$label} seeder failed. ".str($e->getMessage())->limit(300)], 500);
+        }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        SystemActivity::record('seeder-run', "Ran the {$label} seeder", $request->user(), ['seeder' => $validated['seeder']]);
+
+        return response()->json(['message' => "The {$label} seeder finished."]);
     }
 
     public function reset(Request $request, DatabaseResetter $resetter): JsonResponse

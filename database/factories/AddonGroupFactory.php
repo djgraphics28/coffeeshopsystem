@@ -18,7 +18,10 @@ class AddonGroupFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'name' => fake()->unique()->words(2, true),
+            'is_required' => false,
+            'max_selections' => 1,
+            'sort_order' => 0,
         ];
     }
 }
