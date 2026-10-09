@@ -90,3 +90,13 @@ createInertiaApp({
 
 // This will set light / dark mode on load...
 initializeTheme();
+
+// Makes the app installable and gives it an offline page. Only in production builds: a service worker would
+// get in the way of the Vite dev server.
+if (import.meta.env.PROD && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {
+            // Installing is optional; the site works the same without it.
+        });
+    });
+}

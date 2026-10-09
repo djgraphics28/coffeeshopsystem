@@ -5,6 +5,7 @@ import {
     Sun, Table2, Tag, UserCircle, UserCog, Users,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { InstallAppButton } from '@/components/install-app-button';
 import { useAppearance } from '@/hooks/use-appearance';
 import { adminAccount, adminAddonGroupsIndex, adminCategoriesIndex, adminCustomersIndex, adminDashboard,
     adminExpensesIndex, adminReports,
@@ -285,6 +286,8 @@ e.currentTarget.style.color = 'var(--ap-sidebar-text)';
 
                     {/* Right actions */}
                     <div className="flex items-center gap-1">
+                        <InstallAppButton />
+
                         {/* Dark mode toggle */}
                         {mounted && (
                             <button

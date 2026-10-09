@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#465fff">
+    <title>You are offline</title>
+    <style>
+        :root { color-scheme: light dark; }
+        body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; box-sizing: border-box;
+               font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #f9fafb; color: #1d2939; text-align: center; }
+        @media (prefers-color-scheme: dark) { body { background: #101828; color: #f2f4f7; } p { color: #98a2b3; } }
+        main { max-width: 22rem; }
+        .icon { font-size: 3.5rem; }
+        h1 { font-size: 1.4rem; margin: 0.75rem 0 0.5rem; }
+        p { margin: 0 0 1.5rem; color: #667085; line-height: 1.5; }
+        button { border: 0; border-radius: 0.75rem; padding: 0.8rem 1.5rem; font-size: 1rem; font-weight: 600; background: #465fff; color: #fff; }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="icon" aria-hidden="true">☕</div>
+        <h1>No internet connection</h1>
+        <p>Milk&amp;Honey needs a connection to take orders and payments. Check your Wi-Fi or mobile data, then try again.</p>
+        <button type="button" onclick="location.reload()">Try again</button>
+    </main>
+    <script>window.addEventListener('online', function () { location.reload(); });</script>
+</body>
+</html>

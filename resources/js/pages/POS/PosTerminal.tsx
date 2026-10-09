@@ -8,6 +8,7 @@ import { FormField, adminFieldClass } from '@/components/admin/form-field';
 import { ActiveOrders } from '@/components/pos/active-orders';
 import { CartPanel } from '@/components/pos/cart-panel';
 import { CustomerDialog } from '@/components/pos/customer-dialog';
+import { InstallAppButton } from '@/components/install-app-button';
 import { ItemDialog  } from '@/components/pos/item-dialog';
 import type {ItemSelection} from '@/components/pos/item-dialog';
 import { PaymentDialog  } from '@/components/pos/payment-dialog';
@@ -314,6 +315,7 @@ export default function PosTerminal({ categories, tables, addonGroups, initialOr
                             </button>
                         )}
                     </div>
+                    <InstallAppButton tone="onPrimary" />
                     {mounted && (
                         <button onClick={() => updateAppearance(resolvedAppearance === 'dark' ? 'light' : 'dark')} aria-label="Toggle theme" className="flex h-9 w-9 items-center justify-center rounded-full text-primary-foreground transition-colors hover:bg-white/10">
                             {resolvedAppearance === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}

@@ -2,6 +2,7 @@ import { Head } from '@inertiajs/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, BellOff, Check, CheckCheck, ChevronDown, Clock, GripVertical, LayoutDashboard, Moon, Sun, Undo2 } from 'lucide-react';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { InstallAppButton } from '@/components/install-app-button';
 import { stationOrderItemsToggle, stationOrdersCheckAll, stationOrdersUpdateStatus  } from '@/lib/routes';
 import type {Station} from '@/lib/routes';
 import '../../echo';
@@ -704,6 +705,7 @@ playChime('ready');
                             <span className="ml-1 text-[var(--k-muted)]">Ready</span>
                         </span>
                     </div>
+                    <InstallAppButton />
                     <button
                         onClick={toggleTheme}
                         aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
