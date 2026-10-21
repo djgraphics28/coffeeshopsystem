@@ -27,6 +27,7 @@ interface Order {
     id: number;
     order_number: string;
     buzzer_number?: number | null;
+    customer?: { id: number; name: string } | null;
     status: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
     kitchen_status?: string | null;
     barista_status?: string | null;
@@ -205,6 +206,7 @@ function OrderCard({
                     <p className="font-bold" style={{ fontFamily: "'Space Mono', monospace", fontSize: '22px', color: config.color }}>
                         {order.order_number}
                     </p>
+                    {order.customer?.name && <p className="mt-0.5 text-base font-bold" style={{ color: config.color }}>👤 {order.customer?.name}</p>}
                     {order.buzzer_number && <p className="mt-0.5 text-sm font-bold" style={{ color: config.color }}>🔔 Buzzer #{order.buzzer_number}</p>}
                     <p className="mt-0.5 text-sm text-[var(--k-muted)]">
                         {order.table ? order.table.name : 'Walk-in'} •{' '}

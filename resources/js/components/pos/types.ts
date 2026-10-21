@@ -25,7 +25,7 @@ export interface OrderItemLine {
     addons: Array<{ name: string }>;
 }
 export interface Order {
-    id: number; order_number: string; buzzer_number?: number | null; status: string; type: string;
+    id: number; order_number: string; buzzer_number?: number | null; customer?: { id: number; name: string } | null; status: string; type: string;
     kitchen_status?: StationStatus | null;
     barista_status?: StationStatus | null;
     subtotal: number; tax: number; discount: number; total: number;

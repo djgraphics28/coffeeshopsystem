@@ -47,7 +47,7 @@ class PosController extends Controller
 
         $activeOrders = Order::active()
             ->today()
-            ->with(['table', 'items.menuItem', 'items.addons.addon', 'payment'])
+            ->with(['table', 'customer', 'items.menuItem', 'items.addons.addon', 'payment'])
             ->latest()
             ->get();
 
@@ -207,11 +207,11 @@ class PosController extends Controller
         });
 
         broadcast(new OrderPlaced(
-            $order->fresh()->load(['table', 'items.menuItem', 'items.addons.addon'])
+            $order->fresh()->load(['table', 'customer', 'items.menuItem', 'items.addons.addon'])
         ))->toOthers();
 
         return response()->json([
-            'order' => (new OrderResource($order->load(['table', 'items.menuItem', 'items.addons.addon'])))->resolve(),
+            'order' => (new OrderResource($order->load(['table', 'customer', 'items.menuItem', 'items.addons.addon'])))->resolve(),
         ], 201);
     }
 
@@ -228,11 +228,11 @@ class PosController extends Controller
         $order->setStatusManually($validated['status']);
 
         broadcast(new OrderStatusUpdated(
-            $order->fresh()->load(['table', 'items.menuItem', 'items.addons.addon'])
+            $order->fresh()->load(['table', 'customer', 'items.menuItem', 'items.addons.addon'])
         ))->toOthers();
 
         return response()->json([
-            'order' => (new OrderResource($order->load(['table', 'items.menuItem', 'items.addons.addon'])))->resolve(),
+            'order' => (new OrderResource($order->load(['table', 'customer', 'items.menuItem', 'items.addons.addon'])))->resolve(),
         ]);
     }
 
@@ -251,11 +251,11 @@ class PosController extends Controller
         ]);
 
         broadcast(new OrderStatusUpdated(
-            $order->fresh()->load(['table', 'items.menuItem', 'items.addons.addon'])
+            $order->fresh()->load(['table', 'customer', 'items.menuItem', 'items.addons.addon'])
         ))->toOthers();
 
         return response()->json([
-            'order' => (new OrderResource($order->load(['table', 'items.menuItem', 'items.addons.addon'])))->resolve(),
+            'order' => (new OrderResource($order->load(['table', 'customer', 'items.menuItem', 'items.addons.addon'])))->resolve(),
         ]);
     }
 
@@ -306,12 +306,12 @@ class PosController extends Controller
 
         // Payment is only recorded here; the order keeps moving through its own steps (pending → preparing → ready → completed).
         broadcast(new OrderStatusUpdated(
-            $order->fresh()->load(['table', 'items.menuItem', 'items.addons.addon'])
+            $order->fresh()->load(['table', 'customer', 'items.menuItem', 'items.addons.addon'])
         ))->toOthers();
 
         return response()->json([
             'payment' => $payment,
-            'order' => (new OrderResource($order->load(['table', 'items.menuItem', 'items.addons.addon', 'payment'])))->resolve(),
+            'order' => (new OrderResource($order->load(['table', 'customer', 'items.menuItem', 'items.addons.addon', 'payment'])))->resolve(),
         ]);
     }
 }

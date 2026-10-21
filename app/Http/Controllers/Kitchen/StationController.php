@@ -20,7 +20,7 @@ use Inertia\Response;
  */
 class StationController extends Controller
 {
-    private const RELATIONS = ['table', 'items.menuItem', 'items.addons.addon'];
+    private const RELATIONS = ['table', 'customer', 'items.menuItem', 'items.addons.addon'];
 
     public function index(string $station): Response
     {

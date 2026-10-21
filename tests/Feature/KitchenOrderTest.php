@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Customer;
 use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\User;
@@ -105,6 +106,15 @@ describe('Kitchen Display', function () {
             ->assertInertia(fn ($page) => $page
                 ->has('initialOrders', 1)
                 ->where('initialOrders.0.id', $kitchenOrder->id));
+    });
+
+    it('shows the customer name on the station board', function () {
+        $order = Order::factory()->create(['status' => 'pending', 'customer_id' => Customer::factory()->create(['name' => 'Maria'])->id]);
+        addLine($order, MenuItem::factory()->create(['is_kitchen' => true]));
+
+        actingAs($this->kitchenUser)
+            ->get(route('kitchen.index'))
+            ->assertInertia(fn ($page) => $page->where('initialOrders.0.customer.name', 'Maria'));
     });
 
     it('shows only the kitchen items of a mixed order', function () {

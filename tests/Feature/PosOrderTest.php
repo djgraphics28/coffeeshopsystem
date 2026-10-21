@@ -3,6 +3,7 @@
 use App\Models\Addon;
 use App\Models\AddonGroup;
 use App\Models\Category;
+use App\Models\Customer;
 use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\Setting;
@@ -43,6 +44,17 @@ describe('POS Terminal', function () {
             ->assertStatus(201)
             ->assertJsonPath('order.items.0.unit_price', 175)
             ->assertJsonPath('order.items.0.addons.0.addon_id', $extra->id);
+    });
+
+    it('returns the customer name with the order so it can be called out', function () {
+        $customer = Customer::factory()->create(['name' => 'Juan Dela Cruz']);
+
+        actingAs($this->cashier)
+            ->postJson(route('pos.orders.store'), ['type' => 'walkin', 'customer_id' => $customer->id, 'items' => [['menu_item_id' => $this->item->id, 'quantity' => 1]]])
+            ->assertStatus(201)->assertJsonPath('order.customer.name', 'Juan Dela Cruz');
+
+        actingAs($this->cashier)->get(route('pos.index'))
+            ->assertInertia(fn ($page) => $page->where('initialOrders.0.customer.name', 'Juan Dela Cruz'));
     });
 
     describe('buzzer queue', function () {

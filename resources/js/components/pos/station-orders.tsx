@@ -74,6 +74,7 @@ export function StationOrders({ station, orders }: Props) {
                                         <div className="flex items-start justify-between gap-2">
                                             <div>
                                                 <p className="font-bold text-foreground" style={{ fontFamily: "'Space Mono', monospace", fontSize: 13 }}>{order.order_number}</p>
+                                                {order.customer?.name && <p className="text-sm font-bold text-foreground">{order.customer?.name}</p>}
                                                 <p className="text-xs text-muted-foreground">{order.table?.name ?? 'Walk-in'} · {minutesAgo(order.created_at)}</p>
                                             </div>
                                             <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', order.payment ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning')}>
