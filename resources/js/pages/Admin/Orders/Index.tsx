@@ -23,6 +23,7 @@ interface Order {
     order_number: string;
     status: string;
     type: string;
+    source?: 'pos' | 'online';
     subtotal: number;
     tax: number;
     discount: number;
@@ -69,7 +70,7 @@ interface Stats {
 
 interface Props {
     orders: Paginated<Order>;
-    filters: { search?: string; status?: string; date_from?: string; date_to?: string; type?: string; payment?: string };
+    filters: { search?: string; status?: string; date_from?: string; date_to?: string; type?: string; payment?: string; source?: string };
     stats: Stats;
     delivery_men: DeliveryManOption[];
     can: { manage_orders: boolean; void_orders: boolean };
@@ -158,7 +159,7 @@ toast.error(flash.error);
     }
 
     function clearFilters() {
-        setData({ search: '', status: '', type: '', payment: '', date_from: '', date_to: '' });
+        setData({ search: '', status: '', type: '', payment: '', source: '', date_from: '', date_to: '' });
         router.get(adminOrdersIndex());
     }
 
@@ -245,6 +246,13 @@ return;
                             {['pending', 'preparing', 'ready', 'completed', 'cancelled', 'voided'].map((st) => <option key={st} value={st}>{st.charAt(0).toUpperCase() + st.slice(1)}</option>)}
                         </select>
                     </FormField>
+                    <FormField label="Channel">
+                        <select value={data.source ?? ''} onChange={(e) => setData('source', e.target.value)} className={adminFieldClass()}>
+                            <option value="">POS &amp; online</option>
+                            <option value="pos">POS only</option>
+                            <option value="online">Online only</option>
+                        </select>
+                    </FormField>
                     <FormField label="Order type">
                         <select value={data.type ?? ''} onChange={(e) => setData('type', e.target.value)} className={adminFieldClass()}>
                             <option value="">All types</option>
@@ -292,6 +300,9 @@ return;
                                     <TableRow key={order.id} className={order.status === 'voided' ? 'opacity-60' : undefined}>
                                         <TableCell>
                                             <span className="font-mono text-xs font-bold whitespace-nowrap">{order.order_number}</span>
+                                            {order.source === 'online' && (
+                                                <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">Online</span>
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             {order.customer ? (

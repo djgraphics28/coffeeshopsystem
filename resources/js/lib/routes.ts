@@ -3,26 +3,6 @@
  * Use these instead of a global route() function.
  */
 
-// ─── Customer Auth ────────────────────────────────────────────────────────────
-export const customerAuthLogin = (qrToken?: string) => qrToken ? `/order/auth/login/${qrToken}` : `/order/auth/login`;
-export const customerAuthLoginStore = () => `/order/auth/login`;
-export const customerAuthRegister = (qrToken?: string) => qrToken ? `/order/auth/register/${qrToken}` : `/order/auth/register`;
-export const customerAuthRegisterStore = () => `/order/auth/register`;
-export const customerAuthLogout = () => `/order/auth/logout`;
-export const customerAuthEmailNotice = () => `/order/auth/email/verify`;
-export const customerAuthEmailResend = () => `/order/auth/email/resend`;
-export const customerPromoApply = () => `/order/promo/apply`;
-
-// ─── Customer Storefront ──────────────────────────────────────────────────────
-export const storefrontShow = (qrToken: string) => `/order/${qrToken}`;
-export const storefrontOrdersStore = () => `/order`;
-export const storefrontOrdersShow = (orderId: number) => `/order/track/${orderId}`;
-export const storefrontOrdersStatus = (orderId: number) => `/order/status/${orderId}`;
-export const storefrontOrdersCancel = (orderId: number) => `/order/track/${orderId}/cancel`;
-export const customerMyOrders = () => `/order/my/orders`;
-export const customerMyProfile = () => `/order/my/profile`;
-export const customerMyProfileUpdate = () => `/order/my/profile`;
-
 // ─── Preparation stations (kitchen / barista) ────────────────────────────────
 export type Station = 'kitchen' | 'barista';
 export const kitchenIndex = () => `/kitchen`;
@@ -70,6 +50,26 @@ export const adminPromosIndex = () => `/admin/promos`;
 export const adminPromosStore = () => `/admin/promos`;
 export const adminPromosUpdate = (id: number) => `/admin/promos/${id}`;
 export const adminPromosDestroy = (id: number) => `/admin/promos/${id}`;
+
+// ─── Online orders (storefront) ──────────────────────────────────────────────
+export const adminOnlineOrdersIndex = () => `/admin/online-orders`;
+export const adminOnlineOrdersPulse = () => `/admin/online-orders/pulse`;
+export const adminOnlineOrdersAccept = (id: number) => `/admin/online-orders/${id}/accept`;
+export const adminOnlineOrdersDecline = (id: number) => `/admin/online-orders/${id}/decline`;
+
+// ─── CMS (storefront website) ────────────────────────────────────────────────
+export const adminCmsContent = () => `/admin/cms/content`;
+export const adminCmsContentUpdate = () => `/admin/cms/content`;
+export const adminCmsLocation = () => `/admin/cms/location`;
+export const adminCmsLocationUpdate = () => `/admin/cms/location`;
+export const adminCmsBannersIndex = () => `/admin/cms/banners`;
+export const adminCmsBannersStore = () => `/admin/cms/banners`;
+export const adminCmsBannersUpdate = (id: number) => `/admin/cms/banners/${id}`;
+export const adminCmsBannersDestroy = (id: number) => `/admin/cms/banners/${id}`;
+export const adminCmsGalleryIndex = () => `/admin/cms/gallery`;
+export const adminCmsGalleryStore = () => `/admin/cms/gallery`;
+export const adminCmsGalleryUpdate = (id: number) => `/admin/cms/gallery/${id}`;
+export const adminCmsGalleryDestroy = (id: number) => `/admin/cms/gallery/${id}`;
 
 export const adminDeliveryMenIndex = () => `/admin/delivery-men`;
 export const adminDeliveryMenStore = () => `/admin/delivery-men`;

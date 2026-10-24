@@ -37,6 +37,10 @@ class OrderController extends Controller
             $query->where('status', $request->input('status'));
         }
 
+        if (in_array($request->input('source'), [Order::SOURCE_POS, Order::SOURCE_ONLINE], true)) {
+            $query->where('source', $request->input('source'));
+        }
+
         if ($request->filled('type')) {
             $query->where('type', $request->input('type'));
         }
@@ -61,7 +65,7 @@ class OrderController extends Controller
 
         return Inertia::render('Admin/Orders/Index', [
             'orders' => OrderResource::collection($orders),
-            'filters' => $request->only(['search', 'status', 'date_from', 'date_to', 'type', 'payment']),
+            'filters' => $request->only(['search', 'status', 'date_from', 'date_to', 'type', 'payment', 'source']),
             'stats' => [
                 'today_count' => (clone $today)->count(),
                 'today_revenue' => (clone $today)->whereIn('status', ['completed'])->sum('total'),

@@ -34,7 +34,7 @@ const TABS = [
 type TabKey = (typeof TABS)[number]['key'];
 
 const TAB_FIELDS: Record<TabKey, string[]> = {
-    general: ['cafe_name', 'cafe_tagline', 'opening_time', 'closing_time', 'estimated_wait_minutes', 'pay_as_you_order', 'buzzer_enabled', 'buzzer_total'],
+    general: ['cafe_name', 'cafe_tagline', 'opening_time', 'closing_time', 'estimated_wait_minutes', 'pay_as_you_order', 'buzzer_enabled', 'buzzer_total', 'customer_email_verification'],
     pricing: ['tax_rate', 'currency', 'points_earn_rate', 'points_redeem_rate', 'loyalty_cups_enabled', 'loyalty_cups_threshold'],
     delivery: ['delivery_fee', 'free_delivery_minimum', 'gcash_number', 'gcash_account_name', 'gcash_qr', 'maya_number', 'maya_account_name', 'maya_qr'],
     integrations: ['mail_host', 'mail_port', 'mail_username', 'mail_password', 'mail_encryption', 'mail_from_address', 'mail_from_name', 'pusher_app_id', 'pusher_app_key', 'pusher_app_secret', 'pusher_app_cluster'],
@@ -86,6 +86,8 @@ export default function SettingsPage({ settings, gcash_qr_url, maya_qr_url }: Pr
         points_redeem_rate: settings.points_redeem_rate ?? '100',
         loyalty_cups_enabled: settings.loyalty_cups_enabled === '1',
         loyalty_cups_threshold: settings.loyalty_cups_threshold ?? '10',
+        // Online storefront accounts — verification is on unless the admin turned it off
+        customer_email_verification: settings.customer_email_verification !== '0',
         // Mail SMTP
         mail_host: settings.mail_host ?? '',
         mail_port: settings.mail_port ?? '587',
@@ -201,6 +203,20 @@ toast.success(flash.success);
                                     <input type="number" min={1} max={200} value={data.buzzer_total} onChange={(e) => setData('buzzer_total', e.target.value)} className={adminFieldClass()} />
                                 </FormField>
                             )}
+                        </div>
+                    </Section>
+
+                    <Section title="Online Storefront Accounts" description="How customers sign up on the online ordering website.">
+                        <div className="flex items-center justify-between gap-4 rounded-xl border border-border px-4 py-3">
+                            <div>
+                                <p className="text-sm font-medium text-foreground">Require email verification</p>
+                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                    {data.customer_email_verification
+                                        ? 'New customers must click the link we email them before they can place an order.'
+                                        : 'New customers can order right after registering — no verification email is sent.'}
+                                </p>
+                            </div>
+                            <Toggle checked={data.customer_email_verification} onChange={() => setData('customer_email_verification', !data.customer_email_verification)} />
                         </div>
                     </Section>
                     </div>

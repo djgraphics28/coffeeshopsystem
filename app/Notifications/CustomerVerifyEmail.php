@@ -19,7 +19,7 @@ class CustomerVerifyEmail extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $verifyUrl = URL::temporarySignedRoute(
-            'customer.auth.email.verify',
+            'customer.email.verify',
             now()->addMinutes(60),
             [
                 'id' => $notifiable->getKey(),

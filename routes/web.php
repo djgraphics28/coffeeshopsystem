@@ -3,6 +3,10 @@
 use App\Http\Controllers\Admin\AccountController;
 use App\Http\Controllers\Admin\AddonGroupController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\Cms\BannerController as CmsBannerController;
+use App\Http\Controllers\Admin\Cms\GalleryImageController as CmsGalleryImageController;
+use App\Http\Controllers\Admin\Cms\LocationController as CmsLocationController;
+use App\Http\Controllers\Admin\Cms\SiteContentController as CmsSiteContentController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DeliveryManController;
@@ -13,6 +17,7 @@ use App\Http\Controllers\Admin\Hr\EmployeeController;
 use App\Http\Controllers\Admin\Hr\PayrollController;
 use App\Http\Controllers\Admin\Hr\PositionController;
 use App\Http\Controllers\Admin\MenuItemController;
+use App\Http\Controllers\Admin\OnlineOrderController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\PromoController as AdminPromoController;
 use App\Http\Controllers\Admin\ReportController;
@@ -22,11 +27,7 @@ use App\Http\Controllers\Admin\SystemController;
 use App\Http\Controllers\Admin\TableController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AttendanceKioskController;
-use App\Http\Controllers\Customer\CustomerAccountController;
-use App\Http\Controllers\Customer\CustomerAuthController;
-use App\Http\Controllers\Customer\OrderController as CustomerOrderController;
-use App\Http\Controllers\Customer\PromoController as CustomerPromoController;
-use App\Http\Controllers\Customer\StorefrontController;
+use App\Http\Controllers\Customer\VerifyEmailController;
 use App\Http\Controllers\Driver\DriverAuthController;
 use App\Http\Controllers\Driver\DriverController;
 use App\Http\Controllers\HomeController;
@@ -47,43 +48,16 @@ Route::post('attendance/face', [AttendanceKioskController::class, 'punchByFace']
 Route::get('driver/login', [DriverAuthController::class, 'showLogin'])->name('driver.login');
 Route::post('driver/login', [DriverAuthController::class, 'login'])->name('driver.login.store')->middleware('throttle:10,1');
 
-// Customer auth (public — must be before the /{qrToken} catch-all)
-Route::prefix('order/auth')->name('customer.auth.')->group(function () {
-    Route::get('/login/{qrToken?}', [CustomerAuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [CustomerAuthController::class, 'login'])->name('login.store')->middleware('throttle:10,1');
-    Route::get('/register/{qrToken?}', [CustomerAuthController::class, 'showRegister'])->name('register');
-    Route::post('/register', [CustomerAuthController::class, 'register'])->name('register.store')->middleware('throttle:5,1');
-    Route::post('/logout', [CustomerAuthController::class, 'logout'])->name('logout');
+// Customer ordering lives in the Next.js frontend (/frontend) backed by routes/api.php.
+// Signed link from the customer verification email.
+Route::get('customer/email/verify/{id}/{hash}', VerifyEmailController::class)->name('customer.email.verify');
 
-    // Email verification
-    Route::get('/email/verify', [CustomerAuthController::class, 'showVerifyEmail'])->name('email.notice')->middleware('customer.session');
-    Route::get('/email/verify/{id}/{hash}', [CustomerAuthController::class, 'verifyEmail'])->name('email.verify')->middleware('signed');
-    Route::post('/email/resend', [CustomerAuthController::class, 'resendVerification'])->name('email.resend')->middleware(['customer.session', 'throttle:3,1']);
-});
+// Older printed table QR codes point at /order/{qrToken} — forward them to the frontend.
+Route::get('order/{qrToken?}', function (?string $qrToken = null) {
+    $frontendUrl = rtrim(config('app.frontend_url'), '/');
 
-// Promo apply (customer must be logged in)
-Route::post('/order/promo/apply', [CustomerPromoController::class, 'apply'])
-    ->name('storefront.promo.apply')
-    ->middleware('customer.auth');
-
-// Customer account (order history & profile) — requires verified customer login
-Route::prefix('order/my')->name('customer.account.')->middleware('customer.auth')->group(function () {
-    Route::get('/orders', [CustomerAccountController::class, 'orders'])->name('orders');
-    Route::get('/profile', [CustomerAccountController::class, 'profile'])->name('profile');
-    Route::put('/profile', [CustomerAccountController::class, 'updateProfile'])->name('profile.update');
-});
-
-// Public storefront (QR self-order) — browsing is open to guests; placing an
-// order requires a verified customer account (enforced in the controller)
-Route::prefix('order')->name('storefront.')->group(function () {
-    Route::get('/', [StorefrontController::class, 'browse'])->name('browse');
-    Route::get('/{qrToken}', [StorefrontController::class, 'show'])->name('show')
-        ->where('qrToken', '^(?!auth|promo)[a-zA-Z0-9_-]+$');
-    Route::post('/', [CustomerOrderController::class, 'store'])->name('orders.store')->middleware('throttle:10,1');
-    Route::get('/track/{order}', [CustomerOrderController::class, 'show'])->name('orders.show')->middleware('customer.auth');
-    Route::get('/status/{order}', [CustomerOrderController::class, 'status'])->name('orders.status')->middleware('customer.auth');
-    Route::post('/track/{order}/cancel', [CustomerOrderController::class, 'cancel'])->name('orders.cancel')->middleware('customer.auth');
-});
+    return redirect()->away($qrToken ? "{$frontendUrl}/t/{$qrToken}" : $frontendUrl);
+})->where('qrToken', '[a-zA-Z0-9_-]+')->name('storefront.redirect');
 
 // Authenticated app routes
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -140,6 +114,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('roles', RoleController::class)->except(['show', 'edit', 'create']);
         Route::patch('roles/{role}/toggle-permission', [RoleController::class, 'togglePermission'])->name('roles.toggle-permission');
         Route::post('roles/{role}/duplicate', [RoleController::class, 'duplicate'])->name('roles.duplicate');
+        // Online storefront orders: accept / decline, plus the alert feed polled by every admin page
+        Route::get('online-orders', [OnlineOrderController::class, 'index'])->name('online-orders.index');
+        Route::get('online-orders/pulse', [OnlineOrderController::class, 'pulse'])->name('online-orders.pulse');
+        Route::post('online-orders/{order}/accept', [OnlineOrderController::class, 'accept'])->name('online-orders.accept');
+        Route::post('online-orders/{order}/decline', [OnlineOrderController::class, 'decline'])->name('online-orders.decline');
+
         Route::get('orders', [AdminOrderController::class, 'index'])->name('orders.index');
         Route::get('orders/{order}', [AdminOrderController::class, 'show'])->name('orders.show');
         Route::patch('orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->name('orders.update-status');
@@ -183,6 +163,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('payroll/{run}/approve', [PayrollController::class, 'approve'])->name('payroll.approve');
             Route::post('payroll/{run}/pay', [PayrollController::class, 'pay'])->name('payroll.pay');
             Route::delete('payroll/{run}', [PayrollController::class, 'destroy'])->name('payroll.destroy');
+        });
+
+        // CMS: the storefront website's content, promo / event banners and photo gallery
+        Route::prefix('cms')->name('cms.')->group(function () {
+            Route::get('content', [CmsSiteContentController::class, 'edit'])->name('content.edit');
+            Route::put('content', [CmsSiteContentController::class, 'update'])->name('content.update');
+            Route::get('location', [CmsLocationController::class, 'edit'])->name('location.edit');
+            Route::put('location', [CmsLocationController::class, 'update'])->name('location.update');
+            Route::resource('banners', CmsBannerController::class)->only(['index', 'store', 'update', 'destroy']);
+            Route::resource('gallery', CmsGalleryImageController::class)->only(['index', 'store', 'update', 'destroy'])->parameters(['gallery' => 'galleryImage']);
         });
 
         // System: database backups, restore and reset

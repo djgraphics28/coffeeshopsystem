@@ -6,7 +6,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
 use function Pest\Laravel\actingAs;
-use function Pest\Laravel\get;
+use function Pest\Laravel\getJson;
 
 describe('Admin Payment Settings', function () {
     beforeEach(function () {
@@ -58,13 +58,20 @@ describe('Admin Payment Settings', function () {
         Setting::set('gcash_number', '09171234567');
         Setting::set('gcash_account_name', 'Juan D.');
 
-        get(route('storefront.browse'))
-            ->assertStatus(200)
-            ->assertInertia(fn ($page) => $page
-                ->component('Customer/Storefront')
-                ->where('settings.gcash_number', '09171234567')
-                ->where('settings.gcash_account_name', 'Juan D.')
-            );
+        getJson(route('api.v1.storefront'))
+            ->assertOk()
+            ->assertJsonPath('data.gcash_number', '09171234567')
+            ->assertJsonPath('data.gcash_account_name', 'Juan D.');
+    });
+
+    it('turns customer email verification off and on', function () {
+        $payload = ['cafe_name' => 'Milk&Honey', 'tax_rate' => 12, 'currency' => '₱'];
+
+        actingAs($this->admin)->put(route('admin.settings.update'), [...$payload, 'customer_email_verification' => false])->assertRedirect();
+        expect(Setting::get('customer_email_verification'))->toBe('0');
+
+        actingAs($this->admin)->put(route('admin.settings.update'), [...$payload, 'customer_email_verification' => true])->assertRedirect();
+        expect(Setting::get('customer_email_verification'))->toBe('1');
     });
 
     it('rejects a non-image QR upload', function () {

@@ -1,13 +1,14 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
-    BarChart2, Banknote, Bell, Bike, CalendarCheck, ChefHat, Coffee, Database, Home, LogOut,
-    FileBarChart, Menu, Moon, Receipt, ScanLine, Search, Settings, Shield, ShoppingBag, Store,
+    BarChart2, Banknote, Bike, Globe, CalendarCheck, ChefHat, Coffee, Database, Home, LogOut,
+    FileBarChart, Images, LayoutTemplate, MapPinned, Megaphone, Menu, Moon, Receipt, ScanLine, Search, Settings, Shield, ShoppingBag, Store,
     Sun, Table2, Tag, UserCircle, UserCog, Users,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { OnlineOrderBell, OnlineOrderOverdueBanner } from '@/components/admin/online-order-alerts';
 import { InstallAppButton } from '@/components/install-app-button';
 import { useAppearance } from '@/hooks/use-appearance';
-import { adminAccount, adminAddonGroupsIndex, adminCategoriesIndex, adminCustomersIndex, adminDashboard,
+import { adminAccount, adminAddonGroupsIndex, adminCategoriesIndex, adminCmsBannersIndex, adminCmsContent, adminCmsGalleryIndex, adminCmsLocation, adminCustomersIndex, adminDashboard, adminOnlineOrdersIndex,
     adminExpensesIndex, adminReports,
     adminMenuItemsIndex, adminOrdersIndex, adminPromosIndex, adminRolesIndex, adminHrAttendance, adminHrEmployees, adminHrPayroll, adminSettings, adminSystem, attendanceKiosk,
     adminDeliveryMenIndex, adminTablesIndex, adminUsersIndex, baristaIndex, kitchenIndex, logout, posIndex,
@@ -18,6 +19,7 @@ const NAV_GROUPS = [
         label: 'MAIN MENU',
         items: [
             { href: adminDashboard(),       label: 'Dashboard',   icon: Home },
+            { href: adminOnlineOrdersIndex(), label: 'Online Orders', icon: Globe },
             { href: adminOrdersIndex(),     label: 'Orders',      icon: ShoppingBag },
             { href: adminCategoriesIndex(), label: 'Categories',  icon: Coffee },
             { href: adminMenuItemsIndex(),  label: 'Menu Items',  icon: ChefHat },
@@ -36,6 +38,15 @@ const NAV_GROUPS = [
             { href: adminHrEmployees(),  label: 'Employees',  icon: UserCog,       permission: 'view employees' },
             { href: adminHrAttendance(), label: 'Attendance', icon: CalendarCheck, permission: 'view attendance' },
             { href: adminHrPayroll(),    label: 'Payroll',    icon: Banknote,      permission: 'view payroll' },
+        ],
+    },
+    {
+        label: 'CMS',
+        items: [
+            { href: adminCmsContent(),      label: 'Site Content', icon: LayoutTemplate },
+            { href: adminCmsLocation(),     label: 'Location',     icon: MapPinned },
+            { href: adminCmsBannersIndex(), label: 'Banners',      icon: Megaphone },
+            { href: adminCmsGalleryIndex(), label: 'Gallery',      icon: Images },
         ],
     },
     {
@@ -302,11 +313,8 @@ e.currentTarget.style.color = 'var(--ap-sidebar-text)';
                             </button>
                         )}
 
-                        {/* Notifications */}
-                        <button className="relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-muted">
-                            <Bell className="h-5 w-5 text-muted-foreground" />
-                            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-error ring-2" style={{ boxShadow: '0 0 0 2px var(--ap-card)' }} />
-                        </button>
+                        {/* Online order alerts (new orders + 5-minute reminders) */}
+                        <OnlineOrderBell />
 
                         {/* User avatar */}
                         <div className="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
@@ -322,6 +330,7 @@ e.currentTarget.style.color = 'var(--ap-sidebar-text)';
 
                 {/* Page content */}
                 <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+                    <OnlineOrderOverdueBanner />
                     {children}
                 </main>
             </div>

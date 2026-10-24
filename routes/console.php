@@ -12,3 +12,6 @@ Artisan::command('inspire', function () {
 // (`php artisan schedule:work` in development, or the usual cron entry on a server).
 Schedule::command('backup:clean --disable-notifications')->dailyAt('01:00');
 Schedule::command('backup:run --only-db --disable-notifications')->dailyAt('01:30');
+
+// Email admins about online orders nobody accepted within 5 minutes.
+Schedule::command('orders:remind-unaccepted')->everyMinute()->withoutOverlapping();

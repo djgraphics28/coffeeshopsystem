@@ -49,9 +49,6 @@ createInertiaApp({
         switch (true) {
             case name === 'welcome':
                 return null;
-            // Customer storefront — no layout (standalone mobile page)
-            case name.startsWith('Customer/'):
-                return null;
             // Kitchen & POS — no layout (full-screen views)
             case name.startsWith('Kitchen/'):
                 return null;

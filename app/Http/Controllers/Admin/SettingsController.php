@@ -40,6 +40,7 @@ class SettingsController extends Controller
             'points_redeem_rate' => ['nullable', 'integer', 'min:1'],
             'loyalty_cups_enabled' => ['nullable', 'boolean'],
             'loyalty_cups_threshold' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'customer_email_verification' => ['nullable', 'boolean'],
             // Mail SMTP
             'mail_host' => ['nullable', 'string', 'max:255'],
             'mail_port' => ['nullable', 'integer', 'min:1', 'max:65535'],
@@ -84,6 +85,7 @@ class SettingsController extends Controller
         $validated['buzzer_enabled'] = $request->boolean('buzzer_enabled') ? '1' : '0';
         $validated['buzzer_total'] ??= '20';
         $validated['loyalty_cups_enabled'] = $request->boolean('loyalty_cups_enabled') ? '1' : '0';
+        $validated['customer_email_verification'] = $request->boolean('customer_email_verification', true) ? '1' : '0';
         $validated['points_earn_rate'] ??= '1';
         $validated['points_redeem_rate'] ??= '100';
         $validated['loyalty_cups_threshold'] ??= '10';

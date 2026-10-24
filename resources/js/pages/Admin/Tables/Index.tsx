@@ -75,7 +75,7 @@ export default function TablesIndex({ tables, base_url }: Props) {
     });
 
     function qrUrl(table: Table) {
-        return `${base_url}/order/${table.qr_token}`;
+        return `${base_url}/t/${table.qr_token}`;
     }
 
     function downloadQr(table: Table) {

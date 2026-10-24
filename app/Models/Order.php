@@ -44,6 +44,14 @@ class Order extends Model implements HasMedia
     /** @var list<string> */
     public const STATION_STATUSES = ['pending', 'preparing', 'ready', 'completed'];
 
+    /** Where the order came from: the counter POS or the online storefront. */
+    public const SOURCE_POS = 'pos';
+
+    public const SOURCE_ONLINE = 'online';
+
+    /** Minutes an online order may wait for acceptance before staff are reminded. */
+    public const ACCEPTANCE_REMINDER_MINUTES = 5;
+
     protected $fillable = [
         'table_id',
         'customer_id',
@@ -54,6 +62,11 @@ class Order extends Model implements HasMedia
         'kitchen_status',
         'barista_status',
         'type',
+        'source',
+        'accepted_at',
+        'accepted_by',
+        'decline_reason',
+        'reminded_at',
         'subtotal',
         'tax',
         'discount',
@@ -84,6 +97,8 @@ class Order extends Model implements HasMedia
         'cups_awarded' => 'integer',
         'delivery_lat' => 'float',
         'delivery_lng' => 'float',
+        'accepted_at' => 'datetime',
+        'reminded_at' => 'datetime',
     ];
 
     public function registerMediaCollections(): void
@@ -230,6 +245,42 @@ class Order extends Model implements HasMedia
         };
 
         $this->update(['status' => $overall]);
+    }
+
+    public function acceptedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'accepted_by');
+    }
+
+    public function isOnline(): bool
+    {
+        return $this->source === self::SOURCE_ONLINE;
+    }
+
+    /**
+     * An online order the café hasn't accepted (or declined) yet.
+     */
+    public function isAwaitingAcceptance(): bool
+    {
+        return $this->isOnline() && $this->accepted_at === null && $this->status === 'pending';
+    }
+
+    public function scopeOnline($query): void
+    {
+        $query->where('source', self::SOURCE_ONLINE);
+    }
+
+    public function scopeAwaitingAcceptance($query): void
+    {
+        $query->online()->whereNull('accepted_at')->where('status', 'pending');
+    }
+
+    /**
+     * Orders the kitchen and barista may work on: every POS order, and online orders once accepted.
+     */
+    public function scopeReadyForStations($query): void
+    {
+        $query->where(fn ($q) => $q->where('source', '!=', self::SOURCE_ONLINE)->orWhereNotNull('accepted_at'));
     }
 
     public function scopeActive($query): void

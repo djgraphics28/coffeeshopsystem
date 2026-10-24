@@ -1,7 +1,6 @@
 <?php
 
-use App\Http\Middleware\EnsureCustomerAuthenticated;
-use App\Http\Middleware\EnsureCustomerLoggedIn;
+use App\Http\Middleware\EnsureApiCustomer;
 use App\Http\Middleware\EnsureHasPermission;
 use App\Http\Middleware\EnsureHasRole;
 use App\Http\Middleware\HandleAppearance;
@@ -15,6 +14,7 @@ use Illuminate\Http\Request;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
@@ -30,8 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => EnsureHasRole::class,
             'permission' => EnsureHasPermission::class,
-            'customer.auth' => EnsureCustomerAuthenticated::class,
-            'customer.session' => EnsureCustomerLoggedIn::class,
+            'customer' => EnsureApiCustomer::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

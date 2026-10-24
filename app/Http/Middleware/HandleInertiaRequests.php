@@ -2,10 +2,8 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\Order;
 use App\Models\Setting;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -50,30 +48,6 @@ class HandleInertiaRequests extends Middleware
                     'roles' => $request->user('web')->getRoleNames(),
                     'permissions' => $request->user('web')->getAllPermissions()->pluck('name'),
                 ] : null,
-            ],
-            'customer_auth' => [
-                'customer' => fn () => Auth::guard('customer')->user() ? [
-                    'id' => Auth::guard('customer')->user()->id,
-                    'name' => Auth::guard('customer')->user()->name,
-                    'email' => Auth::guard('customer')->user()->email,
-                    'points' => Auth::guard('customer')->user()->points,
-                    'cup_count' => Auth::guard('customer')->user()->cup_count,
-                    'free_drinks_available' => Auth::guard('customer')->user()->free_drinks_available,
-                ] : null,
-                'active_order' => function () {
-                    $customer = Auth::guard('customer')->user();
-
-                    if (! $customer) {
-                        return null;
-                    }
-
-                    return Order::query()
-                        ->where('customer_id', $customer->id)
-                        ->active()
-                        ->latest()
-                        ->first(['id', 'order_number', 'status'])
-                        ?->only(['id', 'order_number', 'status']);
-                },
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

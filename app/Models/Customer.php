@@ -9,11 +9,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class Customer extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<CustomerFactory> */
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /** @var list<string> */
     protected $fillable = ['name', 'phone', 'email', 'notes', 'password', 'points', 'cup_count', 'free_drinks_available'];
@@ -29,6 +30,14 @@ class Customer extends Authenticatable implements MustVerifyEmail
         'cup_count' => 'integer',
         'free_drinks_available' => 'integer',
     ];
+
+    /**
+     * Whether new storefront customers must verify their email before ordering (admin setting, on by default).
+     */
+    public static function emailVerificationRequired(): bool
+    {
+        return Setting::get('customer_email_verification', '1') === '1';
+    }
 
     public function sendEmailVerificationNotification(): void
     {

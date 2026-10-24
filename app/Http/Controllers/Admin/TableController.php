@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Table;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -17,7 +18,7 @@ class TableController extends Controller
 
         return Inertia::render('Admin/Tables/Index', [
             'tables' => $tables,
-            'base_url' => config('app.url'),
+            'base_url' => config('app.frontend_url'),
         ]);
     }
 
@@ -56,7 +57,7 @@ class TableController extends Controller
 
     public function regenerateQr(Table $table): RedirectResponse
     {
-        $table->update(['qr_token' => \Illuminate\Support\Str::uuid()->toString()]);
+        $table->update(['qr_token' => Str::uuid()->toString()]);
 
         return redirect()->route('admin.tables.index')->with('success', 'QR code regenerated.');
     }

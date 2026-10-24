@@ -46,6 +46,7 @@ class PosController extends Controller
             ]);
 
         $activeOrders = Order::active()
+            ->readyForStations()
             ->today()
             ->with(['table', 'customer', 'items.menuItem', 'items.addons.addon', 'payment'])
             ->latest()

@@ -1,76 +1,80 @@
 <?php
 
-use App\Models\Category;
 use App\Models\Customer;
-use App\Models\MenuItem;
 use App\Models\Order;
+use Laravel\Sanctum\Sanctum;
 
-use function Pest\Laravel\actingAs;
-use function Pest\Laravel\get;
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\postJson;
+use function Pest\Laravel\putJson;
 
-describe('Customer Account', function () {
+describe('Customer Account API', function () {
     beforeEach(function () {
         $this->customer = Customer::factory()->create();
     });
 
-    it('shows order history for the signed-in customer only', function () {
-        $category = Category::factory()->create();
-        MenuItem::factory()->create(['category_id' => $category->id]);
+    it('lists order history for the signed-in customer only', function () {
         $mine = Order::factory()->create(['customer_id' => $this->customer->id]);
         Order::factory()->create(['customer_id' => Customer::factory()->create()->id]);
 
-        actingAs($this->customer, 'customer')
-            ->get(route('customer.account.orders'))
-            ->assertStatus(200)
-            ->assertInertia(fn ($page) => $page
-                ->component('Customer/OrderHistory')
-                ->has('orders', 1)
-                ->where('orders.0.order_number', $mine->order_number)
-            );
+        Sanctum::actingAs($this->customer);
+
+        getJson(route('api.v1.orders.index'))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.order_number', $mine->order_number)
+            ->assertJsonPath('meta.total', 1);
     });
 
-    it('shows the profile page with stats', function () {
-        Order::factory()->create(['customer_id' => $this->customer->id, 'total' => 250]);
+    it('shows a single order to its owner', function () {
+        $order = Order::factory()->create(['customer_id' => $this->customer->id]);
+        Sanctum::actingAs($this->customer);
 
-        actingAs($this->customer, 'customer')
-            ->get(route('customer.account.profile'))
-            ->assertStatus(200)
-            ->assertInertia(fn ($page) => $page
-                ->component('Customer/Profile')
-                ->where('stats.total_orders', 1)
-            );
+        getJson(route('api.v1.orders.show', $order))
+            ->assertOk()
+            ->assertJsonPath('data.id', $order->id);
+    });
+
+    it("hides another customer's order", function () {
+        $order = Order::factory()->create(['customer_id' => Customer::factory()->create()->id]);
+        Sanctum::actingAs($this->customer);
+
+        getJson(route('api.v1.orders.show', $order))->assertNotFound();
+    });
+
+    it('returns the profile with stats and the active order', function () {
+        Order::factory()->create(['customer_id' => $this->customer->id, 'total' => 250, 'status' => 'completed']);
+        $active = Order::factory()->create(['customer_id' => $this->customer->id, 'status' => 'preparing']);
+
+        Sanctum::actingAs($this->customer);
+
+        getJson(route('api.v1.me'))
+            ->assertOk()
+            ->assertJsonPath('data.stats.total_orders', 2)
+            ->assertJsonPath('data.active_order.id', $active->id)
+            ->assertJsonPath('data.active_order.status', 'preparing');
     });
 
     it('updates the profile name and phone', function () {
-        actingAs($this->customer, 'customer')
-            ->put(route('customer.account.profile.update'), ['name' => 'New Name', 'phone' => '09170001111'])
-            ->assertRedirect();
+        Sanctum::actingAs($this->customer);
 
-        expect($this->customer->fresh()->name)->toBe('New Name')
-            ->and($this->customer->fresh()->phone)->toBe('09170001111');
+        putJson(route('api.v1.me.update'), ['name' => 'New Name', 'phone' => '09170001111'])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'New Name');
+
+        expect($this->customer->fresh()->phone)->toBe('09170001111');
     });
 
-    it('redirects guests to the customer login', function () {
-        get(route('customer.account.orders'))->assertRedirect(route('customer.auth.login'));
-        get(route('customer.account.profile'))->assertRedirect(route('customer.auth.login'));
-    });
-
-    it('shares the active order with customer pages', function () {
-        $order = Order::factory()->create(['customer_id' => $this->customer->id, 'status' => 'preparing']);
-        Order::factory()->create(['customer_id' => $this->customer->id, 'status' => 'completed']);
-
-        actingAs($this->customer, 'customer')
-            ->get(route('storefront.browse'))
-            ->assertInertia(fn ($page) => $page
-                ->where('customer_auth.active_order.id', $order->id)
-                ->where('customer_auth.active_order.status', 'preparing')
-            );
+    it('rejects guests', function () {
+        getJson(route('api.v1.orders.index'))->assertUnauthorized();
+        getJson(route('api.v1.me'))->assertUnauthorized();
     });
 });
 
 describe('Customer Order Cancellation', function () {
     beforeEach(function () {
         $this->customer = Customer::factory()->create();
+        Sanctum::actingAs($this->customer);
     });
 
     it('lets a customer cancel their pending order and refunds loyalty', function () {
@@ -82,9 +86,8 @@ describe('Customer Order Cancellation', function () {
             'points_redeemed' => 20,
         ]);
 
-        actingAs($this->customer, 'customer')
-            ->postJson(route('storefront.orders.cancel', $order))
-            ->assertStatus(200)
+        postJson(route('api.v1.orders.cancel', $order))
+            ->assertOk()
             ->assertJsonPath('order.status', 'cancelled');
 
         expect($order->fresh()->status)->toBe('cancelled')
@@ -94,9 +97,7 @@ describe('Customer Order Cancellation', function () {
     it('rejects cancelling an order that is already preparing', function () {
         $order = Order::factory()->create(['customer_id' => $this->customer->id, 'status' => 'preparing']);
 
-        actingAs($this->customer, 'customer')
-            ->postJson(route('storefront.orders.cancel', $order))
-            ->assertStatus(422);
+        postJson(route('api.v1.orders.cancel', $order))->assertUnprocessable();
 
         expect($order->fresh()->status)->toBe('preparing');
     });
@@ -104,8 +105,8 @@ describe('Customer Order Cancellation', function () {
     it("rejects cancelling another customer's order", function () {
         $order = Order::factory()->create(['customer_id' => Customer::factory()->create()->id, 'status' => 'pending']);
 
-        actingAs($this->customer, 'customer')
-            ->postJson(route('storefront.orders.cancel', $order))
-            ->assertStatus(403);
+        postJson(route('api.v1.orders.cancel', $order))->assertNotFound();
+
+        expect($order->fresh()->status)->toBe('pending');
     });
 });

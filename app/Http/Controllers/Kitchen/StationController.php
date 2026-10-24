@@ -25,6 +25,7 @@ class StationController extends Controller
     public function index(string $station): Response
     {
         $orders = Order::active()
+            ->readyForStations()
             ->with(self::RELATIONS)
             ->oldest()
             ->get()
@@ -113,6 +114,10 @@ class StationController extends Controller
     {
         if (! $order->isVoidable()) {
             return response()->json(['message' => "This order is already {$order->status}."], 422);
+        }
+
+        if ($order->isAwaitingAcceptance()) {
+            return response()->json(['message' => 'This online order has not been accepted yet.'], 422);
         }
 
         if ($order->stationItems($station)->isEmpty()) {
